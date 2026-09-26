@@ -23,10 +23,11 @@ struct HistoryView: View {
                     } else {
                         ContentUnavailableView {
                             Label("没有符合条件的流水", systemImage: "line.3.horizontal.decrease")
+                                .accessibilityIdentifier("history.empty")
                         } description: { Text("可以调整关键词或清除筛选。") } actions: {
                             Button("清除搜索与筛选") { keyword = ""; filter = EntryFilter() }
                                 .accessibilityIdentifier("history.clear")
-                        }.accessibilityIdentifier("history.empty")
+                        }
                     }
                 } else {
                     Section { Text("共 \(entries.count) 笔").font(.subheadline).foregroundStyle(.secondary) }
