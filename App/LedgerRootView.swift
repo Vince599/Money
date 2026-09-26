@@ -72,19 +72,28 @@ struct LedgerRootView: View {
         }
     }
     private var sortedEntries: [LedgerEntry] {
-        model.book.entries.sorted {
-            $0.occurredAt == $1.occurredAt ? $0.createdAt > $1.createdAt : $0.occurredAt > $1.occurredAt
+        LedgerPerformance.measure("Home.RecentSort") {
+            model.book.entries.sorted {
+                $0.occurredAt == $1.occurredAt ? $0.createdAt > $1.createdAt : $0.occurredAt > $1.occurredAt
+            }
         }
     }
     private var monthlyConsumption: String {
+        let interval = LedgerPerformance.begin("Home.MonthlyConsumption")
+        var outcome = LedgerPerformance.Outcome.threw
+        defer { LedgerPerformance.end(interval, outcome: outcome) }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
         guard let interval = calendar.dateInterval(of: .month, for: Date()),
               let value = try? LedgerEngine.consumption(in: model.book, from: interval.start, to: interval.end, currency: .cny)
         else { return "暂不可用" }
+        outcome = .completed
         return value.decimalString
     }
     private func totals(_ currency: Currency) -> (assets: String, debt: String, net: String) {
+        let interval = LedgerPerformance.begin("Home.AccountTotals")
+        var outcome = LedgerPerformance.Outcome.threw
+        defer { LedgerPerformance.end(interval, outcome: outcome) }
         do {
             var assets = Money(minorUnits: 0, currency: currency), debt = assets
             for account in model.book.accounts where account.currency == currency && account.includedInSummary {
@@ -92,7 +101,9 @@ struct LedgerRootView: View {
                 if account.nature == .asset { assets = try assets.adding(value) }
                 else { debt = try debt.adding(value) }
             }
-            return (assets.decimalString, debt.decimalString, try assets.subtracting(debt).decimalString)
+            let result = (assets.decimalString, debt.decimalString, try assets.subtracting(debt).decimalString)
+            outcome = .completed
+            return result
         } catch { return ("暂不可用", "暂不可用", "暂不可用") }
     }
 }

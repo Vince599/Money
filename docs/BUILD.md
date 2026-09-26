@@ -2,7 +2,9 @@
 
 当前仓库已在 GitHub 的 macOS runner 完成包测试、iOS 模拟器 App 测试和未签名 IPA 构建。本地 Windows 负责核心测试；用户已反馈此前版本在 iOS 27 真机上安装及基础记账、重开、导出恢复成功，覆盖更新仍待验证。具体运行、版本与验证边界见本页末尾。
 
-## 固定基线
+## 当前已验证的固定基线
+
+主要体验目标已更新为用户当前 iOS 27 真机。下表记录实际采用过的构建基线；最新稳定工具链目标、升级流程和性能证据要求见[原生体验与工程质量标准](EXPERIENCE_QUALITY.md)。本批已修正历史验证状态、精确固定 Apple Swift 6.3.3 并增加只读探测入口；未切换到 Xcode 27，也未执行新的 Apple 构建。
 
 | 项目 | 固定值 |
 |---|---|
@@ -21,11 +23,29 @@
 | XcodeGen | 2.46.0，官方 ZIP 的 SHA-256 固定在 `config/toolchain.json` |
 | GRDB | 7.11.1，由根 `Package.swift` 精确依赖 |
 
-2026-09-26 核查的官方依据：[runner 软件清单](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md)、[Apple Xcode 兼容表](https://developer.apple.com/xcode/system-requirements/)、[XcodeGen 2.46.0](https://github.com/yonaskolb/XcodeGen/releases/tag/2.46.0)、[GRDB 7.11.1](https://github.com/groue/GRDB.swift/releases/tag/v7.11.1)。Apple 已列出更高 Xcode 版本，但当前所选稳定 runner 清单包含的是此组合；不自动换用预览 runner。
+2026-09-26 核查的官方依据：[runner 软件清单](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md)、[Apple Xcode 兼容表](https://developer.apple.com/xcode/system-requirements/)、[XcodeGen 2.46.0](https://github.com/yonaskolb/XcodeGen/releases/tag/2.46.0)、[GRDB 7.11.1](https://github.com/groue/GRDB.swift/releases/tag/v7.11.1)。Apple 当前已列出稳定 Xcode 27／iOS 27 SDK／Swift 6.4；上表为现有链路的实际组合，不再作为长期目标。下一步核实可运行新工具链的稳定 macOS 环境，完成升级回归后重新固定版本；不能因 runner 预装较旧版本而无限期推迟，也不自动换用测试版工具。
 
 可追溯的 [runner 清单固定提交](https://github.com/actions/runner-images/blob/0af81b6d930d02b52941d584bee9214c4bc228c6/images/macos/macos-26-arm64-Readme.md) 记录镜像 `20260907.0351.1`，其 Xcode 表明确列出 26.6（默认）、build `17F113` 和 `/Applications/Xcode_26.6.app`，SDK 表列出配套 iOS 26.5。这是固定配置存在于官方镜像的依据，不是本项目已在该镜像构建成功的证据。
 
 `macos-26` 固定的是系统系列，GitHub 仍会更新镜像。脚本校验 Xcode 版本、build 和 iOS SDK；缺少固定工具或模拟器就失败，不回退到 `latest`。每次保存实际镜像、编译器、工具版本和测试日志。工具升级需要同步 `config/toolchain.json`、`project.yml` 及本页，并重新验证。
+
+升级时还需检查 `Package.swift` 的平台／工具要求、依赖锁与脚本中的固定运行时，验证 Swift 6 严格并发、包／App／UI 回归及 arm64 Release 产物，随后完成真机覆盖安装与核心体验对照。编译 SDK、最低部署版本、模拟器运行时分别记录；以新 SDK 构建不要求机械提高最低部署版本。历史构建证据保留，缺少新版证据时仍标为“升级待验证”。
+
+### Xcode 27 环境核查与探测
+
+2026-09-26 再次核对：Apple 支持表列出的稳定 Xcode 27 要求宿主 macOS 26.6 或更新版本，配套 iOS 27 SDK 与 Swift 6.4。当前 [macos-26 arm64 官方清单](https://raw.githubusercontent.com/actions/runner-images/main/images/macos/macos-26-arm64-Readme.md)返回 macOS 26.6.2、镜像 `20260907.0351.1`，已安装 Xcode 表最高稳定版仍为 26.6；宿主满足要求不代表已安装 Xcode 27。[xcode-27 runner 公告](https://github.com/actions/runner-images/issues/14404)明确为预览环境，其示例仍包含 beta 版本，不能据此固定稳定工具 build。
+
+在可用 Mac／runner 上先运行只读探测：
+
+```bash
+bash scripts/probe-apple-toolchain.sh
+# 也可显式指定已安装的 Xcode：
+bash scripts/probe-apple-toolchain.sh /Applications/Xcode_27.app
+```
+
+JSON 输出包含宿主、已安装 Xcode 的精确版本／build、Swift、SDK 和模拟器运行时，各命令错误保留在对应字段。脚本不下载安装、不构建、不启动设备、不修改全局 `xcode-select`；退出成功仅说明完成了安装目录探测，不代表每个工具可用或 App 已验证。Windows 调用会明确拒绝。
+
+如兼容宿主尚未安装稳定工具，使用 [Apple 官方安装入口](https://developer.apple.com/xcode/resources/)准备环境，再探测、更新固定配置并完整回归。本次没有探测远端 runner 或下载 Xcode，故保留当前已验证的构建版本；不能把网络清单当成一次实际环境执行。App 新增的性能插桩及其待验证范围见[性能基线](PERFORMANCE_BASELINE.md)。
 
 核心在内存中用 Int128 累加分录，再检查 Int64 可存储范围；[Apple Int128 文档](https://developer.apple.com/documentation/swift/int128)标明 macOS 15.0／iOS 18.0 起可用。包的 macOS 最低版本因此为 15.0，App 仍为 iOS 26.0；这项配置核对不替代实际 Apple 平台编译。
 
@@ -80,6 +100,7 @@ bash scripts/build-ios.sh
 
 ## 验证记录
 
+- 体验与版本政策：2026-09-26 新增[体验质量标准](EXPERIENCE_QUALITY.md)，要求最新稳定原生技术和分阶段体验验收；Xcode 27 升级、Q01—Q09 真机性能及完整 Widget 品质均尚未验证。模拟器截图和基础安装成功不能代替这些证据。
 - Windows 核心测试：2026-09-26 第三批 Swift 6.4 实测 106 项／10 个 suite 通过。
 - 2026-09-26，[云端运行 #3](https://github.com/Vince599/Money/actions/runs/36212521636)（提交 `073742da04b90498938dccf703d2693a0e50caeb`）：macOS 包测试 84 项／8 个 suite 通过，iOS 模拟器 AppTests 7 项通过，Release `iphoneos` arm64 构建成功并生成未签名 IPA。实际编译器为 Apple Swift 6.3.3，产物为 `ledger-ios-3`（artifact ID `10896510760`）。
 - 2026-09-26，[云端运行 #4](https://github.com/Vince599/Money/actions/runs/36212928265)（提交 `c5ba22d45f000a611cb2dd57293b2537ae6c1366`）：在前述 84 项包测试、7 项 App 测试之外，通过 1 项 UI 操作测试；新增账户与支出、重启后数据保留、备份入口均验证通过，导出截图并生成同版未签名 IPA。UI 测试未操作系统文件选择器或执行页面恢复。

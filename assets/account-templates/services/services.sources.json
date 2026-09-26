@@ -1,0 +1,163 @@
+[
+  {
+    "id": "wechat-pay",
+    "name": "微信零钱",
+    "shortName": "微信",
+    "aliases": [
+      "微信支付",
+      "微信零钱",
+      "WeChat Pay",
+      "Weixin Pay",
+      "WeChat"
+    ],
+    "colorHex": "#07C160",
+    "sourceURL": "https://github.com/simple-icons/simple-icons/blob/d0b3c2d7153794b912913746fc0498a5d3211727/icons/wechat.svg",
+    "downloadURL": "https://raw.githubusercontent.com/simple-icons/simple-icons/d0b3c2d7153794b912913746fc0498a5d3211727/icons/wechat.svg",
+    "brandSourceURL": "https://wechat.design/brand/main-brand",
+    "license": "CC0-1.0 (Simple Icons artwork); brand trademark rights remain with Tencent.",
+    "usageNote": "采用微信双气泡品牌符号作为微信零钱账户标识，不声称为独立微信支付商户标志；仅添加官方主色 fill，路径未修改。",
+    "filePath": "assets/account-templates/services/wechat-pay.svg",
+    "format": "svg",
+    "sourceRevision": "d0b3c2d7153794b912913746fc0498a5d3211727",
+    "retrievedAt": "2026-09-26"
+  },
+  {
+    "id": "alipay",
+    "name": "支付宝余额",
+    "shortName": "支付宝",
+    "aliases": [
+      "支付宝",
+      "支付宝余额",
+      "Alipay",
+      "zhifubao"
+    ],
+    "colorHex": "#1677FF",
+    "sourceURL": "https://github.com/simple-icons/simple-icons/blob/d0b3c2d7153794b912913746fc0498a5d3211727/icons/alipay.svg",
+    "downloadURL": "https://raw.githubusercontent.com/simple-icons/simple-icons/d0b3c2d7153794b912913746fc0498a5d3211727/icons/alipay.svg",
+    "brandSourceURL": "https://global.alipay.com/docs/ac/website_hk/design",
+    "license": "CC0-1.0 (Simple Icons artwork); brand trademark rights remain with Alipay.",
+    "usageNote": "支付宝品牌符号，添加 Simple Icons 所记录品牌蓝色 fill，路径未修改。",
+    "filePath": "assets/account-templates/services/alipay.svg",
+    "format": "svg",
+    "sourceRevision": "d0b3c2d7153794b912913746fc0498a5d3211727",
+    "retrievedAt": "2026-09-26"
+  },
+  {
+    "id": "qq-wallet",
+    "name": "QQ钱包",
+    "shortName": "QQ钱包",
+    "aliases": [
+      "QQ钱包",
+      "QQ 钱包",
+      "QQ Wallet",
+      "QQ余额",
+      "QQ"
+    ],
+    "colorHex": "#1EBAFC",
+    "sourceURL": "https://github.com/simple-icons/simple-icons/blob/d0b3c2d7153794b912913746fc0498a5d3211727/icons/qq.svg",
+    "downloadURL": "https://raw.githubusercontent.com/simple-icons/simple-icons/d0b3c2d7153794b912913746fc0498a5d3211727/icons/qq.svg",
+    "brandSourceURL": "https://qq.design/brand/BrandDesign/Logo",
+    "license": "CC0-1.0 (Simple Icons artwork); brand trademark rights remain with Tencent.",
+    "usageNote": "采用 QQ 企鹅品牌符号辅助识别 QQ 钱包；不是单独 QQ 钱包的官方 Logo，也不代表财付通公司标志。添加 Simple Icons 品牌色 fill，路径未修改。",
+    "filePath": "assets/account-templates/services/qq-wallet.svg",
+    "format": "svg",
+    "sourceRevision": "d0b3c2d7153794b912913746fc0498a5d3211727",
+    "retrievedAt": "2026-09-26"
+  },
+  {
+    "id": "china-mobile",
+    "name": "中国移动话费",
+    "shortName": "中国移动",
+    "aliases": [
+      "移动",
+      "中国移动",
+      "中国移动通信",
+      "CMCC",
+      "China Mobile",
+      "移动话费",
+      "10086"
+    ],
+    "colorHex": "#0085CC",
+    "sourceURL": "https://www.chinamobileltd.com/en/global/home.php",
+    "downloadURL": "https://www.chinamobileltd.com/en/images/global/logo.svg",
+    "brandSourceURL": "https://www.chinamobileltd.com/en/media/corpimage.php",
+    "license": "Official publicly served brand artwork; no open-source reuse license stated. Copyright and trademark rights belong to China Mobile.",
+    "usageNote": "从官网组合 SVG 的 /svg/g[2]/g/g[1] 提取原有五条品牌符号路径；移除其他文字与 5G 标识，class 转为原值 fill，设置正方形 viewBox。保留蓝绿原色，不重绘路径。source/ 保留原始组合图。",
+    "filePath": "assets/account-templates/services/china-mobile.svg",
+    "format": "svg",
+    "originalFilePath": "assets/account-templates/services/source/china-mobile-official-lockup.svg",
+    "retrievedAt": "2026-09-26"
+  },
+  {
+    "id": "china-unicom",
+    "name": "中国联通话费",
+    "shortName": "中国联通",
+    "aliases": [
+      "联通",
+      "中国联通",
+      "China Unicom",
+      "联通话费",
+      "10010"
+    ],
+    "colorHex": "#E50000",
+    "sourceURL": "https://www.chinaunicom.com.hk/en/media/corpimages.php",
+    "downloadURL": "https://www.chinaunicom.com.hk/android-icon-192x192.png",
+    "license": "Official publicly served brand artwork; no open-source reuse license stated. Copyright and trademark rights belong to China Unicom.",
+    "usageNote": "官网原始 192×192 Android 图标，原样保留红色联通结与白色背景。该来源可覆盖 64pt@3x 的原生像素；不要运行时染色。官网另有包含内嵌 PNG 的组合 SVG，仅存于 source/ 作出处备份，不作为矢量图标。",
+    "filePath": "assets/account-templates/services/china-unicom.png",
+    "format": "png",
+    "pixelWidth": 192,
+    "pixelHeight": 192,
+    "originalFilePath": "assets/account-templates/services/source/china-unicom-official-lockup.svg",
+    "retrievedAt": "2026-09-26"
+  },
+  {
+    "id": "china-telecom",
+    "name": "中国电信话费",
+    "shortName": "中国电信",
+    "aliases": [
+      "电信",
+      "中国电信",
+      "China Telecom",
+      "电信话费",
+      "10000"
+    ],
+    "colorHex": "#004A9A",
+    "sourceURL": "https://www.chinatelecom-h.com/en/global/home.php",
+    "downloadURL": "https://www.chinatelecom-h.com/apple-touch-icon.png",
+    "license": "Official publicly served brand artwork; no open-source reuse license stated. Copyright and trademark rights belong to China Telecom.",
+    "usageNote": "官网原始 100×100 apple-touch 图标，原样保留蓝底白色电信符号。适用于 32pt@3x 列表尺寸；更大展示应替换为官方更高分辨率源，不建议人工放大。",
+    "filePath": "assets/account-templates/services/china-telecom.png",
+    "format": "png",
+    "pixelWidth": 100,
+    "pixelHeight": 100,
+    "retrievedAt": "2026-09-26"
+  },
+  {
+    "id": "china-broadnet",
+    "name": "中国广电话费",
+    "shortName": "中国广电",
+    "aliases": [
+      "广电",
+      "中国广电",
+      "广电5G",
+      "中国广电营业厅",
+      "China Broadnet",
+      "CBN",
+      "广电话费",
+      "10099"
+    ],
+    "colorHex": "#12618B",
+    "sourceURL": "https://apps.apple.com/cn/app/id1643456835",
+    "downloadURL": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/ce/fd/3e/cefd3ef4-1898-5a1a-8286-e200e75cd4e8/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.png",
+    "brandSourceURL": "https://www.gcable.com.cn/xwzx/gddt/content/post_34497.html",
+    "license": "Official app artwork published by China Radio and Television Mobile Network Co., Ltd. on Apple App Store; no open-source reuse license stated. Copyright and trademark rights remain with the brand owner.",
+    "usageNote": "中国广电营业厅官方 App 的 512×512 PNG，来自 Apple lookup 接口返回的 artworkUrl512 并请求 PNG 格式；保留原有白底、蓝色球形标记与 5G 角标，不重绘或裁切。采用官方 App 识别图，不声称为 2022 标志完整组合字标。",
+    "filePath": "assets/account-templates/services/china-broadnet.png",
+    "format": "png",
+    "pixelWidth": 512,
+    "pixelHeight": 512,
+    "lookupURL": "https://itunes.apple.com/lookup?id=1643456835&country=cn",
+    "retrievedAt": "2026-09-26"
+  }
+]

@@ -7,7 +7,7 @@
   "xcodeBuild": "17F113",
   "developerDirectory": "/Applications/Xcode_26.6.app/Contents/Developer",
   "swiftLanguageVersion": "6.0",
-  "appleSwiftVersion": "6.3",
+  "appleSwiftVersion": "6.3.3",
   "windowsSwiftObserved": "6.4",
   "iosDeploymentTarget": "26.0",
   "iosSDKVersion": "26.5",
@@ -19,9 +19,37 @@
   "grdbVersion": "7.11.1",
   "sources": {
     "runner": "https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md",
+    "runnerPinned": "https://github.com/actions/runner-images/blob/0af81b6d930d02b52941d584bee9214c4bc228c6/images/macos/macos-26-arm64-Readme.md",
+    "runnerXcode27Preview": "https://github.com/actions/runner-images/issues/14404",
     "xcode": "https://developer.apple.com/xcode/system-requirements/",
+    "xcodeDownloads": "https://developer.apple.com/xcode/resources/",
     "xcodegen": "https://github.com/yonaskolb/XcodeGen/releases/tag/2.46.0",
     "grdb": "https://github.com/groue/GRDB.swift/releases/tag/v7.11.1"
   },
-  "validationStatus": "configuration-only; macOS build and device installation pending"
+  "validationStatus": "Run 9 validated this pinned baseline: package and simulator tests passed; unsigned arm64 IPA produced. Run 9 device installation and the Xcode 27 upgrade remain unverified.",
+  "validationEvidence": {
+    "validatedOn": "2026-09-26",
+    "sourceCommit": "d778e373dd1cdd568492400d2acc9e87610ccaae",
+    "githubRunURL": "https://github.com/Vince599/Money/actions/runs/36218393077",
+    "artifactID": 10898635666,
+    "packageTestsPassed": 118,
+    "appTestsPassed": 8,
+    "uiTestsPassed": 2,
+    "ipaSHA256": "9ae789b9433ad5994ec068ee14b07ff354060cceef2f0c429c6aeb71453a5f1e",
+    "scope": "Historical Run 9 evidence; does not validate later source or script changes. Older-version device feedback is recorded separately in docs/BUILD.md."
+  },
+  "upgradeAssessment": {
+    "checkedOn": "2026-09-26",
+    "targetXcodeVersion": "27",
+    "targetIOSSDKVersion": "27",
+    "targetSwiftCompilerVersion": "6.4",
+    "minimumHostMacOSVersion": "26.6",
+    "appleStatus": "Stable Xcode 27 is listed by Apple; its exact build has not been probed locally or in this project's CI.",
+    "configuredRunnerHostObserved": "26.6.2",
+    "configuredRunnerImageObserved": "20260907.0351.1",
+    "configuredRunnerTargetAvailability": "The official macos-26 arm64 installed-Xcode table lists 26.6 as the newest stable version; it does not list stable Xcode 27.",
+    "alternativeRunnerStatus": "The xcode-27 label is documented as a preview image. Its announcement still contains a beta build/path; no stable exact build has been verified for this project.",
+    "nextStep": "Probe an available compatible Mac or runner with scripts/probe-apple-toolchain.sh. Confirm an installed stable Xcode 27 exact build, SDK, Swift and simulator runtime before changing the active pins; then perform full regression and same-identity device upgrade validation.",
+    "activationStatus": "not activated; retain the Run 9 baseline until the replacement is available and validated"
+  }
 }

@@ -8,12 +8,26 @@ public enum LedgerStoreError: Error, Equatable, Sendable {
     case corruptData(String)
 }
 
-/// SQLite persistence for the initial, small-book implementation.
+/// Whether an ordinary new-entry command keeps or replaces the current draft.
+/// Editing a saved entry always preserves the unrelated new-entry draft.
+public enum EntryDraftUpdate: Sendable {
+    case preserve
+    case replace(EntryDraft?)
+}
+
+/// Constructed inside the transaction and returned only after a successful commit.
+public struct SQLiteLedgerSnapshot: Sendable {
+    public let book: LedgerBook
+    public let draft: EntryDraft?
+    public let settings: LedgerSettings
+}
+
+/// SQLite persistence with incremental ordinary entry inserts and edits.
 ///
 /// Each collection has its own table, exact integer money columns, foreign keys,
-/// and a Codable payload for the complete model. Saves replace the collections in
-/// one transaction. This deliberately does not claim the planned 100,000-entry
-/// performance target; incremental persistence and pagination are later work.
+/// and a Codable payload for the complete model. Whole-book saves/restores still
+/// replace collections in one transaction. Reads and validation remain full-book;
+/// this does not yet claim the planned 100,000-entry performance target.
 ///
 /// The queue serializes database access. No mutable encoder or decoder is shared.
 /// Callers must coordinate read-modify-save operations; serialization of writes
@@ -74,10 +88,7 @@ public final class SQLiteLedgerStore: Sendable {
     public func loadDraft() throws -> EntryDraft? {
         try database.read { db in
             try Self.checkSchema(db)
-            guard let payload = try Data.fetchOne(db, sql: "SELECT payload FROM entry_draft WHERE singleton = 1") else {
-                return nil
-            }
-            return try Self.decode(EntryDraft.self, payload: payload, table: "entry_draft")
+            return try Self.readDraft(in: db)
         }
     }
 
@@ -93,10 +104,7 @@ public final class SQLiteLedgerStore: Sendable {
     public func loadSettings() throws -> LedgerSettings {
         try database.read { db in
             try Self.checkSchema(db)
-            guard let payload = try Data.fetchOne(db, sql: "SELECT payload FROM ledger_settings WHERE singleton = 1") else {
-                throw LedgerStoreError.corruptData("ledger_settings")
-            }
-            return try Self.decode(LedgerSettings.self, payload: payload, table: "ledger_settings")
+            return try Self.readSettings(in: db)
         }
     }
 
@@ -119,6 +127,93 @@ public final class SQLiteLedgerStore: Sendable {
             if let settings { try Self.writeSettings(settings, in: db) }
             try Self.checkRelationships(db)
         }
+    }
+
+    /// Applies the command against the current persisted book in the same write
+    /// transaction as its draft change. Unrelated rows and entry positions are
+    /// never rewritten. Full validation is retained while read paths are migrated.
+    public func saveEntry(_ entry: LedgerEntry, expectedVersion: Int? = nil,
+                          draftUpdate: EntryDraftUpdate = .preserve) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            try Self.checkDatabase(db)
+            let current = try Self.readBook(in: db)
+            // Validate existing ancillary data before replacing anything.
+            let currentDraft = try Self.readDraft(in: db)
+            let settings = try Self.readSettings(in: db)
+            let expectedBook: LedgerBook
+            var expectedDraft = currentDraft
+            if let expectedVersion {
+                let updated = try LedgerEngine.replace(entry, expectedVersion: expectedVersion, in: current)
+                expectedBook = updated
+                guard let index = current.entries.firstIndex(where: { $0.id == entry.id }) else {
+                    throw LedgerError.entryNotFound
+                }
+                let previous = current.entries[index]
+                let replacement = updated.entries[index]
+                if replacement != previous {
+                    // The unique registry record ID and immediate composite FK
+                    // need a temporary, transaction-local deferral when changing
+                    // operation IDs. Never disable foreign_keys or reset this
+                    // pragma early: COMMIT/ROLLBACK restores immediate checking.
+                    try db.execute(sql: "PRAGMA defer_foreign_keys = ON")
+                    try db.execute(sql: """
+                        UPDATE operation_registry SET record_id = NULL, record_kind = 'retired'
+                        WHERE operation_id = ?
+                        """, arguments: [previous.operationID.uuidString])
+                    try Self.register(replacement.operationID, recordID: replacement.id, kind: "entry", in: db)
+                    try Self.updateEntry(replacement, in: db)
+                }
+            } else {
+                let updated = try LedgerEngine.record(entry, in: current)
+                expectedBook = updated
+                // A successful retry can have a different input ID/createdAt;
+                // only the canonical domain result determines whether to insert.
+                if updated.entries.count > current.entries.count, let inserted = updated.entries.last {
+                    try Self.register(inserted.operationID, recordID: inserted.id, kind: "entry", in: db)
+                    try Self.insertRow(inserted, position: current.entries.count, table: "entries",
+                                       fields: Self.columns(for: inserted), in: db)
+                }
+                // A no-op entry retry still obeys the caller's draft policy.
+                if case .replace(let nextDraft) = draftUpdate {
+                    expectedDraft = nextDraft
+                    // Persist the exact submitted text even when Swift String
+                    // equality considers two Unicode representations equivalent.
+                    try Self.writeDraft(nextDraft, in: db)
+                }
+            }
+            // Verify actual stored payloads, projections and relationships before
+            // COMMIT. No fallible read occurs after the transaction has committed.
+            let saved = SQLiteLedgerSnapshot(book: try Self.readBook(in: db),
+                                            draft: try Self.readDraft(in: db), settings: try Self.readSettings(in: db))
+            guard saved.book == expectedBook, saved.draft == expectedDraft, saved.settings == settings else {
+                throw LedgerStoreError.corruptData("entry_commit")
+            }
+            return saved
+        }
+    }
+
+    private static func readDraft(in db: Database) throws -> EntryDraft? {
+        guard let payload = try Data.fetchOne(db, sql: "SELECT payload FROM entry_draft WHERE singleton = 1") else {
+            return nil
+        }
+        return try decode(EntryDraft.self, payload: payload, table: "entry_draft")
+    }
+
+    private static func readSettings(in db: Database) throws -> LedgerSettings {
+        guard let payload = try Data.fetchOne(db, sql: "SELECT payload FROM ledger_settings WHERE singleton = 1") else {
+            throw LedgerStoreError.corruptData("ledger_settings")
+        }
+        return try decode(LedgerSettings.self, payload: payload, table: "ledger_settings")
+    }
+
+    private static func updateEntry(_ entry: LedgerEntry, in db: Database) throws {
+        var fields = columns(for: entry)
+        fields.removeValue(forKey: "id")
+        fields["payload"] = try encode(entry).databaseValue
+        let names = fields.keys.sorted()
+        let assignments = names.map { "\($0) = ?" }.joined(separator: ", ")
+        let values = names.compactMap { fields[$0] } + [entry.id.uuidString.databaseValue]
+        try db.execute(sql: "UPDATE entries SET \(assignments) WHERE id = ?", arguments: StatementArguments(values))
     }
 
     private static func writeSettings(_ settings: LedgerSettings, in db: Database) throws {
@@ -183,17 +278,22 @@ public final class SQLiteLedgerStore: Sendable {
         projection: (Value) -> [String: DatabaseValue]
     ) throws {
         for (position, value) in values.enumerated() {
-            var fields = projection(value)
-            fields["position"] = position.databaseValue
-            fields["payload"] = try encode(value).databaseValue
-            let names = fields.keys.sorted()
-            // Table/column names only originate in this file, never user input.
-            let placeholders = Array(repeating: "?", count: names.count).joined(separator: ", ")
-            let arguments = StatementArguments(names.compactMap { fields[$0] })
-            try db.execute(
-                sql: "INSERT INTO \(table) (\(names.joined(separator: ", "))) VALUES (\(placeholders))",
-                arguments: arguments)
+            try insertRow(value, position: position, table: table, fields: projection(value), in: db)
         }
+    }
+
+    private static func insertRow<Value: Encodable>(
+        _ value: Value, position: Int, table: String, fields projection: [String: DatabaseValue], in db: Database
+    ) throws {
+        var fields = projection
+        fields["position"] = position.databaseValue
+        fields["payload"] = try encode(value).databaseValue
+        let names = fields.keys.sorted()
+        // Table/column names only originate in this file, never user input.
+        let placeholders = Array(repeating: "?", count: names.count).joined(separator: ", ")
+        let arguments = StatementArguments(names.compactMap { fields[$0] })
+        try db.execute(sql: "INSERT INTO \(table) (\(names.joined(separator: ", "))) VALUES (\(placeholders))",
+                       arguments: arguments)
     }
 
     private static func readBook(in db: Database) throws -> LedgerBook {

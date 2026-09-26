@@ -17,6 +17,9 @@ final class LedgerAppModel {
 
     func start() async {
         guard !isLoaded, !starting else { return }
+        let interval = LedgerPerformance.begin("App.StartToModel")
+        var outcome = LedgerPerformance.Outcome.threw
+        defer { LedgerPerformance.end(interval, outcome: outcome) }
         starting = true
         defer { starting = false }
         do {
@@ -30,6 +33,7 @@ final class LedgerAppModel {
             repository = repo
             apply(try await repo.snapshot())
             isLoaded = true
+            outcome = .completed
         } catch { errorMessage = message(for: error) }
     }
     private static func storageDirectory(in base: URL) -> URL {
@@ -67,11 +71,16 @@ final class LedgerAppModel {
         await mutate { repo in try await repo.addAccount(account, makeDefault: makeDefault) }
     }
     func save(_ entry: LedgerEntry, expectedVersion: Int? = nil, nextDraft: EntryDraft? = nil) async -> Bool {
+        let interval = LedgerPerformance.begin("Entry.SaveToModel")
+        var outcome = LedgerPerformance.Outcome.notApplied
+        defer { LedgerPerformance.end(interval, outcome: outcome) }
         revision += 1
         let sequence = revision
-        return await mutate { repo in
+        let applied = await mutate { repo in
             try await repo.saveEntry(entry, expectedVersion: expectedVersion, nextDraft: nextDraft, revision: sequence)
         }
+        if applied { outcome = .completed }
+        return applied
     }
     func delete(_ entryID: UUID) async -> Bool {
         await mutate { repo in try await repo.deleteEntry(entryID) }

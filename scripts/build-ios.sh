@@ -18,6 +18,7 @@ export DEVELOPER_DIR="$(config developerDirectory)"
 EXPECTED_XCODE="$(config xcodeVersion)"
 EXPECTED_BUILD="$(config xcodeBuild)"
 EXPECTED_SDK="$(config iosSDKVersion)"
+EXPECTED_SWIFT="$(config appleSwiftVersion)"
 SIMULATOR_RUNTIME="$(config simulatorRuntime)"
 XCODEGEN_VERSION="$(config xcodegenVersion)"
 RUN_DIR="$ROOT/build/ios/$(date -u +%Y%m%dT%H%M%SZ)-$$"
@@ -43,6 +44,16 @@ if [[ "$SDK_ACTUAL" != "$EXPECTED_SDK" ]]; then
   exit 1
 fi
 xcrun swift --version | tee "$LOGS/swift-version.log"
+python3 - "$LOGS/swift-version.log" "$EXPECTED_SWIFT" <<'PY'
+import pathlib
+import re
+import sys
+
+reported = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+match = re.search(r"^Apple Swift version (\d+\.\d+(?:\.\d+)?)(?=\s|$)", reported, re.MULTILINE)
+if match is None or match.group(1) != sys.argv[2]:
+    raise SystemExit("Apple Swift compiler differs from config/toolchain.json; review the pinned baseline.")
+PY
 xcodebuild -showsdks > "$LOGS/sdks.log"
 printf 'ImageOS=%s\nImageVersion=%s\n' "${ImageOS:-local}" "${ImageVersion:-local}" > "$LOGS/runner-image.log"
 

@@ -16,13 +16,15 @@ actor LedgerRepository {
     private let safetyDirectory: URL
     private var pendingRestore: (id: UUID, value: LedgerBackupSnapshot)?
     init(path: String) throws {
-        store = try SQLiteLedgerStore(path: path)
+        store = try LedgerPerformance.measure("Store.Open") { try SQLiteLedgerStore(path: path) }
         safetyDirectory = URL(fileURLWithPath: path).deletingLastPathComponent()
             .appendingPathComponent("RecoveryBackups", isDirectory: true)
     }
     func snapshot() throws -> LedgerSnapshot {
-        LedgerSnapshot(book: try store.loadBook(), draft: try store.loadDraft(), settings: try store.loadSettings(),
-                       draftRevision: draftRevision)
+        try LedgerPerformance.measure("Repository.Snapshot") {
+            LedgerSnapshot(book: try store.loadBook(), draft: try store.loadDraft(), settings: try store.loadSettings(),
+                           draftRevision: draftRevision)
+        }
     }
     func saveDraft(_ draft: EntryDraft?, revision: UInt64) throws {
         guard revision >= draftRevision else { return }
@@ -38,19 +40,23 @@ actor LedgerRepository {
         return try snapshot()
     }
     func saveEntry(_ entry: LedgerEntry, expectedVersion: Int?, nextDraft: EntryDraft?, revision: UInt64) throws -> LedgerSnapshot {
-        let current = try snapshot()
-        let updated: LedgerBook
-        if let expectedVersion {
-            updated = try LedgerEngine.replace(entry, expectedVersion: expectedVersion, in: current.book)
-            // Editing an existing event must not erase an unrelated new-entry draft.
-            try store.commit(updated, draft: current.draft)
-        } else {
-            updated = try LedgerEngine.record(entry, in: current.book)
-            // A delayed commit may finish the event, but cannot erase a newer draft.
-            try store.commit(updated, draft: revision >= draftRevision ? nextDraft : current.draft)
+        let interval = LedgerPerformance.begin("Repository.SaveEntry")
+        var outcome = LedgerPerformance.Outcome.threw
+        defer { LedgerPerformance.end(interval, outcome: outcome) }
+        // Read the preserved draft inside the same database transaction, never
+        // copy an earlier snapshot over newer persisted input.
+        let draftUpdate: EntryDraftUpdate = expectedVersion == nil && revision >= draftRevision
+            ? .replace(nextDraft) : .preserve
+        let saved = try LedgerPerformance.measure("Entry.Commit") {
+            try store.saveEntry(entry, expectedVersion: expectedVersion, draftUpdate: draftUpdate)
+        }
+        if expectedVersion == nil {
             draftRevision = max(draftRevision, revision)
         }
-        return try snapshot()
+        let result = LedgerSnapshot(book: saved.book, draft: saved.draft, settings: saved.settings,
+                                    draftRevision: draftRevision)
+        outcome = .completed
+        return result
     }
     func deleteEntry(_ id: UUID) throws -> LedgerSnapshot {
         let current = try snapshot()

@@ -1,0 +1,2329 @@
+{
+  "schemaVersion": 1,
+  "region": "CN",
+  "defaultCurrency": "CNY",
+  "reviewedAt": "2026-09-26",
+  "description": "离线机构图标与可选择的账户模板；不自动生成真实账户。",
+  "icons": [
+    {
+      "id": "brand.wechat-pay",
+      "name": "微信零钱",
+      "shortName": "微信",
+      "aliases": [
+        "微信支付",
+        "微信零钱",
+        "WeChat Pay",
+        "Weixin Pay",
+        "WeChat"
+      ],
+      "colorHex": "#07C160",
+      "sourceURL": "https://github.com/simple-icons/simple-icons/blob/d0b3c2d7153794b912913746fc0498a5d3211727/icons/wechat.svg",
+      "downloadURL": "https://raw.githubusercontent.com/simple-icons/simple-icons/d0b3c2d7153794b912913746fc0498a5d3211727/icons/wechat.svg",
+      "brandSourceURL": "https://wechat.design/brand/main-brand",
+      "license": "CC0-1.0 (Simple Icons artwork); brand trademark rights remain with Tencent.",
+      "usageNote": "采用微信双气泡品牌符号作为微信零钱账户标识，不声称为独立微信支付商户标志；仅添加官方主色 fill，路径未修改。",
+      "filePath": "assets/account-templates/services/wechat-pay.svg",
+      "format": "svg",
+      "sourceRevision": "d0b3c2d7153794b912913746fc0498a5d3211727",
+      "retrievedAt": "2026-09-26",
+      "assetName": "account-brand-wechat-pay",
+      "fallbackSymbol": "wallet.bifold",
+      "accessibilityName": "微信",
+      "sha256": "439de170dff232935f08357fbfb852bb302545d6125861ed6074fe6237b3f912"
+    },
+    {
+      "id": "brand.alipay",
+      "name": "支付宝余额",
+      "shortName": "支付宝",
+      "aliases": [
+        "支付宝",
+        "支付宝余额",
+        "Alipay",
+        "zhifubao"
+      ],
+      "colorHex": "#1677FF",
+      "sourceURL": "https://github.com/simple-icons/simple-icons/blob/d0b3c2d7153794b912913746fc0498a5d3211727/icons/alipay.svg",
+      "downloadURL": "https://raw.githubusercontent.com/simple-icons/simple-icons/d0b3c2d7153794b912913746fc0498a5d3211727/icons/alipay.svg",
+      "brandSourceURL": "https://global.alipay.com/docs/ac/website_hk/design",
+      "license": "CC0-1.0 (Simple Icons artwork); brand trademark rights remain with Alipay.",
+      "usageNote": "支付宝品牌符号，添加 Simple Icons 所记录品牌蓝色 fill，路径未修改。",
+      "filePath": "assets/account-templates/services/alipay.svg",
+      "format": "svg",
+      "sourceRevision": "d0b3c2d7153794b912913746fc0498a5d3211727",
+      "retrievedAt": "2026-09-26",
+      "assetName": "account-brand-alipay",
+      "fallbackSymbol": "wallet.bifold",
+      "accessibilityName": "支付宝",
+      "sha256": "132c6ea12c4eff484434a25aaf3676cab1bba444ee0d60da2da353b906e48f46"
+    },
+    {
+      "id": "brand.qq-wallet",
+      "name": "QQ钱包",
+      "shortName": "QQ钱包",
+      "aliases": [
+        "QQ钱包",
+        "QQ 钱包",
+        "QQ Wallet",
+        "QQ余额",
+        "QQ"
+      ],
+      "colorHex": "#1EBAFC",
+      "sourceURL": "https://github.com/simple-icons/simple-icons/blob/d0b3c2d7153794b912913746fc0498a5d3211727/icons/qq.svg",
+      "downloadURL": "https://raw.githubusercontent.com/simple-icons/simple-icons/d0b3c2d7153794b912913746fc0498a5d3211727/icons/qq.svg",
+      "brandSourceURL": "https://qq.design/brand/BrandDesign/Logo",
+      "license": "CC0-1.0 (Simple Icons artwork); brand trademark rights remain with Tencent.",
+      "usageNote": "采用 QQ 企鹅品牌符号辅助识别 QQ 钱包；不是单独 QQ 钱包的官方 Logo，也不代表财付通公司标志。添加 Simple Icons 品牌色 fill，路径未修改。",
+      "filePath": "assets/account-templates/services/qq-wallet.svg",
+      "format": "svg",
+      "sourceRevision": "d0b3c2d7153794b912913746fc0498a5d3211727",
+      "retrievedAt": "2026-09-26",
+      "assetName": "account-brand-qq-wallet",
+      "fallbackSymbol": "wallet.bifold",
+      "accessibilityName": "QQ钱包",
+      "sha256": "17372d117ab2c56d3aeb9cd18cdac8b9bcec875872e89222aec8f90e31e31636"
+    },
+    {
+      "id": "brand.china-mobile",
+      "name": "中国移动话费",
+      "shortName": "中国移动",
+      "aliases": [
+        "移动",
+        "中国移动",
+        "中国移动通信",
+        "CMCC",
+        "China Mobile",
+        "移动话费",
+        "10086"
+      ],
+      "colorHex": "#0085CC",
+      "sourceURL": "https://www.chinamobileltd.com/en/global/home.php",
+      "downloadURL": "https://www.chinamobileltd.com/en/images/global/logo.svg",
+      "brandSourceURL": "https://www.chinamobileltd.com/en/media/corpimage.php",
+      "license": "Official publicly served brand artwork; no open-source reuse license stated. Copyright and trademark rights belong to China Mobile.",
+      "usageNote": "从官网组合 SVG 的 /svg/g[2]/g/g[1] 提取原有五条品牌符号路径；移除其他文字与 5G 标识，class 转为原值 fill，设置正方形 viewBox。保留蓝绿原色，不重绘路径。source/ 保留原始组合图。",
+      "filePath": "assets/account-templates/services/china-mobile.svg",
+      "format": "svg",
+      "originalFilePath": "assets/account-templates/services/source/china-mobile-official-lockup.svg",
+      "retrievedAt": "2026-09-26",
+      "assetName": "account-brand-china-mobile",
+      "fallbackSymbol": "iphone",
+      "accessibilityName": "中国移动",
+      "sha256": "345e0d6921fb648456531753ec387652acbe3daefd9f211f56cc821d6ead77f0"
+    },
+    {
+      "id": "brand.china-unicom",
+      "name": "中国联通话费",
+      "shortName": "中国联通",
+      "aliases": [
+        "联通",
+        "中国联通",
+        "China Unicom",
+        "联通话费",
+        "10010"
+      ],
+      "colorHex": "#E50000",
+      "sourceURL": "https://www.chinaunicom.com.hk/en/media/corpimages.php",
+      "downloadURL": "https://www.chinaunicom.com.hk/android-icon-192x192.png",
+      "license": "Official publicly served brand artwork; no open-source reuse license stated. Copyright and trademark rights belong to China Unicom.",
+      "usageNote": "官网原始 192×192 Android 图标，原样保留红色联通结与白色背景。该来源可覆盖 64pt@3x 的原生像素；不要运行时染色。官网另有包含内嵌 PNG 的组合 SVG，仅存于 source/ 作出处备份，不作为矢量图标。",
+      "filePath": "assets/account-templates/services/china-unicom.png",
+      "format": "png",
+      "pixelWidth": 192,
+      "pixelHeight": 192,
+      "originalFilePath": "assets/account-templates/services/source/china-unicom-official-lockup.svg",
+      "retrievedAt": "2026-09-26",
+      "assetName": "account-brand-china-unicom",
+      "fallbackSymbol": "iphone",
+      "accessibilityName": "中国联通",
+      "sha256": "b577fb1e731b193e151f05ffa2b6910f258a5338d02fb4abdb9977fd16f5e25c"
+    },
+    {
+      "id": "brand.china-telecom",
+      "name": "中国电信话费",
+      "shortName": "中国电信",
+      "aliases": [
+        "电信",
+        "中国电信",
+        "China Telecom",
+        "电信话费",
+        "10000"
+      ],
+      "colorHex": "#004A9A",
+      "sourceURL": "https://www.chinatelecom-h.com/en/global/home.php",
+      "downloadURL": "https://www.chinatelecom-h.com/apple-touch-icon.png",
+      "license": "Official publicly served brand artwork; no open-source reuse license stated. Copyright and trademark rights belong to China Telecom.",
+      "usageNote": "官网原始 100×100 apple-touch 图标，原样保留蓝底白色电信符号。适用于 32pt@3x 列表尺寸；更大展示应替换为官方更高分辨率源，不建议人工放大。",
+      "filePath": "assets/account-templates/services/china-telecom.png",
+      "format": "png",
+      "pixelWidth": 100,
+      "pixelHeight": 100,
+      "retrievedAt": "2026-09-26",
+      "assetName": "account-brand-china-telecom",
+      "fallbackSymbol": "iphone",
+      "accessibilityName": "中国电信",
+      "sha256": "c5b66bae010691dd757347ac9ab6fb72851bc74816d10ac0ef2e804f4c326f1b"
+    },
+    {
+      "id": "brand.china-broadnet",
+      "name": "中国广电话费",
+      "shortName": "中国广电",
+      "aliases": [
+        "广电",
+        "中国广电",
+        "广电5G",
+        "中国广电营业厅",
+        "China Broadnet",
+        "CBN",
+        "广电话费",
+        "10099"
+      ],
+      "colorHex": "#12618B",
+      "sourceURL": "https://apps.apple.com/cn/app/id1643456835",
+      "downloadURL": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/ce/fd/3e/cefd3ef4-1898-5a1a-8286-e200e75cd4e8/AppIcon-0-0-1x_U007emarketing-0-8-0-85-220.png/512x512bb.png",
+      "brandSourceURL": "https://www.gcable.com.cn/xwzx/gddt/content/post_34497.html",
+      "license": "Official app artwork published by China Radio and Television Mobile Network Co., Ltd. on Apple App Store; no open-source reuse license stated. Copyright and trademark rights remain with the brand owner.",
+      "usageNote": "中国广电营业厅官方 App 的 512×512 PNG，来自 Apple lookup 接口返回的 artworkUrl512 并请求 PNG 格式；保留原有白底、蓝色球形标记与 5G 角标，不重绘或裁切。采用官方 App 识别图，不声称为 2022 标志完整组合字标。",
+      "filePath": "assets/account-templates/services/china-broadnet.png",
+      "format": "png",
+      "pixelWidth": 512,
+      "pixelHeight": 512,
+      "lookupURL": "https://itunes.apple.com/lookup?id=1643456835&country=cn",
+      "retrievedAt": "2026-09-26",
+      "assetName": "account-brand-china-broadnet",
+      "fallbackSymbol": "iphone",
+      "accessibilityName": "中国广电",
+      "sha256": "4885476614749ee7b3242fd024930e7f2039d31144289f9208726c12c269904a"
+    },
+    {
+      "id": "brand.icbc",
+      "name": "中国工商银行",
+      "shortName": "工商银行",
+      "aliases": [
+        "工行",
+        "ICBC"
+      ],
+      "colorHex": "#D9222A",
+      "bankGroup": "national",
+      "filePath": "assets/account-templates/banks/icbc.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国工商银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国工商银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "92dffb6633502eb99e9b2e9508e59b773a82c316ea5e17fbc8e87df14d72c7a9",
+      "assetName": "account-brand-icbc",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "中国工商银行"
+    },
+    {
+      "id": "brand.abc",
+      "name": "中国农业银行",
+      "shortName": "农业银行",
+      "aliases": [
+        "农行",
+        "ABC"
+      ],
+      "colorHex": "#238C71",
+      "bankGroup": "national",
+      "filePath": "assets/account-templates/banks/abc.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国农业银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国农业银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "de719e33f3200610a2466e83f30b4e019bb97be8f3f70c9174663564885faa00",
+      "assetName": "account-brand-abc",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "中国农业银行"
+    },
+    {
+      "id": "brand.boc",
+      "name": "中国银行",
+      "shortName": "中国银行",
+      "aliases": [
+        "中行",
+        "中银",
+        "BOC"
+      ],
+      "colorHex": "#A42A2F",
+      "bankGroup": "national",
+      "filePath": "assets/account-templates/banks/boc.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "b3d9343c2af29c200a9a3c293774b70745e71aacd58e7b3bfe63fa1446b71b72",
+      "assetName": "account-brand-boc",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "中国银行"
+    },
+    {
+      "id": "brand.ccb",
+      "name": "中国建设银行",
+      "shortName": "建设银行",
+      "aliases": [
+        "建行",
+        "CCB"
+      ],
+      "colorHex": "#193E7E",
+      "bankGroup": "national",
+      "filePath": "assets/account-templates/banks/ccb.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国建设银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国建设银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "39f5bf32d38b09379d1ab5357b7422dd8e7657c06113054c847c54591be22e6a",
+      "assetName": "account-brand-ccb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "中国建设银行"
+    },
+    {
+      "id": "brand.bocom",
+      "name": "交通银行",
+      "shortName": "交通银行",
+      "aliases": [
+        "交行",
+        "BOCOM",
+        "BCM"
+      ],
+      "colorHex": "#292D78",
+      "bankGroup": "national",
+      "filePath": "assets/account-templates/banks/bocom.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/交通银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/交通银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "756c6ea8ad3a1a16681230a9d74fefcf3d9ae51ed8877968a72c2f148b7394d1",
+      "assetName": "account-brand-bocom",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "交通银行"
+    },
+    {
+      "id": "brand.psbc",
+      "name": "中国邮政储蓄银行",
+      "shortName": "邮储银行",
+      "aliases": [
+        "邮储",
+        "邮政储蓄",
+        "PSBC"
+      ],
+      "colorHex": "#1D7842",
+      "bankGroup": "national",
+      "filePath": "assets/account-templates/banks/psbc.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国邮政@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国邮政@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "a2f4365d15d6a9cc5ca3b918ad6f0aaf08bf9f607f1d619044a952e384de6a44",
+      "assetName": "account-brand-psbc",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "中国邮政储蓄银行"
+    },
+    {
+      "id": "brand.cmb",
+      "name": "招商银行",
+      "shortName": "招商银行",
+      "aliases": [
+        "招行",
+        "CMB"
+      ],
+      "colorHex": "#D9222A",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/cmb.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/招商银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/招商银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "32ec99bfecc5549c0f48ecf295fdbec7e3b4ecf7f1702ffdbc6c44c583a7d6e1",
+      "assetName": "account-brand-cmb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "招商银行"
+    },
+    {
+      "id": "brand.spdb",
+      "name": "上海浦东发展银行",
+      "shortName": "浦发银行",
+      "aliases": [
+        "浦发",
+        "SPDB"
+      ],
+      "colorHex": "#292D78",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/spdb.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/上海浦东发展银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/上海浦东发展银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "f2f791a0f25f8c8c5f39ceaa49d2ff9d5af4a3d192f653a10c9363dd2a99e442",
+      "assetName": "account-brand-spdb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "上海浦东发展银行"
+    },
+    {
+      "id": "brand.citic",
+      "name": "中信银行",
+      "shortName": "中信银行",
+      "aliases": [
+        "中信",
+        "CITIC",
+        "CNCB"
+      ],
+      "colorHex": "#C5222A",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/citic.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中信银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中信银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "37eace672747e30aa0e10549bda2afd469deae8da49b307bc8d2d747f85ebdb3",
+      "assetName": "account-brand-citic",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "中信银行"
+    },
+    {
+      "id": "brand.ceb",
+      "name": "中国光大银行",
+      "shortName": "光大银行",
+      "aliases": [
+        "光大",
+        "CEB"
+      ],
+      "colorHex": "#AB20D5",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/ceb.png",
+      "format": "png",
+      "sourceType": "official-app-store-artwork",
+      "sourceURL": "https://apps.apple.com/cn/app/%E5%85%89%E5%A4%A7%E9%93%B6%E8%A1%8C/id447733826?uo=4",
+      "downloadURL": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/63/62/f6/6362f6ca-48cb-dbcf-c175-f72bd78b41b5/AppIcon-0-0-1x_U007emarketing-0-8-0-0-sRGB-85-220.png/512x512bb.png",
+      "license": "银行官方 App Store 图标；未发现公开再分发许可证，商标和图像权利归银行所有。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 官方 App 图标，实色或渐变背景；保持原图，不作为单色 template。",
+      "verificationStatus": "official-app-store-listing-and-developer-confirmed",
+      "sha256": "d7f52a74914443cfd1ba3dd90230a73d625f576f9cd9124189a6e0755d4519af",
+      "author": "CHINA EVERBRIGHT BANK COMPANY LIMITED",
+      "width": 512,
+      "height": 512,
+      "appStoreID": "447733826",
+      "appName": "光大银行",
+      "palette": [
+        "#AB20D5",
+        "#AA1FD4",
+        "#AD21D7"
+      ],
+      "assetName": "account-brand-ceb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "中国光大银行"
+    },
+    {
+      "id": "brand.cmbc",
+      "name": "中国民生银行",
+      "shortName": "民生银行",
+      "aliases": [
+        "民生",
+        "CMBC"
+      ],
+      "colorHex": "#50A951",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/cmbc.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国民生银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/中国民生银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "cca798a29a95f82f83dff4732c8a24e79ff2e3beac355deea77b6e50ecb8927e",
+      "assetName": "account-brand-cmbc",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "中国民生银行"
+    },
+    {
+      "id": "brand.cib",
+      "name": "兴业银行",
+      "shortName": "兴业银行",
+      "aliases": [
+        "兴业",
+        "CIB"
+      ],
+      "colorHex": "#174489",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/cib.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/兴业银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/兴业银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "45422d8ad96fce24119fa7488f38fea4111cb86f2d6f658f94b7f4f71f470142",
+      "assetName": "account-brand-cib",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "兴业银行"
+    },
+    {
+      "id": "brand.pab",
+      "name": "平安银行",
+      "shortName": "平安银行",
+      "aliases": [
+        "平安",
+        "平安口袋银行",
+        "PAB"
+      ],
+      "colorHex": "#FF4800",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/pab.png",
+      "format": "png",
+      "sourceType": "official-app-store-artwork",
+      "sourceURL": "https://apps.apple.com/cn/app/%E5%B9%B3%E5%AE%89%E5%8F%A3%E8%A2%8B%E9%93%B6%E8%A1%8C-%E6%9B%B4%E6%87%82%E6%82%A8%E7%9A%84%E6%99%BA%E8%83%BD%E9%93%B6%E8%A1%8C/id1085016815?uo=4",
+      "downloadURL": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/b0/7a/d7/b07ad758-2d59-cf7f-dbbc-f2535670b36f/AppIcon-0-0-1x_U007ephone-0-11-0-0-P3-85-220.png/512x512bb.png",
+      "license": "银行官方 App Store 图标；未发现公开再分发许可证，商标和图像权利归银行所有。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 官方 App 图标，实色或渐变背景；保持原图，不作为单色 template。",
+      "verificationStatus": "official-app-store-listing-and-developer-confirmed",
+      "sha256": "f7c75c9f19d8e20eaf417d1933ce894522c847eff39cf0d71762278c6de80d79",
+      "author": "PingAn Bank",
+      "width": 512,
+      "height": 512,
+      "appStoreID": "1085016815",
+      "appName": "平安口袋银行-更懂您的智能银行",
+      "palette": [
+        "#FF4800",
+        "#FF4900",
+        "#FF4600"
+      ],
+      "assetName": "account-brand-pab",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "平安银行"
+    },
+    {
+      "id": "brand.hxb",
+      "name": "华夏银行",
+      "shortName": "华夏银行",
+      "aliases": [
+        "华夏",
+        "HXB"
+      ],
+      "colorHex": "#D9222A",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/hxb.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/华夏银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/华夏银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "1a94dbe6f74589e69a5e8b328f307d336f398f1daf5358539c44942c00fbec94",
+      "assetName": "account-brand-hxb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "华夏银行"
+    },
+    {
+      "id": "brand.cgb",
+      "name": "广发银行",
+      "shortName": "广发银行",
+      "aliases": [
+        "广发",
+        "广东发展银行",
+        "CGB"
+      ],
+      "colorHex": "#D82332",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/cgb.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/广发银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/广发银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "aaffd89277e0d8c67dd1f0532068db7849d4bb91a2f80fbd0b1df4f44f681a4f",
+      "assetName": "account-brand-cgb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "广发银行"
+    },
+    {
+      "id": "brand.czb",
+      "name": "浙商银行",
+      "shortName": "浙商银行",
+      "aliases": [
+        "浙商",
+        "CZB",
+        "CZBANK"
+      ],
+      "colorHex": "#E60012",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/czb.png",
+      "format": "png",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://www.veryicon.com/icons/business/bank-logo-collection/logo-of-zheshang-bank.html",
+      "downloadURL": "https://icons.veryicon.com/png/o/business/bank-logo-collection/logo-of-zheshang-bank.png",
+      "license": "上游页面声明：Free for personal and commercial purpose. 非标准许可证；不代表银行商标授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 PNG；原图带白色圆角方形底，外角透明；保持原图颜色。",
+      "verificationStatus": "third-party-source; shape-compared-with-official-brand-page",
+      "author": "zuozuozuozuo",
+      "width": 512,
+      "height": 512,
+      "palette": [
+        "#E60012",
+        "#E60113",
+        "#E60214",
+        "#E70A1B"
+      ],
+      "sha256": "32daae206bffa3e1d3acddadfcbb0f21c7f36b49b1d3d86222ca4a8dd51e7028",
+      "officialReferenceURL": "https://www.czbank.com/cn/about/logo/201812/t20181210_15862.shtml",
+      "officialReferenceImageURL": "https://www.czbank.com/cn/about/logo/201812/W020260807810725464548.jpg",
+      "assetName": "account-brand-czb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "浙商银行"
+    },
+    {
+      "id": "brand.bohai",
+      "name": "渤海银行",
+      "shortName": "渤海银行",
+      "aliases": [
+        "渤海",
+        "CBHB"
+      ],
+      "colorHex": "#00428D",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/bohai.png",
+      "format": "png",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://www.veryicon.com/icons/business/bank-logo-collection/logo-of-bohai-bank.html",
+      "downloadURL": "https://icons.veryicon.com/png/o/business/bank-logo-collection/logo-of-bohai-bank.png",
+      "license": "上游页面声明：Free for personal and commercial purpose. 非标准许可证；不代表银行商标授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 PNG；原图带白色圆角方形底，外角透明；保持原图颜色。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "author": "zuozuozuozuo",
+      "width": 512,
+      "height": 512,
+      "palette": [
+        "#00428D",
+        "#6FB92C",
+        "#01438D",
+        "#4474AB"
+      ],
+      "sha256": "d4c8524ce96e29b4203127a845e86f3077b3a85fda22634fa6401d9674b1e8bf",
+      "assetName": "account-brand-bohai",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "渤海银行"
+    },
+    {
+      "id": "brand.hengfeng",
+      "name": "恒丰银行",
+      "shortName": "恒丰银行",
+      "aliases": [
+        "恒丰",
+        "HFB",
+        "HENGFENG"
+      ],
+      "colorHex": "#003D75",
+      "bankGroup": "joint_stock",
+      "filePath": "assets/account-templates/banks/hengfeng.png",
+      "format": "png",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://www.veryicon.com/icons/business/bank-logo-collection/hengfeng-bank-logo.html",
+      "downloadURL": "https://icons.veryicon.com/png/o/business/bank-logo-collection/hengfeng-bank-logo.png",
+      "license": "上游页面声明：Free for personal and commercial purpose. 非标准许可证；不代表银行商标授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 PNG；原图带白色圆角方形底，外角透明；保持原图颜色。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "author": "zuozuozuozuo",
+      "width": 512,
+      "height": 512,
+      "palette": [
+        "#003D75",
+        "#A88249",
+        "#DCCDB6",
+        "#D6C5AA"
+      ],
+      "sha256": "504465f5da42d34677165475e635c7cb6f16fc501b03857382cd24644a715633",
+      "assetName": "account-brand-hengfeng",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "恒丰银行"
+    },
+    {
+      "id": "brand.bob",
+      "name": "北京银行",
+      "shortName": "北京银行",
+      "aliases": [
+        "北京",
+        "BOB"
+      ],
+      "colorHex": "#D5292F",
+      "bankGroup": "regional",
+      "filePath": "assets/account-templates/banks/bob.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/北京银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/北京银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "5852eeaf8dba144552ed2e17eaf9fb1d6bc9c6eb2d0c683baa0859690b9ac193",
+      "assetName": "account-brand-bob",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "北京银行"
+    },
+    {
+      "id": "brand.bosh",
+      "name": "上海银行",
+      "shortName": "上海银行",
+      "aliases": [
+        "上海",
+        "BOSH",
+        "BOS"
+      ],
+      "colorHex": "#30407F",
+      "bankGroup": "regional",
+      "filePath": "assets/account-templates/banks/bosh.svg",
+      "format": "svg",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://github.com/cellier/bank-icon-cn/blob/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/上海银行@0.5x.svg",
+      "downloadURL": "https://raw.githubusercontent.com/cellier/bank-icon-cn/f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1/svg/上海银行@0.5x.svg",
+      "license": "上游仓库未提供 LICENSE；不可推定为开源授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "24×24 viewBox 彩色 SVG；保留上游路径及颜色，勿使用 template tint。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "sourceRevision": "f345fe3b420e7ab2d069967cb2d1f53d3d51b7d1",
+      "sha256": "8c104028046faba9ec4d7bebe786384a5db9df70570b55ccc64d310cda9a9018",
+      "assetName": "account-brand-bosh",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "上海银行"
+    },
+    {
+      "id": "brand.jsb",
+      "name": "江苏银行",
+      "shortName": "江苏银行",
+      "aliases": [
+        "江苏",
+        "JSB"
+      ],
+      "colorHex": "#0268B8",
+      "bankGroup": "regional",
+      "filePath": "assets/account-templates/banks/jsb.png",
+      "format": "png",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://www.veryicon.com/icons/business/bank-logo-collection/logo-of-bank-of-jiangsu.html",
+      "downloadURL": "https://icons.veryicon.com/png/o/business/bank-logo-collection/logo-of-bank-of-jiangsu.png",
+      "license": "上游页面声明：Free for personal and commercial purpose. 非标准许可证；不代表银行商标授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 PNG；原图带白色圆角方形底，外角透明；保持原图颜色。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "author": "zuozuozuozuo",
+      "width": 512,
+      "height": 512,
+      "palette": [
+        "#0268B8",
+        "#E8B921",
+        "#E8B922",
+        "#0368B7"
+      ],
+      "sha256": "a82b80bf060b4286078c05945aab8e7cf16a873978305e0fe6d6aba41a85d2af",
+      "assetName": "account-brand-jsb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "江苏银行"
+    },
+    {
+      "id": "brand.nbcb",
+      "name": "宁波银行",
+      "shortName": "宁波银行",
+      "aliases": [
+        "宁波",
+        "NBCB"
+      ],
+      "colorHex": "#F2933B",
+      "bankGroup": "regional",
+      "filePath": "assets/account-templates/banks/nbcb.png",
+      "format": "png",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://www.veryicon.com/icons/business/bank-logo-collection/logo-of-bank-of-ningbo.html",
+      "downloadURL": "https://icons.veryicon.com/png/o/business/bank-logo-collection/logo-of-bank-of-ningbo.png",
+      "license": "上游页面声明：Free for personal and commercial purpose. 非标准许可证；不代表银行商标授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 PNG；原图带白色圆角方形底，外角透明；保持原图颜色。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "author": "zuozuozuozuo",
+      "width": 512,
+      "height": 512,
+      "palette": [
+        "#F2933B",
+        "#FEDA65",
+        "#FBF9BD",
+        "#FED964"
+      ],
+      "sha256": "b0a26b5073c5e67501115f3d5c8ace5c88481f57d181b9183a70e338d640f27e",
+      "assetName": "account-brand-nbcb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "宁波银行"
+    },
+    {
+      "id": "brand.hzbank",
+      "name": "杭州银行",
+      "shortName": "杭州银行",
+      "aliases": [
+        "杭州",
+        "HZBANK"
+      ],
+      "colorHex": "#0AA1E5",
+      "bankGroup": "regional",
+      "filePath": "assets/account-templates/banks/hzbank.png",
+      "format": "png",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://www.veryicon.com/icons/business/bank-logo-collection/logo-of-bank-of-hangzhou.html",
+      "downloadURL": "https://icons.veryicon.com/png/o/business/bank-logo-collection/logo-of-bank-of-hangzhou.png",
+      "license": "上游页面声明：Free for personal and commercial purpose. 非标准许可证；不代表银行商标授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 PNG；原图带白色圆角方形底，外角透明；保持原图颜色。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "author": "zuozuozuozuo",
+      "width": 512,
+      "height": 512,
+      "palette": [
+        "#0AA1E5",
+        "#717071",
+        "#E3E2E3",
+        "#C6C6C6"
+      ],
+      "sha256": "8e543360dd7a5a14d8163d4319e8e7ef3d2649e9a958fb60001c861d2ccdf8cf",
+      "assetName": "account-brand-hzbank",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "杭州银行"
+    },
+    {
+      "id": "brand.njcb",
+      "name": "南京银行",
+      "shortName": "南京银行",
+      "aliases": [
+        "南京",
+        "NJCB"
+      ],
+      "colorHex": "#CA1A1D",
+      "bankGroup": "regional",
+      "filePath": "assets/account-templates/banks/njcb.png",
+      "format": "png",
+      "sourceType": "third-party-icon-library",
+      "sourceURL": "https://www.veryicon.com/icons/business/bank-logo-collection/logo-of-bank-of-nanjing.html",
+      "downloadURL": "https://icons.veryicon.com/png/o/business/bank-logo-collection/logo-of-bank-of-nanjing.png",
+      "license": "上游页面声明：Free for personal and commercial purpose. 非标准许可证；不代表银行商标授权。",
+      "usageNote": "品牌标志和商标属于各银行。仅用于用户资产账户识别，不表示银行合作或背书；公开发行前应复核品牌使用要求。",
+      "retrievedAt": "2026-09-26",
+      "renderingMode": "original",
+      "requiresTint": false,
+      "appearanceNote": "512×512 PNG；原图带白色圆角方形底，外角透明；保持原图颜色。",
+      "verificationStatus": "source-page-confirmed; current-brand-not-independently-verified",
+      "author": "zuozuozuozuo",
+      "width": 512,
+      "height": 512,
+      "palette": [
+        "#CA1A1D",
+        "#F8E0E1",
+        "#E4888A",
+        "#CA1B1E"
+      ],
+      "sha256": "7d9a0b093c60c2033ea9efb4e5130fb5a16081eefe2ce4352a37e88383521231",
+      "assetName": "account-brand-njcb",
+      "fallbackSymbol": "building.columns",
+      "accessibilityName": "南京银行"
+    },
+    {
+      "id": "generic.cash",
+      "assetName": null,
+      "fallbackSymbol": "banknote",
+      "colorHex": "#64748B",
+      "accessibilityName": "现金",
+      "filePath": null,
+      "sourceURL": "https://developer.apple.com/sf-symbols/",
+      "usageNote": "iOS 内置 SF Symbol；本仓库不复制分发 Apple 字体或矢量文件。"
+    },
+    {
+      "id": "generic.bank",
+      "assetName": null,
+      "fallbackSymbol": "building.columns",
+      "colorHex": "#64748B",
+      "accessibilityName": "银行卡",
+      "filePath": null,
+      "sourceURL": "https://developer.apple.com/sf-symbols/",
+      "usageNote": "iOS 内置 SF Symbol；本仓库不复制分发 Apple 字体或矢量文件。"
+    },
+    {
+      "id": "generic.credit-card",
+      "assetName": null,
+      "fallbackSymbol": "creditcard",
+      "colorHex": "#64748B",
+      "accessibilityName": "信用卡",
+      "filePath": null,
+      "sourceURL": "https://developer.apple.com/sf-symbols/",
+      "usageNote": "iOS 内置 SF Symbol；本仓库不复制分发 Apple 字体或矢量文件。"
+    },
+    {
+      "id": "generic.wallet",
+      "assetName": null,
+      "fallbackSymbol": "wallet.bifold",
+      "colorHex": "#64748B",
+      "accessibilityName": "钱包",
+      "filePath": null,
+      "sourceURL": "https://developer.apple.com/sf-symbols/",
+      "usageNote": "iOS 内置 SF Symbol；本仓库不复制分发 Apple 字体或矢量文件。"
+    },
+    {
+      "id": "generic.prepaid",
+      "assetName": null,
+      "fallbackSymbol": "creditcard",
+      "colorHex": "#64748B",
+      "accessibilityName": "储值卡",
+      "filePath": null,
+      "sourceURL": "https://developer.apple.com/sf-symbols/",
+      "usageNote": "iOS 内置 SF Symbol；本仓库不复制分发 Apple 字体或矢量文件。"
+    },
+    {
+      "id": "generic.transit",
+      "assetName": null,
+      "fallbackSymbol": "bus",
+      "colorHex": "#64748B",
+      "accessibilityName": "交通卡",
+      "filePath": null,
+      "sourceURL": "https://developer.apple.com/sf-symbols/",
+      "usageNote": "iOS 内置 SF Symbol；本仓库不复制分发 Apple 字体或矢量文件。"
+    },
+    {
+      "id": "generic.meal",
+      "assetName": null,
+      "fallbackSymbol": "fork.knife",
+      "colorHex": "#64748B",
+      "accessibilityName": "饭卡",
+      "filePath": null,
+      "sourceURL": "https://developer.apple.com/sf-symbols/",
+      "usageNote": "iOS 内置 SF Symbol；本仓库不复制分发 Apple 字体或矢量文件。"
+    },
+    {
+      "id": "generic.shopping",
+      "assetName": null,
+      "fallbackSymbol": "giftcard",
+      "colorHex": "#64748B",
+      "accessibilityName": "购物卡",
+      "filePath": null,
+      "sourceURL": "https://developer.apple.com/sf-symbols/",
+      "usageNote": "iOS 内置 SF Symbol；本仓库不复制分发 Apple 字体或矢量文件。"
+    }
+  ],
+  "institutions": [
+    {
+      "id": "wechat-pay",
+      "name": "微信",
+      "shortName": "微信",
+      "aliases": [
+        "微信支付",
+        "微信零钱",
+        "WeChat Pay",
+        "Weixin Pay",
+        "WeChat"
+      ],
+      "iconID": "brand.wechat-pay"
+    },
+    {
+      "id": "alipay",
+      "name": "支付宝",
+      "shortName": "支付宝",
+      "aliases": [
+        "支付宝",
+        "支付宝余额",
+        "Alipay",
+        "zhifubao"
+      ],
+      "iconID": "brand.alipay"
+    },
+    {
+      "id": "qq-wallet",
+      "name": "QQ钱包",
+      "shortName": "QQ钱包",
+      "aliases": [
+        "QQ钱包",
+        "QQ 钱包",
+        "QQ Wallet",
+        "QQ余额",
+        "QQ"
+      ],
+      "iconID": "brand.qq-wallet"
+    },
+    {
+      "id": "china-mobile",
+      "name": "中国移动",
+      "shortName": "中国移动",
+      "aliases": [
+        "移动",
+        "中国移动",
+        "中国移动通信",
+        "CMCC",
+        "China Mobile",
+        "移动话费",
+        "10086"
+      ],
+      "iconID": "brand.china-mobile"
+    },
+    {
+      "id": "china-unicom",
+      "name": "中国联通",
+      "shortName": "中国联通",
+      "aliases": [
+        "联通",
+        "中国联通",
+        "China Unicom",
+        "联通话费",
+        "10010"
+      ],
+      "iconID": "brand.china-unicom"
+    },
+    {
+      "id": "china-telecom",
+      "name": "中国电信",
+      "shortName": "中国电信",
+      "aliases": [
+        "电信",
+        "中国电信",
+        "China Telecom",
+        "电信话费",
+        "10000"
+      ],
+      "iconID": "brand.china-telecom"
+    },
+    {
+      "id": "china-broadnet",
+      "name": "中国广电",
+      "shortName": "中国广电",
+      "aliases": [
+        "广电",
+        "中国广电",
+        "广电5G",
+        "中国广电营业厅",
+        "China Broadnet",
+        "CBN",
+        "广电话费",
+        "10099"
+      ],
+      "iconID": "brand.china-broadnet"
+    },
+    {
+      "id": "icbc",
+      "name": "中国工商银行",
+      "shortName": "工商银行",
+      "aliases": [
+        "工行",
+        "ICBC",
+        "gongshang"
+      ],
+      "iconID": "brand.icbc"
+    },
+    {
+      "id": "abc",
+      "name": "中国农业银行",
+      "shortName": "农业银行",
+      "aliases": [
+        "农行",
+        "ABC",
+        "nongye"
+      ],
+      "iconID": "brand.abc"
+    },
+    {
+      "id": "boc",
+      "name": "中国银行",
+      "shortName": "中国银行",
+      "aliases": [
+        "中行",
+        "中银",
+        "BOC",
+        "zhongguo"
+      ],
+      "iconID": "brand.boc"
+    },
+    {
+      "id": "ccb",
+      "name": "中国建设银行",
+      "shortName": "建设银行",
+      "aliases": [
+        "建行",
+        "CCB",
+        "jianshe"
+      ],
+      "iconID": "brand.ccb"
+    },
+    {
+      "id": "bocom",
+      "name": "交通银行",
+      "shortName": "交通银行",
+      "aliases": [
+        "交行",
+        "BOCOM",
+        "BCM",
+        "jiaotong"
+      ],
+      "iconID": "brand.bocom"
+    },
+    {
+      "id": "psbc",
+      "name": "中国邮政储蓄银行",
+      "shortName": "邮储银行",
+      "aliases": [
+        "邮储",
+        "邮政储蓄",
+        "PSBC",
+        "youchu"
+      ],
+      "iconID": "brand.psbc"
+    },
+    {
+      "id": "cmb",
+      "name": "招商银行",
+      "shortName": "招商银行",
+      "aliases": [
+        "招行",
+        "CMB",
+        "zhaoshang"
+      ],
+      "iconID": "brand.cmb"
+    },
+    {
+      "id": "spdb",
+      "name": "上海浦东发展银行",
+      "shortName": "浦发银行",
+      "aliases": [
+        "浦发",
+        "SPDB",
+        "pufa"
+      ],
+      "iconID": "brand.spdb"
+    },
+    {
+      "id": "citic",
+      "name": "中信银行",
+      "shortName": "中信银行",
+      "aliases": [
+        "中信",
+        "CITIC",
+        "CNCB",
+        "zhongxin"
+      ],
+      "iconID": "brand.citic"
+    },
+    {
+      "id": "ceb",
+      "name": "中国光大银行",
+      "shortName": "光大银行",
+      "aliases": [
+        "光大",
+        "CEB",
+        "guangda"
+      ],
+      "iconID": "brand.ceb"
+    },
+    {
+      "id": "cmbc",
+      "name": "中国民生银行",
+      "shortName": "民生银行",
+      "aliases": [
+        "民生",
+        "CMBC",
+        "minsheng"
+      ],
+      "iconID": "brand.cmbc"
+    },
+    {
+      "id": "cib",
+      "name": "兴业银行",
+      "shortName": "兴业银行",
+      "aliases": [
+        "兴业",
+        "CIB",
+        "xingye"
+      ],
+      "iconID": "brand.cib"
+    },
+    {
+      "id": "pab",
+      "name": "平安银行",
+      "shortName": "平安银行",
+      "aliases": [
+        "平安",
+        "平安口袋银行",
+        "PAB",
+        "pingan"
+      ],
+      "iconID": "brand.pab"
+    },
+    {
+      "id": "hxb",
+      "name": "华夏银行",
+      "shortName": "华夏银行",
+      "aliases": [
+        "华夏",
+        "HXB",
+        "huaxia"
+      ],
+      "iconID": "brand.hxb"
+    },
+    {
+      "id": "cgb",
+      "name": "广发银行",
+      "shortName": "广发银行",
+      "aliases": [
+        "广发",
+        "广东发展银行",
+        "CGB",
+        "guangfa"
+      ],
+      "iconID": "brand.cgb"
+    },
+    {
+      "id": "czb",
+      "name": "浙商银行",
+      "shortName": "浙商银行",
+      "aliases": [
+        "浙商",
+        "CZB",
+        "CZBANK",
+        "zheshang"
+      ],
+      "iconID": "brand.czb"
+    },
+    {
+      "id": "bohai",
+      "name": "渤海银行",
+      "shortName": "渤海银行",
+      "aliases": [
+        "渤海",
+        "CBHB",
+        "bohai",
+        "BOHAI"
+      ],
+      "iconID": "brand.bohai"
+    },
+    {
+      "id": "hengfeng",
+      "name": "恒丰银行",
+      "shortName": "恒丰银行",
+      "aliases": [
+        "恒丰",
+        "HFB",
+        "HENGFENG",
+        "hengfeng"
+      ],
+      "iconID": "brand.hengfeng"
+    },
+    {
+      "id": "bob",
+      "name": "北京银行",
+      "shortName": "北京银行",
+      "aliases": [
+        "北京",
+        "BOB",
+        "beijing"
+      ],
+      "iconID": "brand.bob"
+    },
+    {
+      "id": "bosh",
+      "name": "上海银行",
+      "shortName": "上海银行",
+      "aliases": [
+        "上海",
+        "BOSH",
+        "BOS",
+        "shanghai"
+      ],
+      "iconID": "brand.bosh"
+    },
+    {
+      "id": "jsb",
+      "name": "江苏银行",
+      "shortName": "江苏银行",
+      "aliases": [
+        "江苏",
+        "JSB",
+        "jiangsu"
+      ],
+      "iconID": "brand.jsb"
+    },
+    {
+      "id": "nbcb",
+      "name": "宁波银行",
+      "shortName": "宁波银行",
+      "aliases": [
+        "宁波",
+        "NBCB",
+        "ningbo"
+      ],
+      "iconID": "brand.nbcb"
+    },
+    {
+      "id": "hzbank",
+      "name": "杭州银行",
+      "shortName": "杭州银行",
+      "aliases": [
+        "杭州",
+        "HZBANK",
+        "hangzhou"
+      ],
+      "iconID": "brand.hzbank"
+    },
+    {
+      "id": "njcb",
+      "name": "南京银行",
+      "shortName": "南京银行",
+      "aliases": [
+        "南京",
+        "NJCB",
+        "nanjing"
+      ],
+      "iconID": "brand.njcb"
+    }
+  ],
+  "templates": [
+    {
+      "id": "cn.wechat-pay.balance",
+      "name": "微信零钱",
+      "group": "wallet",
+      "institutionID": "wechat-pay",
+      "iconID": "brand.wechat-pay",
+      "kind": "wallet",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "支付",
+        "钱包",
+        "余额"
+      ],
+      "note": "只记录钱包自身余额；绑定银行卡单独建账户。"
+    },
+    {
+      "id": "cn.alipay.balance",
+      "name": "支付宝余额",
+      "group": "wallet",
+      "institutionID": "alipay",
+      "iconID": "brand.alipay",
+      "kind": "wallet",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "支付",
+        "钱包",
+        "余额"
+      ],
+      "note": "只记录钱包自身余额；绑定银行卡单独建账户。"
+    },
+    {
+      "id": "cn.qq-wallet.balance",
+      "name": "QQ钱包余额",
+      "group": "wallet",
+      "institutionID": "qq-wallet",
+      "iconID": "brand.qq-wallet",
+      "kind": "wallet",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "支付",
+        "钱包",
+        "余额"
+      ],
+      "note": "只记录钱包自身余额；绑定银行卡单独建账户。"
+    },
+    {
+      "id": "cn.icbc.debit",
+      "name": "工商银行储蓄卡",
+      "group": "bank",
+      "institutionID": "icbc",
+      "iconID": "brand.icbc",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.abc.debit",
+      "name": "农业银行储蓄卡",
+      "group": "bank",
+      "institutionID": "abc",
+      "iconID": "brand.abc",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.boc.debit",
+      "name": "中国银行储蓄卡",
+      "group": "bank",
+      "institutionID": "boc",
+      "iconID": "brand.boc",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.ccb.debit",
+      "name": "建设银行储蓄卡",
+      "group": "bank",
+      "institutionID": "ccb",
+      "iconID": "brand.ccb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.bocom.debit",
+      "name": "交通银行储蓄卡",
+      "group": "bank",
+      "institutionID": "bocom",
+      "iconID": "brand.bocom",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.psbc.debit",
+      "name": "邮储银行储蓄卡",
+      "group": "bank",
+      "institutionID": "psbc",
+      "iconID": "brand.psbc",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.cmb.debit",
+      "name": "招商银行储蓄卡",
+      "group": "bank",
+      "institutionID": "cmb",
+      "iconID": "brand.cmb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.spdb.debit",
+      "name": "浦发银行储蓄卡",
+      "group": "bank",
+      "institutionID": "spdb",
+      "iconID": "brand.spdb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.citic.debit",
+      "name": "中信银行储蓄卡",
+      "group": "bank",
+      "institutionID": "citic",
+      "iconID": "brand.citic",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.ceb.debit",
+      "name": "光大银行储蓄卡",
+      "group": "bank",
+      "institutionID": "ceb",
+      "iconID": "brand.ceb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.cmbc.debit",
+      "name": "民生银行储蓄卡",
+      "group": "bank",
+      "institutionID": "cmbc",
+      "iconID": "brand.cmbc",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.cib.debit",
+      "name": "兴业银行储蓄卡",
+      "group": "bank",
+      "institutionID": "cib",
+      "iconID": "brand.cib",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.pab.debit",
+      "name": "平安银行储蓄卡",
+      "group": "bank",
+      "institutionID": "pab",
+      "iconID": "brand.pab",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.hxb.debit",
+      "name": "华夏银行储蓄卡",
+      "group": "bank",
+      "institutionID": "hxb",
+      "iconID": "brand.hxb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.cgb.debit",
+      "name": "广发银行储蓄卡",
+      "group": "bank",
+      "institutionID": "cgb",
+      "iconID": "brand.cgb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.czb.debit",
+      "name": "浙商银行储蓄卡",
+      "group": "bank",
+      "institutionID": "czb",
+      "iconID": "brand.czb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.bohai.debit",
+      "name": "渤海银行储蓄卡",
+      "group": "bank",
+      "institutionID": "bohai",
+      "iconID": "brand.bohai",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.hengfeng.debit",
+      "name": "恒丰银行储蓄卡",
+      "group": "bank",
+      "institutionID": "hengfeng",
+      "iconID": "brand.hengfeng",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.bob.debit",
+      "name": "北京银行储蓄卡",
+      "group": "bank",
+      "institutionID": "bob",
+      "iconID": "brand.bob",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.bosh.debit",
+      "name": "上海银行储蓄卡",
+      "group": "bank",
+      "institutionID": "bosh",
+      "iconID": "brand.bosh",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.jsb.debit",
+      "name": "江苏银行储蓄卡",
+      "group": "bank",
+      "institutionID": "jsb",
+      "iconID": "brand.jsb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.nbcb.debit",
+      "name": "宁波银行储蓄卡",
+      "group": "bank",
+      "institutionID": "nbcb",
+      "iconID": "brand.nbcb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.hzbank.debit",
+      "name": "杭州银行储蓄卡",
+      "group": "bank",
+      "institutionID": "hzbank",
+      "iconID": "brand.hzbank",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.njcb.debit",
+      "name": "南京银行储蓄卡",
+      "group": "bank",
+      "institutionID": "njcb",
+      "iconID": "brand.njcb",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "借记卡",
+        "储蓄卡",
+        "银行卡"
+      ],
+      "note": "同一银行可建多张卡；名称可加用途或尾号。"
+    },
+    {
+      "id": "cn.icbc.credit",
+      "name": "工商银行信用卡",
+      "group": "creditCard",
+      "institutionID": "icbc",
+      "iconID": "brand.icbc",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.abc.credit",
+      "name": "农业银行信用卡",
+      "group": "creditCard",
+      "institutionID": "abc",
+      "iconID": "brand.abc",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.boc.credit",
+      "name": "中国银行信用卡",
+      "group": "creditCard",
+      "institutionID": "boc",
+      "iconID": "brand.boc",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.ccb.credit",
+      "name": "建设银行信用卡",
+      "group": "creditCard",
+      "institutionID": "ccb",
+      "iconID": "brand.ccb",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.bocom.credit",
+      "name": "交通银行信用卡",
+      "group": "creditCard",
+      "institutionID": "bocom",
+      "iconID": "brand.bocom",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.psbc.credit",
+      "name": "邮储银行信用卡",
+      "group": "creditCard",
+      "institutionID": "psbc",
+      "iconID": "brand.psbc",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.cmb.credit",
+      "name": "招商银行信用卡",
+      "group": "creditCard",
+      "institutionID": "cmb",
+      "iconID": "brand.cmb",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.spdb.credit",
+      "name": "浦发银行信用卡",
+      "group": "creditCard",
+      "institutionID": "spdb",
+      "iconID": "brand.spdb",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.citic.credit",
+      "name": "中信银行信用卡",
+      "group": "creditCard",
+      "institutionID": "citic",
+      "iconID": "brand.citic",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.ceb.credit",
+      "name": "光大银行信用卡",
+      "group": "creditCard",
+      "institutionID": "ceb",
+      "iconID": "brand.ceb",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.cmbc.credit",
+      "name": "民生银行信用卡",
+      "group": "creditCard",
+      "institutionID": "cmbc",
+      "iconID": "brand.cmbc",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.cib.credit",
+      "name": "兴业银行信用卡",
+      "group": "creditCard",
+      "institutionID": "cib",
+      "iconID": "brand.cib",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.pab.credit",
+      "name": "平安银行信用卡",
+      "group": "creditCard",
+      "institutionID": "pab",
+      "iconID": "brand.pab",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.hxb.credit",
+      "name": "华夏银行信用卡",
+      "group": "creditCard",
+      "institutionID": "hxb",
+      "iconID": "brand.hxb",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.cgb.credit",
+      "name": "广发银行信用卡",
+      "group": "creditCard",
+      "institutionID": "cgb",
+      "iconID": "brand.cgb",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡",
+        "贷记卡",
+        "负债",
+        "待还"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产，还款记转账。"
+    },
+    {
+      "id": "cn.china-mobile.balance",
+      "name": "中国移动话费",
+      "group": "storedValue",
+      "institutionID": "china-mobile",
+      "iconID": "brand.china-mobile",
+      "kind": "storedValue",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": false,
+      "keywords": [
+        "话费",
+        "手机",
+        "储值",
+        "预付"
+      ],
+      "note": "话费余额默认不计入汇总；充值记转账，使用才记消费。"
+    },
+    {
+      "id": "cn.china-unicom.balance",
+      "name": "中国联通话费",
+      "group": "storedValue",
+      "institutionID": "china-unicom",
+      "iconID": "brand.china-unicom",
+      "kind": "storedValue",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": false,
+      "keywords": [
+        "话费",
+        "手机",
+        "储值",
+        "预付"
+      ],
+      "note": "话费余额默认不计入汇总；充值记转账，使用才记消费。"
+    },
+    {
+      "id": "cn.china-telecom.balance",
+      "name": "中国电信话费",
+      "group": "storedValue",
+      "institutionID": "china-telecom",
+      "iconID": "brand.china-telecom",
+      "kind": "storedValue",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": false,
+      "keywords": [
+        "话费",
+        "手机",
+        "储值",
+        "预付"
+      ],
+      "note": "话费余额默认不计入汇总；充值记转账，使用才记消费。"
+    },
+    {
+      "id": "cn.china-broadnet.balance",
+      "name": "中国广电话费",
+      "group": "storedValue",
+      "institutionID": "china-broadnet",
+      "iconID": "brand.china-broadnet",
+      "kind": "storedValue",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": false,
+      "keywords": [
+        "话费",
+        "手机",
+        "储值",
+        "预付"
+      ],
+      "note": "话费余额默认不计入汇总；充值记转账，使用才记消费。"
+    },
+    {
+      "id": "cn.generic.cash",
+      "name": "人民币现金",
+      "group": "cash",
+      "institutionID": null,
+      "iconID": "generic.cash",
+      "kind": "cash",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "现金"
+      ],
+      "note": "只记录实际持有现金。"
+    },
+    {
+      "id": "cn.generic.bank",
+      "name": "其他银行卡",
+      "group": "bank",
+      "institutionID": null,
+      "iconID": "generic.bank",
+      "kind": "bank",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "银行卡"
+      ],
+      "note": "可自定义银行与用途，不自动识别机构。"
+    },
+    {
+      "id": "cn.generic.credit-card",
+      "name": "其他信用卡",
+      "group": "creditCard",
+      "institutionID": null,
+      "iconID": "generic.credit-card",
+      "kind": "creditCard",
+      "nature": "liability",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "信用卡"
+      ],
+      "note": "记录尚欠金额；信用额度不计资产。"
+    },
+    {
+      "id": "cn.generic.wallet",
+      "name": "其他支付钱包",
+      "group": "wallet",
+      "institutionID": null,
+      "iconID": "generic.wallet",
+      "kind": "wallet",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": true,
+      "keywords": [
+        "钱包"
+      ],
+      "note": "只记录可独立核对的实际钱包余额。"
+    },
+    {
+      "id": "cn.generic.prepaid",
+      "name": "其他储值卡",
+      "group": "storedValue",
+      "institutionID": null,
+      "iconID": "generic.prepaid",
+      "kind": "storedValue",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": false,
+      "keywords": [
+        "储值卡"
+      ],
+      "note": "充值记转账，使用才记消费；汇总可自行设置。"
+    },
+    {
+      "id": "cn.generic.transit",
+      "name": "交通卡",
+      "group": "storedValue",
+      "institutionID": null,
+      "iconID": "generic.transit",
+      "kind": "storedValue",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": false,
+      "keywords": [
+        "交通卡"
+      ],
+      "note": "只记录储值余额，不包含已开通的免扣费权益。"
+    },
+    {
+      "id": "cn.generic.meal",
+      "name": "饭卡",
+      "group": "storedValue",
+      "institutionID": null,
+      "iconID": "generic.meal",
+      "kind": "storedValue",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": false,
+      "keywords": [
+        "饭卡"
+      ],
+      "note": "食堂储值余额；充值和消费分开记录。"
+    },
+    {
+      "id": "cn.generic.shopping",
+      "name": "购物卡",
+      "group": "storedValue",
+      "institutionID": null,
+      "iconID": "generic.shopping",
+      "kind": "storedValue",
+      "nature": "asset",
+      "currency": "CNY",
+      "includedInSummary": false,
+      "keywords": [
+        "购物卡"
+      ],
+      "note": "记录尚可使用的储值余额，不把优惠券当资产。"
+    }
+  ]
+}

@@ -6,3 +6,5 @@
 *.zip -text
 *.png -text
 *.jpg -text
+*.svg -text
+assets/account-templates/preview.html text eol=lf

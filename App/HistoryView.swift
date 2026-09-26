@@ -11,7 +11,11 @@ struct HistoryView: View {
         var value = filter; value.keyword = keyword; return value
     }
     private var results: Result<[LedgerEntry], any Error> {
-        Result { try EntryQuery.entries(in: model.book, matching: activeFilter) }
+        Result {
+            try LedgerPerformance.measure("History.QueryExecution") {
+                try EntryQuery.entries(in: model.book, matching: activeFilter)
+            }
+        }
     }
     var body: some View {
         List {
@@ -58,6 +62,8 @@ struct HistoryView: View {
     }
     private struct DayGroup { let day: Date; var entries: [LedgerEntry] }
     private func groups(_ entries: [LedgerEntry]) -> [DayGroup] {
+        let interval = LedgerPerformance.begin("History.GroupExecution")
+        defer { LedgerPerformance.end(interval) }
         var groups: [DayGroup] = []
         let calendar = HistoryFilterView.calendar
         for entry in entries {
