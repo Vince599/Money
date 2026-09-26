@@ -29,9 +29,9 @@ final class LedgerAppModel {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let path = directory.appendingPathComponent("ledger.sqlite").path
             // Database creation/migration is also off the main actor.
-            let repo = try await Task.detached { try LedgerRepository(path: path) }.value
-            repository = repo
-            apply(try await repo.snapshot())
+            let opened = try await Task.detached { try LedgerRepository.open(path: path) }.value
+            repository = opened.repository
+            apply(opened.snapshot)
             isLoaded = true
             outcome = .completed
         } catch { errorMessage = message(for: error) }

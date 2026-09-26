@@ -15,7 +15,7 @@ public enum EntryDraftUpdate: Sendable {
     case replace(EntryDraft?)
 }
 
-/// Constructed inside the transaction and returned only after a successful commit.
+/// Consistent book, draft and settings from one database transaction.
 public struct SQLiteLedgerSnapshot: Sendable {
     public let book: LedgerBook
     public let draft: EntryDraft?
@@ -38,10 +38,25 @@ public final class SQLiteLedgerStore: Sendable {
     private let database: DatabaseQueue
 
     public init(path: String) throws {
+        database = try Self.openDatabase(path: path).database
+    }
+
+    /// Opens and validates the database and returns its initial state from the
+    /// same transaction. Later reads always fetch a fresh database snapshot.
+    public static func open(path: String) throws -> (store: SQLiteLedgerStore, snapshot: SQLiteLedgerSnapshot) {
+        let opened = try openDatabase(path: path)
+        return (SQLiteLedgerStore(database: opened.database), opened.snapshot)
+    }
+
+    private init(database: DatabaseQueue) {
+        self.database = database
+    }
+
+    private static func openDatabase(path: String) throws -> (database: DatabaseQueue, snapshot: SQLiteLedgerSnapshot) {
         var configuration = Configuration()
         configuration.foreignKeysEnabled = true
-        database = try DatabaseQueue(path: path, configuration: configuration)
-        try database.write { db in
+        let database = try DatabaseQueue(path: path, configuration: configuration)
+        let snapshot = try database.write { db in
             let version = try Int.fetchOne(db, sql: "PRAGMA user_version") ?? 0
             guard version == 0 || version == Self.schemaVersion else {
                 throw LedgerStoreError.unsupportedSchemaVersion(version)
@@ -63,15 +78,23 @@ public final class SQLiteLedgerStore: Sendable {
                 try db.execute(sql: "PRAGMA application_id = \(Self.applicationID)")
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
-            try Self.checkDatabase(db)
-            _ = try Self.readBook(in: db)
+            return try Self.readSnapshot(in: db)
+        }
+        return (database, snapshot)
+    }
+
+    /// Reads all persisted state in one isolated read transaction, including
+    /// changes committed by other connections since the store was opened.
+    public func loadSnapshot() throws -> SQLiteLedgerSnapshot {
+        try database.read { db in
+            try Self.readSnapshot(in: db)
         }
     }
 
     public func loadBook() throws -> LedgerBook {
         try database.read { db in
             try Self.checkDatabase(db)
-            return try Self.readBook(in: db)
+            return try Self.readBook(in: db, checkingRelationships: false)
         }
     }
 
@@ -192,6 +215,12 @@ public final class SQLiteLedgerStore: Sendable {
         }
     }
 
+    private static func readSnapshot(in db: Database) throws -> SQLiteLedgerSnapshot {
+        try checkDatabase(db)
+        return SQLiteLedgerSnapshot(book: try readBook(in: db, checkingRelationships: false),
+                                    draft: try readDraft(in: db), settings: try readSettings(in: db))
+    }
+
     private static func readDraft(in db: Database) throws -> EntryDraft? {
         guard let payload = try Data.fetchOne(db, sql: "SELECT payload FROM entry_draft WHERE singleton = 1") else {
             return nil
@@ -296,7 +325,7 @@ public final class SQLiteLedgerStore: Sendable {
                        arguments: arguments)
     }
 
-    private static func readBook(in db: Database) throws -> LedgerBook {
+    private static func readBook(in db: Database, checkingRelationships: Bool = true) throws -> LedgerBook {
         let retiredStrings = try String.fetchAll(db, sql: """
             SELECT operation_id FROM operation_registry WHERE record_kind = 'retired'
             """)
@@ -314,7 +343,7 @@ public final class SQLiteLedgerStore: Sendable {
             categories: try readRows(LedgerCore.Category.self, table: "categories", in: db) { columns(for: $0) },
             retiredOperationIDs: retiredIDs)
         try LedgerEngine.validate(book)
-        try checkRelationships(db)
+        if checkingRelationships { try checkRelationships(db) }
         return book
     }
 

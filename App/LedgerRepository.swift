@@ -20,10 +20,27 @@ actor LedgerRepository {
         safetyDirectory = URL(fileURLWithPath: path).deletingLastPathComponent()
             .appendingPathComponent("RecoveryBackups", isDirectory: true)
     }
+
+    private init(store: SQLiteLedgerStore, path: String) {
+        self.store = store
+        safetyDirectory = URL(fileURLWithPath: path).deletingLastPathComponent()
+            .appendingPathComponent("RecoveryBackups", isDirectory: true)
+    }
+
+    /// The caller receives the already validated opening snapshot, without a
+    /// second full read. No snapshot is retained as a cache by the repository.
+    static func open(path: String) throws -> (repository: LedgerRepository, snapshot: LedgerSnapshot) {
+        let opened = try LedgerPerformance.measure("Store.Open") { try SQLiteLedgerStore.open(path: path) }
+        return (LedgerRepository(store: opened.store, path: path),
+                LedgerSnapshot(book: opened.snapshot.book, draft: opened.snapshot.draft,
+                               settings: opened.snapshot.settings, draftRevision: 0))
+    }
+
     func snapshot() throws -> LedgerSnapshot {
         try LedgerPerformance.measure("Repository.Snapshot") {
-            LedgerSnapshot(book: try store.loadBook(), draft: try store.loadDraft(), settings: try store.loadSettings(),
-                           draftRevision: draftRevision)
+            let value = try store.loadSnapshot()
+            return LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings,
+                                  draftRevision: draftRevision)
         }
     }
     func saveDraft(_ draft: EntryDraft?, revision: UInt64) throws {
