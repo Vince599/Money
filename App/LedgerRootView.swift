@@ -33,7 +33,7 @@ struct LedgerRootView: View {
     @ToolbarContentBuilder private var recordToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button { showEntry = true } label: { Image(systemName: "plus.circle.fill") }
-                .accessibilityLabel("记一笔").disabled(model.isBusy)
+                .accessibilityLabel("记一笔").accessibilityIdentifier("entry.add").disabled(model.isBusy)
         }
     }
     private var home: some View {
@@ -66,6 +66,7 @@ struct LedgerRootView: View {
                 ForEach(sortedEntries.prefix(5)) { entry in
                     Button { selectedEntry = entry } label: { EntryRow(model: model, entry: entry) }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("entry.row." + entry.id.uuidString.lowercased())
                 }
             }
         }
@@ -75,6 +76,7 @@ struct LedgerRootView: View {
             if sortedEntries.isEmpty { ContentUnavailableView("还没有流水", systemImage: "list.bullet.rectangle") }
             ForEach(sortedEntries) { entry in
                 Button { selectedEntry = entry } label: { EntryRow(model: model, entry: entry) }.buttonStyle(.plain)
+                    .accessibilityIdentifier("entry.row." + entry.id.uuidString.lowercased())
             }
         }
     }

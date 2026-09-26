@@ -104,6 +104,7 @@ PY
 )"
 printf 'runtime=%s\nudid=%s\n' "$SIMULATOR_RUNTIME" "$SIMULATOR_ID" > "$LOGS/selected-simulator.log"
 
+TEST_STATUS=0
 xcodebuild test \
   -project Ledger.xcodeproj -scheme Ledger -configuration Debug \
   -sdk iphonesimulator -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
@@ -113,7 +114,33 @@ xcodebuild test \
   -onlyUsePackageVersionsFromResolvedFile \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
-  2>&1 | tee "$LOGS/simulator-tests.log"
+  2>&1 | tee "$LOGS/simulator-tests.log" || TEST_STATUS=$?
+
+# Xcode 16+ has a dedicated attachment exporter. Preserve the current tool's
+# help as evidence and export keepAlways UI screenshots even when tests fail.
+ATTACHMENT_STATUS=0
+if [[ -d "$ARTIFACTS/AppTests.xcresult" ]]; then
+  mkdir -p "$ARTIFACTS/screenshots"
+  xcrun xcresulttool help export attachments > "$LOGS/xcresult-attachments-help.log" 2>&1 || ATTACHMENT_STATUS=$?
+  if [[ "$ATTACHMENT_STATUS" -eq 0 ]]; then
+    xcrun xcresulttool export attachments \
+      --path "$ARTIFACTS/AppTests.xcresult" --output-path "$ARTIFACTS/screenshots" \
+      2>&1 | tee "$LOGS/attachment-export.log" || ATTACHMENT_STATUS=$?
+  fi
+  xcrun xcresulttool get test-results summary --path "$ARTIFACTS/AppTests.xcresult" \
+    > "$ARTIFACTS/test-summary.json" 2> "$LOGS/test-summary-error.log" || true
+fi
+if [[ "$TEST_STATUS" -ne 0 ]]; then
+  exit "$TEST_STATUS"
+fi
+if [[ "$ATTACHMENT_STATUS" -ne 0 ]]; then
+  printf '%s\n' 'Tests passed, but screenshot attachment export failed.' >&2
+  exit "$ATTACHMENT_STATUS"
+fi
+if ! find "$ARTIFACTS/screenshots" -type f -iname '*.png' -print -quit | grep -q .; then
+  printf '%s\n' 'The UI smoke test produced no PNG attachment. Check its keepAlways screenshot.' >&2
+  exit 1
+fi
 
 xcodebuild build \
   -project Ledger.xcodeproj -scheme Ledger -configuration Release \

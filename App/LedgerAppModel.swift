@@ -22,7 +22,7 @@ final class LedgerAppModel {
         do {
             let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                    appropriateFor: nil, create: true)
-            let directory = base.appendingPathComponent("Ledger", isDirectory: true)
+            let directory = Self.storageDirectory(in: base)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let path = directory.appendingPathComponent("ledger.sqlite").path
             // Database creation/migration is also off the main actor.
@@ -31,6 +31,19 @@ final class LedgerAppModel {
             apply(try await repo.snapshot())
             isLoaded = true
         } catch { errorMessage = message(for: error) }
+    }
+    private static func storageDirectory(in base: URL) -> URL {
+        #if DEBUG
+        // UI tests use a fresh, UUID-scoped real database and keep it on relaunch.
+        // This branch is absent from the Release app and never resets a user's book.
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "-ledger-ui-test-store"), arguments.indices.contains(index + 1),
+           let id = UUID(uuidString: arguments[index + 1]) {
+            return base.appendingPathComponent("LedgerUITests", isDirectory: true)
+                .appendingPathComponent(id.uuidString.lowercased(), isDirectory: true)
+        }
+        #endif
+        return base.appendingPathComponent("Ledger", isDirectory: true)
     }
     func newDraft() -> EntryDraft {
         draft ?? EntryDraft(accountID: settings.defaultAccountID, subjectID: settings.defaultSubjectID)

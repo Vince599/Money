@@ -8,6 +8,7 @@
 |---|---|
 | App / scheme | `Ledger` |
 | AppTests target | `LedgerAppTests` |
+| UI smoke test target | `LedgerUITests`；使用隔离的 DEBUG 测试账本 |
 | 本地 Swift package | `Ledger`；产品 `LedgerCore`、`LedgerStore` |
 | Bundle ID | `app.vince.ledger`；测试为 `app.vince.ledger.tests` |
 | 最低系统 | iOS 26.0，仅 iPhone |
@@ -56,7 +57,7 @@ bash scripts/build-ios.sh
 1. 核对工具链；下载并校验固定版 XcodeGen 到本项目 `.tools/`，不执行全局安装。
 2. 解析精确的 Swift package 依赖，运行核心与 Apple 存储包测试。
 3. 从 `project.yml` 生成 `Ledger.xcodeproj`，将实际 `Package.resolved` 提供给 Xcode。
-4. 在固定 iOS 26.5 运行时选择可用 iPhone，运行 `LedgerAppTests`，保存 `.xcresult`。
+4. 在固定 iOS 26.5 运行时选择可用 iPhone，运行 `LedgerAppTests` 和 `LedgerUITests`，保存 `.xcresult`；UI 测试的截图附件导出到 `artifacts/screenshots/`。
 5. 编译 `iphoneos` 的 arm64 Release App，确认产品平台和 Bundle ID，打包未签名 `Payload/Ledger.app` 为 IPA。
 
 根 `Package.resolved` 应随源代码提交。Windows 的核心-only manifest 不能代替 Apple 依赖锁；首次 macOS 解析若产生新锁，CI 会保存它供审核回填，此前只能说直接依赖版本已固定。后续解析或依赖升级造成的锁变化应审查后提交，不手写未验证的锁文件。
@@ -65,17 +66,20 @@ bash scripts/build-ios.sh
 
 首次注册手动工作流时，`.github/workflows/ios.yml` 必须已存在于仓库默认分支；之后可选择其他分支运行。仅将新增工作流推到非默认分支，不能保证出现手动运行入口。参见 [GitHub 手动运行工作流说明](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)。
 
-成功产物位于 `build/ios/<时间戳>/artifacts/`，包括 `Ledger-unsigned.ipa`、SHA-256、实际依赖锁、工具基线、构建元数据和 AppTests 结果。日志位于同级 `logs/`；失败时仍尝试保存已有日志，失败运行没有通过的 IPA 承诺。GitHub artifact 保留 7 天，不能作为账本备份。
+成功产物位于 `build/ios/<时间戳>/artifacts/`，包括 `Ledger-unsigned.ipa`、SHA-256、实际依赖锁、工具基线、构建元数据和测试结果。`screenshots/` 保存导出的 PNG 与附件清单，可从下载的 artifact 直接查看；`test-summary.json` 在工具可读取结果时保存测试摘要。日志位于同级 `logs/`；失败时仍尝试导出已有截图、保存已有日志，然后保留原测试失败状态。测试成功但截图导出失败或没有 PNG 时，不继续打包 IPA。GitHub artifact 保留 7 天，不能作为账本备份。
+
+截图使用 [Apple 在 Xcode 16 起提供的 `xcresulttool export attachments` 命令](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_3-release-notes)。脚本同时保存当前固定 Xcode 的 `help export attachments` 输出；具体截图内容与导出结果须以首次包含 UI 测试的云端运行确认。
 
 ## Windows 签名与设备验证
 
 未签名 IPA 不能直接在普通 iPhone 上运行。下载成功产物后在 Windows 使用用户自己的 Sideloadly／Apple 账号签名安装，密码与签名凭据不交给 GitHub Actions。第一次安装只用合成数据，验证启动、记账、重启、覆盖安装后数据保留；真实续签及到期恢复必须记录发生日期，不能用首次安装代替。
 
-本批只有主 App 与 AppTests；尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
+本批包含主 App、AppTests 与单条 UI smoke test；尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
 
 ## 验证记录
 
 - Windows 核心测试：以本轮实际命令输出为准；此页不预填通过次数。
-- macOS 包测试、iOS 模拟器测试、真机架构构建：待首次实际运行。
+- 2026-09-26，[云端运行 #3](https://github.com/Vince599/Money/actions/runs/36212521636)（提交 `073742da04b90498938dccf703d2693a0e50caeb`）：macOS 包测试 84 项／8 个 suite 通过，iOS 模拟器 AppTests 7 项通过，Release `iphoneos` arm64 构建成功并生成未签名 IPA。实际编译器为 Apple Swift 6.3.3，产物为 `ledger-ios-3`（artifact ID `10896510760`）。
+- 新增 `LedgerUITests`、UI 截图附件导出及 PNG 检查：不包含在运行 #3，待后续云端运行验证。
 - 免费侧载、覆盖升级、续签与过期恢复：待真机验证。
 - 家庭 fnOS、iCloud 目录与 Widget：本批未实现、未验证。

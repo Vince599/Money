@@ -33,8 +33,8 @@ struct BackupView: View {
                         do { document = BackupZipDocument(data: try await model.exportBackup()); export = true; message = nil }
                         catch { message = model.message(for: error) }
                     }
-                }
-                Button("选择备份恢复") { preview = nil; importFile = true }
+                }.accessibilityIdentifier("backup.export")
+                Button("选择备份恢复") { preview = nil; importFile = true }.accessibilityIdentifier("backup.import")
             } footer: {
                 Text("备份为 ZIP 内的一组 CSV，包含本版本全部账户、流水、余额更正、分类、主体、设置和草稿。恢复会整体替换当前账本。")
             }

@@ -61,12 +61,25 @@ targets:
         product: LedgerCore
       - package: Ledger
         product: LedgerStore
+  LedgerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: AppUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vince.ledger.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Ledger
+    dependencies:
+      - target: Ledger
 schemes:
   Ledger:
     build:
       targets:
         Ledger: all
         LedgerAppTests: [test]
+        LedgerUITests: [test]
     run:
       config: Debug
     test:
@@ -74,6 +87,8 @@ schemes:
       gatherCoverageData: true
       targets:
         - name: LedgerAppTests
+          parallelizable: false
+        - name: LedgerUITests
           parallelizable: false
     archive:
       config: Release

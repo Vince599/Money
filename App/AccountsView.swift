@@ -25,13 +25,14 @@ struct AccountsView: View {
                             .monospacedDigit().foregroundStyle(.primary)
                     }
                 }.buttonStyle(.plain)
+                    .accessibilityIdentifier("account.row." + account.id.uuidString.lowercased())
             }
             if let error = model.errorMessage { Text(error).foregroundStyle(.red) }
         }
         .navigationTitle("账户")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("设置") }
-            ToolbarItem(placement: .topBarTrailing) { Button("添加") { add = true } }
+            ToolbarItem(placement: .topBarLeading) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("设置").accessibilityIdentifier("accounts.settings") }
+            ToolbarItem(placement: .topBarTrailing) { Button("添加") { add = true }.accessibilityIdentifier("accounts.add") }
         }
         .sheet(isPresented: $add) { AddAccountView(model: model) }
         .sheet(isPresented: $settings) { LedgerSettingsView(model: model) }
@@ -57,7 +58,7 @@ struct AddAccountView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("账户名称", text: $name)
+                    TextField("账户名称", text: $name).accessibilityIdentifier("account.name")
                     Picker("类型", selection: $kind) {
                         Text("钱包").tag(AccountKind.wallet); Text("银行卡").tag(AccountKind.bank)
                         Text("现金").tag(AccountKind.cash); Text("储值（例如话费）").tag(AccountKind.storedValue)
@@ -66,14 +67,15 @@ struct AddAccountView: View {
                     Picker("币种", selection: $currency) { ForEach(Currency.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
                     LabeledContent("期初性质", value: nature == .liability ? "尚欠金额" : "账户余额")
                     TextField("期初金额", text: $opening).keyboardType(.numbersAndPunctuation).monospacedDigit()
+                        .accessibilityIdentifier("account.opening")
                     DatePicker("期初日期", selection: $openingDate, in: ...Date(), displayedComponents: .date)
                 } footer: { Text("期初不计收入或消费。以后补录的历史实账仍会正常影响余额。") }
                 Section {
                     Toggle("计入资产负债汇总", isOn: $included)
-                    Toggle("设为默认记账账户", isOn: $makeDefault)
+                    Toggle("设为默认记账账户", isOn: $makeDefault).accessibilityIdentifier("account.makeDefault")
                 }
                 if let message { Text(message).foregroundStyle(.red) }
-                Button("保存账户") { save() }.disabled(model.isBusy)
+                Button("保存账户") { save() }.disabled(model.isBusy).accessibilityIdentifier("account.save")
             }
             .navigationTitle("添加账户").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(model.isBusy) } }

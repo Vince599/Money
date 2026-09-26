@@ -25,7 +25,7 @@ struct EntryEditor: View {
                 Section {
                     Picker("类型", selection: $draft.kind) {
                         Text("支出").tag(EntryKind.expense); Text("收入").tag(EntryKind.income); Text("转账").tag(EntryKind.transfer)
-                    }.pickerStyle(.segmented)
+                    }.pickerStyle(.segmented).accessibilityIdentifier("entry.kind")
                     TextField("金额", text: $draft.amountText).keyboardType(.decimalPad).font(.title2).monospacedDigit()
                         .accessibilityIdentifier("entry.amount")
                     if draft.kind != .transfer {
@@ -33,16 +33,18 @@ struct EntryEditor: View {
                             Text("请选择分类").tag(Optional<UUID>.none)
                             ForEach(selectableCategories) { category in
                                 Label(categoryTitle(category), systemImage: category.symbol).tag(Optional(category.id))
+                                    .accessibilityIdentifier("entry.category.option." + category.id.uuidString.lowercased())
                             }
-                        }
+                        }.accessibilityIdentifier("entry.category")
                     }
                 }
                 Section {
                     accountPicker(draft.kind == .income ? "收款账户" : draft.kind == .transfer ? "转出账户" : "付款账户", selection: $draft.accountID)
+                        .accessibilityIdentifier("entry.account")
                     if draft.kind == .transfer { accountPicker("转入账户", selection: $draft.destinationAccountID) }
                     Picker("主体", selection: $draft.subjectID) {
                         ForEach(model.book.subjects.filter { $0.isActive || $0.id == editing?.subjectID }) { subject in Text(subject.name).tag(subject.id) }
-                    }
+                    }.accessibilityIdentifier("entry.subject")
                     DatePicker("日期", selection: $draft.occurredAt, in: ...Date())
                 }
                 Section {
