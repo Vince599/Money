@@ -1,6 +1,6 @@
-# Ledger 构建与首批验证
+# Ledger 构建与验证
 
-当前仓库已在 GitHub 的 macOS runner 完成包测试、iOS 模拟器 App 测试和未签名 IPA 构建。本地 Windows 负责核心测试；iPhone 签名安装及覆盖更新尚待真机验证。具体运行、版本与验证边界见本页末尾。
+当前仓库已在 GitHub 的 macOS runner 完成包测试、iOS 模拟器 App 测试和未签名 IPA 构建。本地 Windows 负责核心测试；用户已反馈此前版本在 iOS 27 真机上安装及基础记账、重开、导出恢复成功，覆盖更新仍待验证。具体运行、版本与验证边界见本页末尾。
 
 ## 固定基线
 
@@ -8,7 +8,7 @@
 |---|---|
 | App / scheme | `Ledger` |
 | AppTests target | `LedgerAppTests` |
-| UI smoke test target | `LedgerUITests`；使用隔离的 DEBUG 测试账本 |
+| UI test target | `LedgerUITests`；使用隔离的 DEBUG 测试账本 |
 | 本地 Swift package | `Ledger`；产品 `LedgerCore`、`LedgerStore` |
 | Bundle ID | `app.vince.ledger`；测试为 `app.vince.ledger.tests` |
 | 最低系统 | iOS 26.0，仅 iPhone |
@@ -42,6 +42,8 @@ Bundle ID 是后续覆盖安装和数据保留测试的固定基线，不能为�
 
 默认筛选 `LedgerCoreTests`，脚本显示实际 Swift 版本并将失败作为非成功结果返回。Swift 安装、Windows SDK 和 C++ 构建工具由现有环境提供，脚本不会安装软件或改系统设置。领域包不应导入 SwiftUI、WidgetKit、GRDB 或 iOS Keychain；Windows manifest 应只包含可移植的核心与其测试。
 
+Windows SwiftPM 6.4 会预取根 `Package.resolved` 中的 Apple 依赖，即使 manifest 已按平台排除；GRDB checkout 的符号链接会在本机权限条件下失败。Windows 脚本因此将原始 `Package.swift`、`Sources/LedgerCore` 与 `Tests/LedgerCoreTests` 原样同步到 `build/windows-core`，在不含 Apple 锁的隔离目录执行同一套核心测试；镜像每次移除旧 Swift 源文件，避免已删除测试残留。根锁保持原位且不改写。macOS 仍直接在原项目执行全量包测试。
+
 Windows 测试覆盖金额、分录、账户与交易规则等已实现的核心逻辑；它不能证明 Apple-only `LedgerStore`、SwiftUI、iOS 文件权限或签名安装正常。其余包测试在 macOS 执行，AppTests 在 iOS 模拟器执行。
 
 ## macOS / GitHub Actions
@@ -68,19 +70,22 @@ bash scripts/build-ios.sh
 
 成功产物位于 `build/ios/<时间戳>/artifacts/`，包括 `Ledger-unsigned.ipa`、SHA-256、实际依赖锁、工具基线、构建元数据和测试结果。`screenshots/` 保存导出的 PNG 与附件清单，可从下载的 artifact 直接查看；`test-summary.json` 在工具可读取结果时保存测试摘要。日志位于同级 `logs/`；失败时仍尝试导出已有截图、保存已有日志，然后保留原测试失败状态。测试成功但截图导出失败或没有 PNG 时，不继续打包 IPA。GitHub artifact 保留 7 天，不能作为账本备份。
 
-截图使用 [Apple 在 Xcode 16 起提供的 `xcresulttool export attachments` 命令](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_3-release-notes)。脚本同时保存当前固定 Xcode 的 `help export attachments` 输出；运行 #4 已实际导出 3 张截图并完成查看。
+截图使用 [Apple 在 Xcode 16 起提供的 `xcresulttool export attachments` 命令](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_3-release-notes)。脚本同时保存当前固定 Xcode 的 `help export attachments` 输出；运行 #4 实际导出 3 张截图，第三批运行 #9 导出 5 张。
 
 ## Windows 签名与设备验证
 
 未签名 IPA 不能直接在普通 iPhone 上运行。下载成功产物后在 Windows 使用用户自己的 Sideloadly／Apple 账号签名安装，密码与签名凭据不交给 GitHub Actions。第一次安装只用合成数据，验证启动、记账、重启、覆盖安装后数据保留；真实续签及到期恢复必须记录发生日期，不能用首次安装代替。
 
-本批包含主 App、AppTests 与单条 UI smoke test；尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
+本批包含主 App、AppTests 与两条 UI 操作测试：基础入账重开，以及计算器、复制和搜索筛选；尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
 
 ## 验证记录
 
-- Windows 核心测试：2026-09-26 Swift 6.4 实测 72 项／7 个 suite 通过。
+- Windows 核心测试：2026-09-26 第三批 Swift 6.4 实测 106 项／10 个 suite 通过。
 - 2026-09-26，[云端运行 #3](https://github.com/Vince599/Money/actions/runs/36212521636)（提交 `073742da04b90498938dccf703d2693a0e50caeb`）：macOS 包测试 84 项／8 个 suite 通过，iOS 模拟器 AppTests 7 项通过，Release `iphoneos` arm64 构建成功并生成未签名 IPA。实际编译器为 Apple Swift 6.3.3，产物为 `ledger-ios-3`（artifact ID `10896510760`）。
 - 2026-09-26，[云端运行 #4](https://github.com/Vince599/Money/actions/runs/36212928265)（提交 `c5ba22d45f000a611cb2dd57293b2537ae6c1366`）：在前述 84 项包测试、7 项 App 测试之外，通过 1 项 UI 操作测试；新增账户与支出、重启后数据保留、备份入口均验证通过，导出截图并生成同版未签名 IPA。UI 测试未操作系统文件选择器或执行页面恢复。
 - 运行 #4 的 [完整产物](https://github.com/Vince599/Money/actions/runs/36212928265/artifacts/10896293141)为 `ledger-ios-4`；IPA 为 3,059,852 字节，SHA-256 `fdd7f69b98079e46ae1598a7fe193e0a16a5d1aee3aabfcb6da5480b0de78132`，已下载核对一致。3 张截图来自 iPhone 17 Pro Max／iOS 26.5 模拟器，分辨率 1320×2868，内容为重启后首页、账户页及备份入口。
-- 免费侧载、覆盖升级、续签与过期恢复：待真机验证。
+- 2026-09-26，[云端运行 #9](https://github.com/Vince599/Money/actions/runs/36218393077)（提交 `d778e373dd1cdd568492400d2acc9e87610ccaae`）：第三批 macOS 包测试 118 项／11 个 suite、iOS AppTests 8 项、UITests 2 项全部通过，Release arm64 构建成功。新增页面测试验证算式 `10+5.05*2` 得到 20.10、复制形成两笔独立流水后余额 59.80、大小写搜索、无结果状态、最低金额 20.11 排除两笔 20.10 流水，以及清除筛选后恢复两笔记录。5 张命名截图包含前三个基础页面、计算器和复制后的搜索列表。
+- 运行 #9 的[完整产物](https://github.com/Vince599/Money/actions/runs/36218393077/artifacts/10898635666)为 `ledger-ios-9`，已下载并核对：IPA 为 3,218,468 字节，SHA-256 `9ae789b9433ad5994ec068ee14b07ff354060cceef2f0c429c6aeb71453a5f1e`。测试摘要为 iPhone 17 Pro Max／iOS 26.5（23F77），10 项 App／UI 测试零失败、零跳过；其余 118 项见包测试日志。新增计算器和搜索截图已查看，未发现当前合成数据下的遮挡或文字截断。此包尚未进行真机覆盖安装验证。
+- 2026-09-26，用户反馈此前提供版本在 iOS 27 真机签名安装成功：新建“真机测试”账户期初 100.00 元、本月消费 0；记录 20.10 元餐饮／正餐支出后余额 79.90 元、消费 20.10 元且只有一笔流水；强制退出重开后保留；完整 ZIP 可导出到系统“文件”；再支出 5.00 元后恢复原 ZIP，余额从 74.90 元回到 79.90 元且恢复一笔流水。精确 iOS build、已安装包哈希未取得，证据类型为用户反馈；不能作为第三批新增功能的真机测试结果。
+- 覆盖升级、续签与过期恢复：待真机验证。模拟器结果仍为 iOS 26.5；上述 iOS 27 基础人工验证不代表全量兼容性验收。
 - 家庭 fnOS、iCloud 目录与 Widget：本批未实现、未验证。
