@@ -1,6 +1,6 @@
 # Ledger 构建与首批验证
 
-当前仓库提供首批账本骨架及构建配置。配置已按官方清单核对，但本地 Windows 无法执行 Xcode；首次 macOS CI、模拟器、iPhone 免费签名安装及覆盖更新均须单独记录真实结果。未运行 CI 就没有可安装产物，不把配置文件视为构建通过。
+当前仓库已在 GitHub 的 macOS runner 完成包测试、iOS 模拟器 App 测试和未签名 IPA 构建。本地 Windows 负责核心测试；iPhone 签名安装及覆盖更新尚待真机验证。具体运行、版本与验证边界见本页末尾。
 
 ## 固定基线
 
@@ -16,7 +16,7 @@
 | GitHub runner | `macos-26`，arm64 |
 | 核查时的 runner 镜像 | `20260907.0351.1`；它是观察记录，不能通过 runner 标签冻结 |
 | Xcode | 26.6，build `17F113`，`/Applications/Xcode_26.6.app` |
-| Swift | Apple 编译器 6.3、Swift 6 语言模式；本机 Windows 已观察到 6.4 |
+| Swift | 实测 Apple 编译器 6.3.3、Swift 6 语言模式；本机 Windows 已观察到 6.4 |
 | SDK / 模拟器运行时 | iOS 26.5 |
 | XcodeGen | 2.46.0，官方 ZIP 的 SHA-256 固定在 `config/toolchain.json` |
 | GRDB | 7.11.1，由根 `Package.swift` 精确依赖 |
@@ -60,7 +60,7 @@ bash scripts/build-ios.sh
 4. 在固定 iOS 26.5 运行时选择可用 iPhone，运行 `LedgerAppTests` 和 `LedgerUITests`，保存 `.xcresult`；UI 测试的截图附件导出到 `artifacts/screenshots/`。
 5. 编译 `iphoneos` 的 arm64 Release App，确认产品平台和 Bundle ID，打包未签名 `Payload/Ledger.app` 为 IPA。
 
-根 `Package.resolved` 应随源代码提交。Windows 的核心-only manifest 不能代替 Apple 依赖锁；首次 macOS 解析若产生新锁，CI 会保存它供审核回填，此前只能说直接依赖版本已固定。后续解析或依赖升级造成的锁变化应审查后提交，不手写未验证的锁文件。
+根 `Package.resolved` 已由首次 macOS 解析生成、核对并提交。Windows 的核心-only manifest 不能代替 Apple 依赖锁；后续解析或依赖升级造成的锁变化应审查后提交，不手写未验证的锁文件。
 
 项目远端为 [Vince599/Money](https://github.com/Vince599/Money)。工作流仅接受 `workflow_dispatch` 手动触发，没有 push、PR、定时触发和发布步骤。将代码及工作流同步到仓库后，在 Actions 中选择 **iOS validation and unsigned IPA**，手动选择要验证的分支运行。配置文件存在不代表已经推送、触发或构建成功，应以具体运行记录为准。首次使用私有仓库前核对其 Actions 配额与付费设置。
 
@@ -68,7 +68,7 @@ bash scripts/build-ios.sh
 
 成功产物位于 `build/ios/<时间戳>/artifacts/`，包括 `Ledger-unsigned.ipa`、SHA-256、实际依赖锁、工具基线、构建元数据和测试结果。`screenshots/` 保存导出的 PNG 与附件清单，可从下载的 artifact 直接查看；`test-summary.json` 在工具可读取结果时保存测试摘要。日志位于同级 `logs/`；失败时仍尝试导出已有截图、保存已有日志，然后保留原测试失败状态。测试成功但截图导出失败或没有 PNG 时，不继续打包 IPA。GitHub artifact 保留 7 天，不能作为账本备份。
 
-截图使用 [Apple 在 Xcode 16 起提供的 `xcresulttool export attachments` 命令](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_3-release-notes)。脚本同时保存当前固定 Xcode 的 `help export attachments` 输出；具体截图内容与导出结果须以首次包含 UI 测试的云端运行确认。
+截图使用 [Apple 在 Xcode 16 起提供的 `xcresulttool export attachments` 命令](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_3-release-notes)。脚本同时保存当前固定 Xcode 的 `help export attachments` 输出；运行 #4 已实际导出 3 张截图并完成查看。
 
 ## Windows 签名与设备验证
 
@@ -78,8 +78,9 @@ bash scripts/build-ios.sh
 
 ## 验证记录
 
-- Windows 核心测试：以本轮实际命令输出为准；此页不预填通过次数。
+- Windows 核心测试：2026-09-26 Swift 6.4 实测 72 项／7 个 suite 通过。
 - 2026-09-26，[云端运行 #3](https://github.com/Vince599/Money/actions/runs/36212521636)（提交 `073742da04b90498938dccf703d2693a0e50caeb`）：macOS 包测试 84 项／8 个 suite 通过，iOS 模拟器 AppTests 7 项通过，Release `iphoneos` arm64 构建成功并生成未签名 IPA。实际编译器为 Apple Swift 6.3.3，产物为 `ledger-ios-3`（artifact ID `10896510760`）。
-- 新增 `LedgerUITests`、UI 截图附件导出及 PNG 检查：不包含在运行 #3，待后续云端运行验证。
+- 2026-09-26，[云端运行 #4](https://github.com/Vince599/Money/actions/runs/36212928265)（提交 `c5ba22d45f000a611cb2dd57293b2537ae6c1366`）：在前述 84 项包测试、7 项 App 测试之外，通过 1 项 UI 操作测试；新增账户与支出、重启后数据保留、备份入口均验证通过，导出截图并生成同版未签名 IPA。UI 测试未操作系统文件选择器或执行页面恢复。
+- 运行 #4 的 [完整产物](https://github.com/Vince599/Money/actions/runs/36212928265/artifacts/10896293141)为 `ledger-ios-4`；IPA 为 3,059,852 字节，SHA-256 `fdd7f69b98079e46ae1598a7fe193e0a16a5d1aee3aabfcb6da5480b0de78132`，已下载核对一致。3 张截图来自 iPhone 17 Pro Max／iOS 26.5 模拟器，分辨率 1320×2868，内容为重启后首页、账户页及备份入口。
 - 免费侧载、覆盖升级、续签与过期恢复：待真机验证。
 - 家庭 fnOS、iCloud 目录与 Widget：本批未实现、未验证。
