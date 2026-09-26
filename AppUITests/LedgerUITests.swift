@@ -4,6 +4,74 @@ import XCTest
 final class LedgerUITests: XCTestCase {
     private let app = XCUIApplication()
 
+    func testCalculatorCopyAndSearchFilters() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]
+        app.launch()
+        tap(app.tabBars.buttons["账户"])
+        tap(element("accounts.add"))
+        replace(app.textFields["account.name"], with: "Feature Wallet")
+        replace(app.textFields["account.opening"], with: "100.00")
+        tap(element("account.save"))
+        wait(app.textFields["account.name"], for: "exists == false")
+        tap(app.tabBars.buttons["首页"])
+        tap(element("entry.add"))
+        tap(element("entry.calculator"))
+        replace(element("calculator.expression"), with: "10+5.05*2")
+        assertText(element("calculator.result"), contains: "20.10 CNY")
+        screenshot("04-calculator-priority")
+        tap(element("calculator.use"))
+        wait(element("calculator.expression"), for: "exists == false")
+        XCTAssertEqual(app.textFields["entry.amount"].value as? String, "20.10")
+        tap(element("entry.category"))
+        tap(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ OR label == %@",
+            "entry.category.option.00000000-0000-4000-8000-000000000011", "餐饮 / 正餐")).firstMatch)
+        tap(element("entry.more"))
+        replace(app.textFields["entry.title"], with: "Lunch")
+        tap(element("entry.save"))
+        wait(app.textFields["entry.amount"], for: "exists == false")
+        tap(app.tabBars.buttons["流水"])
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.row."))
+        assertText(rows.firstMatch, contains: "Lunch")
+        let originalID = rows.firstMatch.identifier
+        tap(rows.firstMatch)
+        tap(element("entry.copy"))
+        XCTAssertTrue(app.textFields["entry.amount"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.textFields["entry.amount"].value as? String, "20.10")
+        tap(element("entry.save"))
+        wait(app.textFields["entry.amount"], for: "exists == false")
+        tap(element("entry.detail.done"))
+        wait(rows, count: 2)
+        XCTAssertEqual(Set(rows.allElementsBoundByIndex.map(\.identifier)).count, 2)
+        XCTAssertTrue(element(originalID).exists)
+        let search = app.searchFields.firstMatch
+        replace(search, with: "lunch")
+        wait(rows, count: 2)
+        screenshot("05-search-copied-entries")
+        replace(search, with: "no-such-title")
+        wait(rows, count: 0)
+        XCTAssertTrue(element("history.empty").waitForExistence(timeout: 15))
+        replace(search, with: "Lunch")
+        wait(rows, count: 2)
+        if app.keyboards.buttons["Search"].exists { app.keyboards.buttons["Search"].tap() }
+        if app.keyboards.buttons["搜索"].exists { app.keyboards.buttons["搜索"].tap() }
+        leaveHistorySearch()
+        tap(element("history.filter"))
+        tap(element("filter.currency"))
+        tap(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ OR label == %@",
+            "filter.currency.option.CNY", "CNY")).firstMatch)
+        assertText(element("filter.currency"), contains: "CNY")
+        replace(app.textFields["filter.minimum"], with: "20.11")
+        tap(element("filter.apply"))
+        wait(element("filter.apply"), for: "exists == false")
+        wait(rows, count: 0)
+        tap(element("history.clear"))
+        wait(rows, count: 2)
+        tap(app.tabBars.buttons["账户"])
+        let account = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "account.row.")).firstMatch
+        assertText(account, contains: "59.80 CNY")
+    }
+
     func testCreateExpensePersistsAfterRelaunch() throws {
         continueAfterFailure = false
         app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]
@@ -59,8 +127,24 @@ final class LedgerUITests: XCTestCase {
     }
 
     private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: id).firstMatch }
+    private func leaveHistorySearch() {
+        // Submit dismisses the keyboard but may keep native search active and hide the toolbar.
+        // Search behaviour is verified above; cancel it before the independent amount-filter check.
+        let cancel = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", "取消", "Cancel")).firstMatch
+        let filter = element("history.filter")
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (cancel.exists && cancel.isHittable) || (filter.exists && filter.isHittable)
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed)
+        if cancel.exists && cancel.isHittable { cancel.tap() }
+        wait(filter, for: "exists == true AND enabled == true AND hittable == true")
+    }
     private func wait(_ target: XCUIElement, for predicate: String) {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: predicate), object: target)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
+    }
+    private func wait(_ query: XCUIElementQuery, count: Int) {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in query.count == count }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
     }
     private func tap(_ target: XCUIElement) {

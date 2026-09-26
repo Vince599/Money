@@ -45,7 +45,7 @@ public struct EntryDraft: Codable, Equatable, Sendable {
         guard let accountID, let account = book.accounts.first(where: { $0.id == accountID }) else {
             throw LedgerError.accountNotFound
         }
-        let amount = try Money.parse(amountText, currency: account.currency)
+        let amount = try AmountExpression.evaluate(amountText, currency: account.currency).money
         guard amount.minorUnits > 0 else { throw LedgerError.invalidAmount }
         return LedgerEntry(id: entryID, operationID: operationID, kind: kind, amount: amount,
                            accountID: accountID, destinationAccountID: kind == .transfer ? destinationAccountID : nil,

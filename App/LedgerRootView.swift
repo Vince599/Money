@@ -12,7 +12,7 @@ struct LedgerRootView: View {
                 TabView {
                     NavigationStack { home.navigationTitle("我的账本").toolbar { recordToolbar } }
                         .tabItem { Label("首页", systemImage: "house") }
-                    NavigationStack { history.navigationTitle("流水").toolbar { recordToolbar } }
+                    NavigationStack { HistoryView(model: model) { selectedEntry = $0 }.navigationTitle("流水").toolbar { recordToolbar } }
                         .tabItem { Label("流水", systemImage: "list.bullet.rectangle") }
                     NavigationStack { AccountsView(model: model) }
                         .tabItem { Label("账户", systemImage: "wallet.bifold") }
@@ -71,15 +71,6 @@ struct LedgerRootView: View {
             }
         }
     }
-    private var history: some View {
-        List {
-            if sortedEntries.isEmpty { ContentUnavailableView("还没有流水", systemImage: "list.bullet.rectangle") }
-            ForEach(sortedEntries) { entry in
-                Button { selectedEntry = entry } label: { EntryRow(model: model, entry: entry) }.buttonStyle(.plain)
-                    .accessibilityIdentifier("entry.row." + entry.id.uuidString.lowercased())
-            }
-        }
-    }
     private var sortedEntries: [LedgerEntry] {
         model.book.entries.sorted {
             $0.occurredAt == $1.occurredAt ? $0.createdAt > $1.createdAt : $0.occurredAt > $1.occurredAt
@@ -127,7 +118,7 @@ struct EntryRow: View {
     }
     private var metadata: String {
         let account = entry.kind == .transfer ? model.accountName(entry.accountID) + " → " + model.accountName(entry.destinationAccountID) : model.accountName(entry.accountID)
-        return account + " · " + model.subjectName(entry.subjectID) + " · " + entry.occurredAt.formatted(date: .numeric, time: .shortened)
+        return account + " · " + model.subjectName(entry.subjectID) + " · " + BookDate.dateTime(entry.occurredAt)
     }
     private var amount: String {
         (entry.kind == .expense ? "−" : entry.kind == .income ? "+" : "") + entry.amount.decimalString + " " + entry.amount.currency.rawValue

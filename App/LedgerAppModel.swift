@@ -131,6 +131,15 @@ final class LedgerAppModel {
     func accountName(_ id: UUID?) -> String { book.accounts.first(where: { $0.id == id })?.name ?? "未选择账户" }
     func subjectName(_ id: UUID) -> String { book.subjects.first(where: { $0.id == id })?.name ?? "未找到主体" }
     func message(for error: any Error) -> String {
+        if let error = error as? AmountExpressionError {
+            switch error {
+            case .invalidSyntax: return "算式尚未完整，请检查数字、运算符和括号。"
+            case .divisionByZero: return "除数不能为零，请修改算式。"
+            case .overflow: return "算式或结果超出可处理范围，请拆分计算。"
+            case .tooComplex: return "算式过长或括号过多，请简化后再计算。"
+            case .excessPrecision: return "直接输入金额时最多两位小数。"
+            }
+        }
         if let error = error as? BackupArchive.ArchiveError {
             switch error {
             case .unsupportedFeature: return "请选择 App 导出的原始 ZIP 备份；当前不支持重新压缩或加密的归档。"

@@ -7,6 +7,7 @@ struct EntryEditor: View {
     @State private var draft: EntryDraft
     @State private var validationMessage: String?
     @State private var discard = false
+    @State private var calculator = false
     @Environment(\.dismiss) private var dismiss
     init(model: LedgerAppModel, editing: LedgerEntry? = nil) {
         self.model = model; self.editing = editing
@@ -26,8 +27,16 @@ struct EntryEditor: View {
                     Picker("类型", selection: $draft.kind) {
                         Text("支出").tag(EntryKind.expense); Text("收入").tag(EntryKind.income); Text("转账").tag(EntryKind.transfer)
                     }.pickerStyle(.segmented).accessibilityIdentifier("entry.kind")
-                    TextField("金额", text: $draft.amountText).keyboardType(.decimalPad).font(.title2).monospacedDigit()
-                        .accessibilityIdentifier("entry.amount")
+                    HStack {
+                        TextField("金额", text: $draft.amountText).keyboardType(.decimalPad).font(.title2).monospacedDigit()
+                            .accessibilityIdentifier("entry.amount")
+                        Button { calculator = true } label: { Image(systemName: "plus.forwardslash.minus") }
+                            .buttonStyle(.borderless).accessibilityLabel("金额计算器").accessibilityIdentifier("entry.calculator")
+                    }
+                    if let value = try? AmountExpression.evaluate(draft.amountText, currency: currency), !draft.amountText.isEmpty {
+                        Text("入账金额：" + value.money.decimalString + " " + currency.rawValue + (value.wasRounded ? "（已四舍五入到两位小数）" : ""))
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                     if draft.kind != .transfer {
                         Picker("分类", selection: $draft.categoryID) {
                             Text("请选择分类").tag(Optional<UUID>.none)
@@ -45,13 +54,13 @@ struct EntryEditor: View {
                     Picker("主体", selection: $draft.subjectID) {
                         ForEach(model.book.subjects.filter { $0.isActive || $0.id == editing?.subjectID }) { subject in Text(subject.name).tag(subject.id) }
                     }.accessibilityIdentifier("entry.subject")
-                    DatePicker("日期", selection: $draft.occurredAt, in: ...Date())
+                    DatePicker("日期", selection: $draft.occurredAt, in: ...Date()).environment(\.timeZone, BookDate.timeZone)
                 }
                 Section {
                     DisclosureGroup("更多信息") {
-                        TextField("标题（可空）", text: $draft.title)
+                        TextField("标题（可空）", text: $draft.title).accessibilityIdentifier("entry.title")
                         TextField("备注", text: $draft.note, axis: .vertical).lineLimit(3...8)
-                    }
+                    }.accessibilityIdentifier("entry.more")
                 }
                 if let validationMessage { Section { Text(validationMessage).foregroundStyle(.red) } }
                 if let error = model.draftError, editing == nil { Section { Text(error).foregroundStyle(.red) } }
@@ -72,6 +81,9 @@ struct EntryEditor: View {
             } }
             .disabled(model.isBusy)
             .interactiveDismissDisabled(model.isBusy || editing != nil)
+            .sheet(isPresented: $calculator) {
+                AmountCalculatorView(expression: $draft.amountText, currency: currency, errorMessage: model.message(for:))
+            }
             .confirmationDialog("放弃未保存的输入？", isPresented: $discard, titleVisibility: .visible) {
                 Button("放弃", role: .destructive) {
                     Task {
@@ -86,6 +98,9 @@ struct EntryEditor: View {
             .onChange(of: draft) { _, value in if editing == nil { model.updateDraft(value) } }
             .onAppear { if editing == nil { model.updateDraft(draft) } }
         }
+    }
+    private var currency: Currency {
+        model.book.accounts.first { $0.id == draft.accountID }?.currency ?? .cny
     }
     private func accountPicker(_ title: String, selection: Binding<UUID?>) -> some View {
         Picker(title, selection: selection) {
@@ -126,6 +141,9 @@ struct EntryDetailView: View {
     var entryID: UUID
     @State private var edit = false
     @State private var delete = false
+    @State private var copyEditor = false
+    @State private var confirmCopy = false
+    @State private var preparingCopy = false
     @Environment(\.dismiss) private var dismiss
     private var entry: LedgerEntry? { model.book.entries.first { $0.id == entryID } }
     var body: some View {
@@ -139,20 +157,42 @@ struct EntryDetailView: View {
                         LabeledContent("账户", value: model.accountName(entry.accountID))
                         if entry.kind == .transfer { LabeledContent("转入", value: model.accountName(entry.destinationAccountID)) }
                         LabeledContent("主体", value: model.subjectName(entry.subjectID))
-                        LabeledContent("日期", value: entry.occurredAt.formatted(date: .abbreviated, time: .shortened))
+                        LabeledContent("日期", value: BookDate.dateTime(entry.occurredAt))
                         if !entry.note.isEmpty { Text(entry.note) }
                     }
-                    Section { Button("编辑") { edit = true }; Button("删除", role: .destructive) { delete = true } }
+                    Section {
+                        Button("编辑") { edit = true }
+                        Button("复制为新流水") {
+                            if model.draft != nil { confirmCopy = true } else { copy(entry) }
+                        }.accessibilityIdentifier("entry.copy")
+                        Button("删除", role: .destructive) { delete = true }
+                    }
                     if let message = model.errorMessage { Text(message).foregroundStyle(.red) }
                 }
                 .navigationTitle("流水详情").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() }.accessibilityIdentifier("entry.detail.done") } }
                 .sheet(isPresented: $edit) { EntryEditor(model: model, editing: entry) }
+                .sheet(isPresented: $copyEditor) { EntryEditor(model: model) }
+                .confirmationDialog("替换已有的未完成记账草稿？", isPresented: $confirmCopy, titleVisibility: .visible) {
+                    Button("替换草稿并复制", role: .destructive) { copy(entry) }
+                } message: { Text("原流水保持不变；复制会建立新草稿，日期设为现在，确认保存后才入账。") }
                 .confirmationDialog("删除后将撤销对应账户变化，无回收站。", isPresented: $delete, titleVisibility: .visible) {
                     Button("删除流水", role: .destructive) { Task { if await model.delete(entry.id) { dismiss() } } }
                 }
-                .disabled(model.isBusy)
+                .disabled(model.isBusy || preparingCopy)
             } else { ContentUnavailableView("记录已删除", systemImage: "doc") }
         }.presentationDetents([.medium, .large])
+    }
+    private func copy(_ entry: LedgerEntry) {
+        do {
+            let value = try EntryDraft.copying(entry, in: model.book, settings: model.settings)
+            preparingCopy = true
+            Task {
+                await model.updateDraft(value).value
+                preparingCopy = false
+                if model.draftError == nil { copyEditor = true }
+                else { model.errorMessage = model.draftError }
+            }
+        } catch { model.errorMessage = model.message(for: error) }
     }
 }

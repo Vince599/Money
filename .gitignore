@@ -3,6 +3,9 @@
 .build-archive/
 .build-backup/
 .build-catalog-review/
+.build-calculator/
+.build-query/
+.build-copy/
 .swiftpm/
 Ledger.xcodeproj/
 DerivedData/
