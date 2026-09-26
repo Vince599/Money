@@ -31,7 +31,7 @@ struct SQLiteLedgerStoreTests {
             let reopened = try SQLiteLedgerStore(path: path)
             #expect(try reopened.loadBook() == saved)
             let inspection = try DatabaseQueue(path: path)
-            try inspection.read { db in
+            try inspection.read { (db: Database) throws -> Void in
                 #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM accounts") == 0)
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM entries") == 0)
@@ -60,7 +60,7 @@ struct SQLiteLedgerStoreTests {
             let reopened = try SQLiteLedgerStore(path: path)
             #expect(try reopened.loadBook() == expected)
             let inspection = try DatabaseQueue(path: path)
-            try inspection.read { db in
+            try inspection.read { (db: Database) throws -> Void in
                 #expect(try Int64.fetchOne(db, sql: "SELECT amount_minor FROM entries") == largeMinor)
                 #expect(try String.fetchOne(db, sql: "SELECT typeof(amount_minor) FROM entries") == "integer")
                 #expect(try Int64.fetchOne(db, sql: "SELECT MIN(opening_minor) FROM accounts") == Int64.min)
@@ -179,7 +179,7 @@ struct SQLiteLedgerStoreTests {
             #expect(restored.retiredOperationIDs.contains(entry.operationID))
             #expect(throws: LedgerError.operationConflict) { try LedgerEngine.record(entry, in: restored) }
             let inspection = try DatabaseQueue(path: path)
-            try inspection.read { db in
+            try inspection.read { (db: Database) throws -> Void in
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM entries") == 0)
                 #expect(try String.fetchOne(db, sql: "SELECT operation_id FROM operation_registry") == entry.operationID.uuidString)
                 #expect(try String.fetchOne(db, sql: "SELECT record_kind FROM operation_registry") == "retired")
@@ -247,7 +247,7 @@ struct SQLiteLedgerStoreTests {
                 try db.execute(sql: "PRAGMA user_version = 99")
             }
             #expect(throws: LedgerStoreError.unsupportedSchemaVersion(99)) { try SQLiteLedgerStore(path: path) }
-            try inspection.read { db in
+            try inspection.read { (db: Database) throws -> Void in
                 #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 99)
             }
         }
@@ -257,7 +257,7 @@ struct SQLiteLedgerStoreTests {
                 try db.execute(sql: "CREATE TABLE unrelated (value TEXT); INSERT INTO unrelated VALUES ('keep')")
             }
             #expect(throws: LedgerStoreError.unrecognizedDatabase) { try SQLiteLedgerStore(path: path) }
-            try inspection.read { db in
+            try inspection.read { (db: Database) throws -> Void in
                 #expect(try String.fetchOne(db, sql: "SELECT value FROM unrelated") == "keep")
             }
         }
