@@ -38,7 +38,9 @@ final class LedgerUITests: XCTestCase {
         assertText(rows.firstMatch, contains: "Lunch")
         let originalID = rows.firstMatch.identifier
         tap(rows.firstMatch)
-        tap(element("entry.copy"))
+        // A medium sheet lazily creates the action rows after its details are scrolled.
+        let details = app.collectionViews.containing(.button, identifier: "编辑").firstMatch
+        tap(element("entry.copy"), scrolling: details)
         XCTAssertTrue(app.textFields["entry.amount"].waitForExistence(timeout: 15))
         XCTAssertEqual(app.textFields["entry.amount"].value as? String, "20.10")
         tap(element("entry.save"))
@@ -150,7 +152,14 @@ final class LedgerUITests: XCTestCase {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in query.count == count }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
     }
-    private func tap(_ target: XCUIElement) {
+    private func tap(_ target: XCUIElement, scrolling scrollView: XCUIElement? = nil) {
+        if let scrollView {
+            XCTAssertTrue(scrollView.waitForExistence(timeout: 15), app.debugDescription)
+            for _ in 0..<5 {
+                if target.exists && target.isHittable { break }
+                scrollView.swipeUp()
+            }
+        }
         XCTAssertTrue(target.waitForExistence(timeout: 15), app.debugDescription)
         for _ in 0..<5 where !target.isHittable { app.swipeUp() }
         wait(target, for: "enabled == true AND hittable == true")
