@@ -137,20 +137,36 @@ final class LedgerUITests: XCTestCase {
         // Search behaviour is verified above; cancel it before the independent amount-filter check.
         let cancel = app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@", "取消", "Cancel")).firstMatch
         let filter = element("history.filter")
+        func searchCloseButton() -> XCUIElement? {
+            if cancel.exists && cancel.isHittable { return cancel }
+            let search = app.searchFields.firstMatch
+            guard search.exists else { return nil }
+            let frame = search.frame
+            // The iOS 26 screenshot shows one circular close button immediately outside
+            // the search field. Locate that button without guessing its localized AX label.
+            // The clear-text button is inside the field and is deliberately excluded.
+            let candidates = app.buttons.allElementsBoundByIndex.filter { button in
+                let bounds = button.frame
+                return bounds.midX > frame.maxX
+                    && abs(bounds.midY - frame.midY) < frame.height / 2
+                    && button.isHittable
+            }
+            return candidates.count == 1 ? candidates.first : nil
+        }
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            (cancel.exists && cancel.isHittable) || (filter.exists && filter.isHittable)
+            (filter.exists && filter.isHittable) || searchCloseButton() != nil
         }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed)
-        if cancel.exists && cancel.isHittable { cancel.tap() }
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed, app.debugDescription)
+        if let close = searchCloseButton() { close.tap() }
         wait(filter, for: "exists == true AND enabled == true AND hittable == true")
     }
     private func wait(_ target: XCUIElement, for predicate: String) {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: predicate), object: target)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed, app.debugDescription)
     }
     private func wait(_ query: XCUIElementQuery, count: Int) {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in query.count == count }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed, app.debugDescription)
     }
     private func tap(_ target: XCUIElement, scrolling scrollView: XCUIElement? = nil) {
         if let scrollView {
