@@ -1,0 +1,37 @@
+# SwiftPM and generated Xcode projects. Keep the root Package.resolved tracked.
+.build/
+.build-archive/
+.build-backup/
+.build-catalog-review/
+.swiftpm/
+Ledger.xcodeproj/
+DerivedData/
+build/
+.tools/
+
+# Local IDE/OS state.
+.DS_Store
+Thumbs.db
+*.xcuserstate
+xcuserdata/
+.vs/
+
+# Credentials and local financial data do not belong in source control.
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.mobileprovision
+*.keychain
+*.keychain-db
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+local-data/
+local-backups/
+*.ipa
+
+# Existing browser previews are generated artifacts, not App source.
+output/

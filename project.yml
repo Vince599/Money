@@ -1,0 +1,79 @@
+name: Ledger
+options:
+  minimumXcodeGenVersion: 2.46.0
+  xcodeVersion: "26.6"
+  projectFormat: xcode16_0
+  createIntermediateGroups: true
+  developmentLanguage: zh-Hans
+  deploymentTarget:
+    iOS: "26.0"
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  Ledger:
+    path: .
+targets:
+  Ledger:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vince.ledger
+        PRODUCT_NAME: Ledger
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Ledger
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - package: Ledger
+        product: LedgerCore
+      - package: Ledger
+        product: LedgerStore
+  LedgerAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: AppTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vince.ledger.tests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Ledger
+      - package: Ledger
+        product: LedgerCore
+      - package: Ledger
+        product: LedgerStore
+schemes:
+  Ledger:
+    build:
+      targets:
+        Ledger: all
+        LedgerAppTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - name: LedgerAppTests
+          parallelizable: false
+    archive:
+      config: Release

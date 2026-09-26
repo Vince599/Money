@@ -1,0 +1,27 @@
+{
+  "verifiedOn": "2026-09-26",
+  "runner": "macos-26",
+  "runnerArchitecture": "arm64",
+  "runnerImageObserved": "20260907.0351.1",
+  "xcodeVersion": "26.6",
+  "xcodeBuild": "17F113",
+  "developerDirectory": "/Applications/Xcode_26.6.app/Contents/Developer",
+  "swiftLanguageVersion": "6.0",
+  "appleSwiftVersion": "6.3",
+  "windowsSwiftObserved": "6.4",
+  "iosDeploymentTarget": "26.0",
+  "iosSDKVersion": "26.5",
+  "simulatorRuntime": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+  "bundleIdentifier": "app.vince.ledger",
+  "xcodegenVersion": "2.46.0",
+  "xcodegenArchiveURL": "https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip",
+  "xcodegenArchiveSHA256": "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806",
+  "grdbVersion": "7.11.1",
+  "sources": {
+    "runner": "https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md",
+    "xcode": "https://developer.apple.com/xcode/system-requirements/",
+    "xcodegen": "https://github.com/yonaskolb/XcodeGen/releases/tag/2.46.0",
+    "grdb": "https://github.com/groue/GRDB.swift/releases/tag/v7.11.1"
+  },
+  "validationStatus": "configuration-only; macOS build and device installation pending"
+}

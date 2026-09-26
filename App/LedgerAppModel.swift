@@ -1,0 +1,184 @@
+import Foundation
+import Observation
+import LedgerCore
+
+@Observable @MainActor
+final class LedgerAppModel {
+    var book = LedgerBook()
+    var draft: EntryDraft?
+    var settings = LedgerSettings()
+    var isLoaded = false
+    var isBusy = false
+    var errorMessage: String?
+    var draftError: String?
+    private var repository: LedgerRepository?
+    private var revision: UInt64 = 0
+    private var starting = false
+
+    func start() async {
+        guard !isLoaded, !starting else { return }
+        starting = true
+        defer { starting = false }
+        do {
+            let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                   appropriateFor: nil, create: true)
+            let directory = base.appendingPathComponent("Ledger", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let path = directory.appendingPathComponent("ledger.sqlite").path
+            // Database creation/migration is also off the main actor.
+            let repo = try await Task.detached { try LedgerRepository(path: path) }.value
+            repository = repo
+            apply(try await repo.snapshot())
+            isLoaded = true
+        } catch { errorMessage = message(for: error) }
+    }
+    func newDraft() -> EntryDraft {
+        draft ?? EntryDraft(accountID: settings.defaultAccountID, subjectID: settings.defaultSubjectID)
+    }
+    @discardableResult
+    func updateDraft(_ value: EntryDraft?) -> Task<Void, Never> {
+        revision += 1
+        let currentRevision = revision
+        draft = value
+        return Task {
+            guard let repository else { return }
+            do {
+                try await repository.saveDraft(value, revision: currentRevision)
+                if currentRevision == revision { draftError = nil }
+            } catch {
+                if currentRevision == revision { draftError = "草稿尚未保存：" + message(for: error) }
+            }
+        }
+    }
+    func addAccount(_ account: Account, makeDefault: Bool) async -> Bool {
+        await mutate { repo in try await repo.addAccount(account, makeDefault: makeDefault) }
+    }
+    func save(_ entry: LedgerEntry, expectedVersion: Int? = nil, nextDraft: EntryDraft? = nil) async -> Bool {
+        revision += 1
+        let sequence = revision
+        return await mutate { repo in
+            try await repo.saveEntry(entry, expectedVersion: expectedVersion, nextDraft: nextDraft, revision: sequence)
+        }
+    }
+    func delete(_ entryID: UUID) async -> Bool {
+        await mutate { repo in try await repo.deleteEntry(entryID) }
+    }
+    func adjust(_ accountID: UUID, target: Money, note: String, operationID: UUID) async -> Bool {
+        await mutate { repo in try await repo.adjustAccount(accountID, target: target, note: note, operationID: operationID) }
+    }
+    func setDefault(_ id: UUID?) async -> Bool {
+        await mutate { repo in try await repo.setDefaultAccount(id) }
+    }
+    func saveAccount(_ value: Account) async -> Bool {
+        await mutate { repo in try await repo.saveAccount(value) }
+    }
+    func saveCategory(_ value: Category) async -> Bool {
+        await mutate { repo in try await repo.saveCategory(value) }
+    }
+    func saveSubject(_ value: Subject) async -> Bool {
+        await mutate { repo in try await repo.saveSubject(value) }
+    }
+    func setDefaultSubject(_ id: UUID) async -> Bool {
+        await mutate { repo in try await repo.setDefaultSubject(id) }
+    }
+    func exportBackup() async throws -> Data {
+        guard let repository, !isBusy else { throw LedgerError.unsupportedOperation }
+        isBusy = true
+        defer { isBusy = false }
+        // Assign a revision now so a previously scheduled autosave cannot win later.
+        revision += 1
+        try await repository.saveDraft(draft, revision: revision)
+        return try await repository.exportBackup()
+    }
+    func prepareRestore(from url: URL) async throws -> BackupRestorePreview {
+        guard let repository, !isBusy else { throw LedgerError.unsupportedOperation }
+        isBusy = true
+        defer { isBusy = false }
+        return try await repository.prepareRestore(from: url)
+    }
+    func restore(_ preview: BackupRestorePreview) async -> Bool {
+        revision += 1
+        let sequence = revision
+        let currentDraft = draft
+        return await mutate { repo in
+            try await repo.saveDraft(currentDraft, revision: sequence)
+            return try await repo.restore(previewID: preview.id, revision: sequence)
+        }
+    }
+    func safetyBackups() async throws -> [SafetyBackup] {
+        guard let repository else { return [] }
+        return try await repository.safetyBackups()
+    }
+    func balance(_ account: Account) -> Money? { try? LedgerEngine.balance(of: account.id, in: book) }
+    func displayTitle(_ entry: LedgerEntry) -> String {
+        if !entry.title.isEmpty { return entry.title }
+        if entry.kind == .transfer { return "转账" }
+        return book.categories.first(where: { $0.id == entry.categoryID })?.name ?? "未找到分类"
+    }
+    func accountName(_ id: UUID?) -> String { book.accounts.first(where: { $0.id == id })?.name ?? "未选择账户" }
+    func subjectName(_ id: UUID) -> String { book.subjects.first(where: { $0.id == id })?.name ?? "未找到主体" }
+    func message(for error: any Error) -> String {
+        if let error = error as? BackupArchive.ArchiveError {
+            switch error {
+            case .unsupportedFeature: return "请选择 App 导出的原始 ZIP 备份；当前不支持重新压缩或加密的归档。"
+            case .limitExceeded: return "备份超过当前支持的大小或文件数量。"
+            default: return "备份文件不完整或校验失败，当前账本未改动。"
+            }
+        }
+        if let error = error as? BackupError {
+            switch error {
+            case .unsupportedFormat: return "当前版本不支持这个备份格式，请使用与备份兼容的 App 版本。"
+            case .invalidArchive: return "备份文件不完整或校验失败，当前账本未改动。"
+            case .invalidSnapshot: return "账本存在不一致的数据，无法完成备份操作。"
+            }
+        }
+        if let error = error as? CatalogError {
+            switch error {
+            case .immutableAccountFields: return "账户类型、币种和期初不能在此修改；请使用余额更正。"
+            case .immutableCategoryStructure: return "分类层级和方向不能直接改变。"
+            case .invalidCategoryParent: return "请选择同方向且已启用的一级分类。"
+            case .lastActiveSubject: return "至少保留一个启用的主体。"
+            }
+        }
+        if let error = error as? RepositoryError {
+            switch error {
+            case .defaultSubjectMustRemainActive: return "请先将其他主体设为默认，再停用此主体。"
+            case .restorePreviewExpired: return "恢复预览已经失效，请重新选择备份。"
+            case .backupTooLarge: return "备份超过当前支持的大小。"
+            case .safetyBackupFailed: return "恢复前安全备份未能保存，当前账本保持不变。"
+            }
+        }
+        guard let error = error as? LedgerError else { return "保存或读取失败，请重试。原账本不会被替换为空账本。" }
+        switch error {
+        case .invalidAmount: return "请输入有效金额，最多两位小数。"
+        case .overflow: return "金额超出可处理范围。"
+        case .currencyMismatch: return "币种不一致。跨币种交易尚需补充实际结算流程。"
+        case .accountNotFound, .inactiveAccount: return "请选择有效的付款／收款账户。"
+        case .sameAccountTransfer: return "转出与转入账户不能相同。"
+        case .invalidCategory: return "请选择当前类型对应的二级分类。"
+        case .invalidSubject: return "请选择有效主体。"
+        case .invalidAccount: return "请检查账户名称、类型和期初金额。"
+        case .entryNotFound: return "这条记录已经不存在，请返回刷新。"
+        case .staleVersion: return "记录已被修改，请重新打开后编辑。"
+        case .duplicateID, .operationConflict: return "这次操作已经处理或内容发生冲突，请返回查看结果。"
+        case .unsupportedOperation: return "当前操作尚不支持。"
+        }
+    }
+    private func apply(_ value: LedgerSnapshot) {
+        book = value.book
+        settings = value.settings
+        // Autosave can run while a mutation awaits the repository actor.
+        if value.draftRevision >= revision {
+            draft = value.draft
+            revision = value.draftRevision
+            draftError = nil
+        }
+    }
+    private func mutate(_ work: (LedgerRepository) async throws -> LedgerSnapshot) async -> Bool {
+        guard let repository, !isBusy else { return false }
+        isBusy = true
+        defer { isBusy = false }
+        do { apply(try await work(repository)); errorMessage = nil; return true }
+        catch { errorMessage = message(for: error); return false }
+    }
+}
