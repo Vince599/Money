@@ -7,6 +7,7 @@ struct AmountCalculatorView: View {
     let currency: Currency
     let errorMessage: (any Error) -> String
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var editingExpression: Bool
     private let keys = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "0", ".", "(", "+"]
     private var evaluation: Result<AmountExpression.Evaluation, any Error> {
         Result { try AmountExpression.evaluate(expression, currency: currency) }
@@ -17,6 +18,7 @@ struct AmountCalculatorView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     TextField("输入金额或算式", text: $expression)
                         .keyboardType(.numbersAndPunctuation)
+                        .focused($editingExpression).autocorrectionDisabled().textInputAutocapitalization(.never)
                         .font(.title2).monospacedDigit().accessibilityIdentifier("calculator.expression")
                     switch evaluation {
                     case .success(let value):
@@ -31,31 +33,43 @@ struct AmountCalculatorView: View {
                         Text(expression.isEmpty ? "输入数字开始计算。" : errorMessage(error))
                             .foregroundStyle(expression.isEmpty ? Color.secondary : .red)
                     }
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                        ForEach(keys, id: \.self) { key in
-                            Button(key) { expression += key == "−" ? "-" : key }
-                                .font(.title2).frame(maxWidth: .infinity, minHeight: 52)
-                                .buttonStyle(.bordered).accessibilityIdentifier("calculator.key." + key)
+                    if !editingExpression {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                            ForEach(keys, id: \.self) { key in
+                                Button { expression += key == "−" ? "-" : key } label: {
+                                    Text(key).font(.title2).frame(maxWidth: .infinity, minHeight: 52)
+                                }.buttonStyle(.bordered).accessibilityIdentifier("calculator.key." + key)
+                            }
                         }
+                        HStack(spacing: 12) {
+                            Button("清除") { expression = "" }.accessibilityIdentifier("calculator.clear")
+                            Spacer()
+                            Button(")") { expression += ")" }.accessibilityLabel("右括号")
+                            Spacer()
+                            Button { if !expression.isEmpty { expression.removeLast() } } label: { Label("退格", systemImage: "delete.left") }
+                        }.buttonStyle(.bordered)
                     }
-                    HStack(spacing: 12) {
-                        Button("清除") { expression = "" }.accessibilityIdentifier("calculator.clear")
-                        Spacer()
-                        Button(")") { expression += ")" }.accessibilityLabel("右括号")
-                        Spacer()
-                        Button { if !expression.isEmpty { expression.removeLast() } } label: { Label("退格", systemImage: "delete.left") }
-                    }.buttonStyle(.bordered)
-                    Button("使用计算结果") {
-                        if case .success(let value) = evaluation, value.money.minorUnits > 0 {
-                            expression = value.money.decimalString
-                            dismiss()
-                        }
-                    }.buttonStyle(.borderedProminent).frame(maxWidth: .infinity)
-                        .disabled(!canUseResult).accessibilityIdentifier("calculator.use")
                 }.padding(24)
             }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    if case .success(let value) = evaluation, value.money.minorUnits > 0 {
+                        expression = value.money.decimalString
+                        dismiss()
+                    }
+                } label: { Text("使用计算结果").frame(maxWidth: .infinity) }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .disabled(!canUseResult).accessibilityIdentifier("calculator.use")
+                    .padding().background(.bar)
+            }
             .navigationTitle("金额计算器").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("返回记账") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("返回记账") { dismiss() } }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成输入") { editingExpression = false }.accessibilityIdentifier("calculator.keyboard.done")
+                }
+            }
         }
     }
     private var canUseResult: Bool {

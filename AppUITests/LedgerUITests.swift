@@ -19,6 +19,7 @@ final class LedgerUITests: XCTestCase {
         tap(element("entry.calculator"))
         replace(element("calculator.expression"), with: "10+5.05*2")
         assertText(element("calculator.result"), contains: "20.10 CNY")
+        tap(element("calculator.keyboard.done"))
         screenshot("04-calculator-priority")
         tap(element("calculator.use"))
         wait(element("calculator.expression"), for: "exists == false")
@@ -26,7 +27,9 @@ final class LedgerUITests: XCTestCase {
         tap(element("entry.category"))
         tap(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ OR label == %@",
             "entry.category.option.00000000-0000-4000-8000-000000000011", "餐饮 / 正餐")).firstMatch)
-        tap(element("entry.more"))
+        tap(app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@", "entry.more", "更多信息")).firstMatch)
+        // Form lazily creates expanded rows; the title may initially sit below the viewport.
+        if !app.textFields["entry.title"].waitForExistence(timeout: 2) { app.swipeUp() }
         replace(app.textFields["entry.title"], with: "Lunch")
         tap(element("entry.save"))
         wait(app.textFields["entry.amount"], for: "exists == false")
@@ -148,7 +151,7 @@ final class LedgerUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
     }
     private func tap(_ target: XCUIElement) {
-        XCTAssertTrue(target.waitForExistence(timeout: 15))
+        XCTAssertTrue(target.waitForExistence(timeout: 15), app.debugDescription)
         for _ in 0..<5 where !target.isHittable { app.swipeUp() }
         wait(target, for: "enabled == true AND hittable == true")
         target.tap()

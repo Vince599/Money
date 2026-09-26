@@ -57,10 +57,12 @@ struct EntryEditor: View {
                     DatePicker("日期", selection: $draft.occurredAt, in: ...Date()).environment(\.timeZone, BookDate.timeZone)
                 }
                 Section {
-                    DisclosureGroup("更多信息") {
+                    DisclosureGroup {
                         TextField("标题（可空）", text: $draft.title).accessibilityIdentifier("entry.title")
                         TextField("备注", text: $draft.note, axis: .vertical).lineLimit(3...8)
-                    }.accessibilityIdentifier("entry.more")
+                    } label: {
+                        Text("更多信息").accessibilityIdentifier("entry.more")
+                    }
                 }
                 if let validationMessage { Section { Text(validationMessage).foregroundStyle(.red) } }
                 if let error = model.draftError, editing == nil { Section { Text(error).foregroundStyle(.red) } }
