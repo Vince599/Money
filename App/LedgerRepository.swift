@@ -86,14 +86,14 @@ actor LedgerRepository {
         return try snapshot()
     }
 
-    func saveCategory(_ category: Category) throws -> LedgerSnapshot {
+    func saveCategory(_ category: LedgerCore.Category) throws -> LedgerSnapshot {
         var current = try snapshot()
         current.book = try CatalogEditor.saveCategory(category, in: current.book)
         try store.commit(current.book, draft: current.draft)
         return try snapshot()
     }
 
-    func saveSubject(_ subject: Subject) throws -> LedgerSnapshot {
+    func saveSubject(_ subject: LedgerCore.Subject) throws -> LedgerSnapshot {
         var current = try snapshot()
         guard subject.isActive || current.settings.defaultSubjectID != subject.id else {
             throw RepositoryError.defaultSubjectMustRemainActive

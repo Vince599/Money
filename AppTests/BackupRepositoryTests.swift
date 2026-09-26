@@ -112,7 +112,7 @@ final class BackupRepositoryTests: XCTestCase {
         subject.isActive = false
         do { _ = try await repo.saveSubject(subject); XCTFail("Default subject cannot be disabled") }
         catch { XCTAssertEqual(error as? RepositoryError, .defaultSubjectMustRemainActive) }
-        let other = Subject(name: "LZY")
+        let other = LedgerCore.Subject(name: "LZY")
         _ = try await repo.saveSubject(other)
         _ = try await repo.setDefaultSubject(other.id)
         let changed = try await repo.saveSubject(subject)

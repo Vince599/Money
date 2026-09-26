@@ -72,10 +72,10 @@ final class LedgerAppModel {
     func saveAccount(_ value: Account) async -> Bool {
         await mutate { repo in try await repo.saveAccount(value) }
     }
-    func saveCategory(_ value: Category) async -> Bool {
+    func saveCategory(_ value: LedgerCore.Category) async -> Bool {
         await mutate { repo in try await repo.saveCategory(value) }
     }
-    func saveSubject(_ value: Subject) async -> Bool {
+    func saveSubject(_ value: LedgerCore.Subject) async -> Bool {
         await mutate { repo in try await repo.saveSubject(value) }
     }
     func setDefaultSubject(_ id: UUID) async -> Bool {

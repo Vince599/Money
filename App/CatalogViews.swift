@@ -60,7 +60,7 @@ struct EditAccountView: View {
 struct CategoryListView: View {
     @Bindable var model: LedgerAppModel
     @State private var direction = EntryKind.expense
-    @State private var selected: Category?
+    @State private var selected: LedgerCore.Category?
     @State private var add = false
     var body: some View {
         List {
@@ -81,7 +81,7 @@ struct CategoryListView: View {
         .sheet(isPresented: $add) { CategoryEditorView(model: model, direction: direction) }
         .sheet(item: $selected) { CategoryEditorView(model: model, category: $0) }
     }
-    private func categoryLabel(_ category: Category) -> some View {
+    private func categoryLabel(_ category: LedgerCore.Category) -> some View {
         HStack {
             Label(category.name, systemImage: category.symbol).foregroundStyle(.primary)
             Spacer()
@@ -93,15 +93,15 @@ struct CategoryListView: View {
 
 struct CategoryEditorView: View {
     @Bindable var model: LedgerAppModel
-    @State private var category: Category
+    @State private var category: LedgerCore.Category
     private let isNew: Bool
     @State private var message: String?
     @Environment(\.dismiss) private var dismiss
     private let icons = ["tag", "fork.knife", "car", "house", "bag", "desktopcomputer", "phone",
                          "heart", "book", "figure.walk", "gift", "cloud", "wrench", "shield", "percent", "banknote"]
-    init(model: LedgerAppModel, category: Category? = nil, direction: EntryKind = .expense) {
+    init(model: LedgerAppModel, category: LedgerCore.Category? = nil, direction: EntryKind = .expense) {
         self.model = model; isNew = category == nil
-        _category = State(initialValue: category ?? Category(name: "", direction: direction))
+        _category = State(initialValue: category ?? LedgerCore.Category(name: "", direction: direction))
     }
     var body: some View {
         NavigationStack {
@@ -152,7 +152,7 @@ struct CategoryEditorView: View {
 
 struct SubjectListView: View {
     @Bindable var model: LedgerAppModel
-    @State private var selected: Subject?
+    @State private var selected: LedgerCore.Subject?
     @State private var add = false
     var body: some View {
         List {
@@ -176,13 +176,13 @@ struct SubjectListView: View {
 
 struct SubjectEditorView: View {
     @Bindable var model: LedgerAppModel
-    @State private var subject: Subject
+    @State private var subject: LedgerCore.Subject
     private let isNew: Bool
     @State private var message: String?
     @Environment(\.dismiss) private var dismiss
-    init(model: LedgerAppModel, subject: Subject? = nil) {
+    init(model: LedgerAppModel, subject: LedgerCore.Subject? = nil) {
         self.model = model; isNew = subject == nil
-        _subject = State(initialValue: subject ?? Subject(name: ""))
+        _subject = State(initialValue: subject ?? LedgerCore.Subject(name: ""))
     }
     var body: some View {
         NavigationStack {

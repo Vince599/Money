@@ -142,7 +142,7 @@ public final class SQLiteLedgerStore: Sendable {
     }
 
     private static func writeBook(_ book: LedgerBook, in db: Database) throws {
-        // Children precede parents. Category self-references are deferred so
+        // Children precede parents. LedgerCore.Category self-references are deferred so
         // arbitrary display order, including children before parents, is valid.
         try db.execute(sql: """
             DELETE FROM entries;
@@ -210,8 +210,8 @@ public final class SQLiteLedgerStore: Sendable {
             accounts: try readRows(Account.self, table: "accounts", in: db) { columns(for: $0) },
             entries: try readRows(LedgerEntry.self, table: "entries", in: db) { columns(for: $0) },
             adjustments: try readRows(BalanceAdjustment.self, table: "adjustments", in: db) { columns(for: $0) },
-            subjects: try readRows(Subject.self, table: "subjects", in: db) { columns(for: $0) },
-            categories: try readRows(Category.self, table: "categories", in: db) { columns(for: $0) },
+            subjects: try readRows(LedgerCore.Subject.self, table: "subjects", in: db) { columns(for: $0) },
+            categories: try readRows(LedgerCore.Category.self, table: "categories", in: db) { columns(for: $0) },
             retiredOperationIDs: retiredIDs)
         try LedgerEngine.validate(book)
         try checkRelationships(db)
@@ -291,12 +291,12 @@ public final class SQLiteLedgerStore: Sendable {
          "included_in_summary": account.includedInSummary.databaseValue, "is_active": account.isActive.databaseValue]
     }
 
-    private static func columns(for subject: Subject) -> [String: DatabaseValue] {
+    private static func columns(for subject: LedgerCore.Subject) -> [String: DatabaseValue] {
         ["id": subject.id.uuidString.databaseValue, "name": subject.name.databaseValue,
          "is_active": subject.isActive.databaseValue]
     }
 
-    private static func columns(for category: Category) -> [String: DatabaseValue] {
+    private static func columns(for category: LedgerCore.Category) -> [String: DatabaseValue] {
         ["id": category.id.uuidString.databaseValue, "parent_id": category.parentID?.uuidString.databaseValue ?? .null,
          "name": category.name.databaseValue, "direction": category.direction.rawValue.databaseValue,
          "symbol": category.symbol.databaseValue, "is_active": category.isActive.databaseValue]

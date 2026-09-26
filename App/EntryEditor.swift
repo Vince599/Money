@@ -91,13 +91,13 @@ struct EntryEditor: View {
             ForEach(model.book.accounts.filter { $0.isActive || $0.id == editing?.accountID || $0.id == editing?.destinationAccountID }) { account in Text(account.name + " · " + account.currency.rawValue).tag(Optional(account.id)) }
         }
     }
-    private var selectableCategories: [Category] {
+    private var selectableCategories: [LedgerCore.Category] {
         model.book.categories.filter { category in
             guard let parentID = category.parentID, category.direction == draft.kind else { return false }
             return category.id == editing?.categoryID || (category.isActive && model.book.categories.first(where: { $0.id == parentID })?.isActive == true)
         }
     }
-    private func categoryTitle(_ category: Category) -> String {
+    private func categoryTitle(_ category: LedgerCore.Category) -> String {
         let parent = model.book.categories.first { $0.id == category.parentID }?.name ?? ""
         return parent + " / " + category.name
     }
