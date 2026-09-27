@@ -32,6 +32,14 @@ public enum EntryQueryError: Error, Equatable, Sendable {
 
 /// Queries existing entries without changing their accounting effects or persisted state.
 public enum EntryQuery {
+    /// Shared by the in-memory reference query and SQLite's search function.
+    /// Percent signs, underscores and quotes are ordinary text, never SQL patterns.
+    public static func containsKeyword(_ keyword: String, title: String, note: String) -> Bool {
+        let options: String.CompareOptions = [.caseInsensitive, .literal]
+        let locale = Locale(identifier: "en_US_POSIX")
+        return title.range(of: keyword, options: options, locale: locale) != nil
+            || note.range(of: keyword, options: options, locale: locale) != nil
+    }
     public static func validate(_ filter: EntryFilter) throws {
         if let from = filter.from, !from.timeIntervalSinceReferenceDate.isFinite {
             throw EntryQueryError.invalidDateRange
@@ -73,7 +81,6 @@ public enum EntryQuery {
         } else {
             categoryIDs = nil
         }
-        let searchLocale = Locale(identifier: "en_US_POSIX")
         return book.entries.filter { entry in
             if let kind = filter.kind, entry.kind != kind { return false }
             if let accountID = filter.accountID,
@@ -90,10 +97,7 @@ public enum EntryQuery {
             if let from = filter.from, entry.occurredAt < from { return false }
             if let to = filter.to, entry.occurredAt >= to { return false }
             if !keyword.isEmpty {
-                let options: String.CompareOptions = [.caseInsensitive, .literal]
-                let titleMatch = entry.title.range(of: keyword, options: options, locale: searchLocale) != nil
-                let noteMatch = entry.note.range(of: keyword, options: options, locale: searchLocale) != nil
-                if !titleMatch && !noteMatch { return false }
+                if !containsKeyword(keyword, title: entry.title, note: entry.note) { return false }
             }
             return true
         }.sorted { lhs, rhs in

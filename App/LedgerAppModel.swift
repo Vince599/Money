@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import LedgerCore
+import LedgerStore
 
 @Observable @MainActor
 final class LedgerAppModel {
@@ -11,6 +12,7 @@ final class LedgerAppModel {
     var draft: EntryDraft?
     var settings = LedgerSettings()
     var isLoaded = false
+    private(set) var historyRevision: UInt64 = 0
     var isBusy = false
     var errorMessage: String?
     var draftError: String?
@@ -81,6 +83,15 @@ final class LedgerAppModel {
     }
     func newDraft() -> EntryDraft {
         draft ?? EntryDraft(accountID: settings.defaultAccountID, subjectID: settings.defaultSubjectID)
+    }
+
+    func historyPage(matching filter: EntryFilter, after cursor: EntryPageCursor?) async throws -> HistoryPage {
+        guard isLoaded, let repository else { throw LedgerError.unsupportedOperation }
+        let requestRevision = historyRevision
+        let page = try await repository.historyPage(matching: filter, after: cursor)
+        try Task.checkCancellation()
+        guard requestRevision == historyRevision else { throw CancellationError() }
+        return page
     }
 
     /// Called on foreground entry and at Shanghai month boundaries, never for
@@ -303,6 +314,7 @@ final class LedgerAppModel {
     }
     private func apply(_ value: LedgerSnapshot) {
         homeRequestGeneration += 1
+        historyRevision += 1
         book = value.book
         home = value.home
         settings = value.settings

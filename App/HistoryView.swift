@@ -10,18 +10,14 @@ struct HistoryView: View {
     private var activeFilter: EntryFilter {
         var value = filter; value.keyword = keyword; return value
     }
-    private var results: Result<[LedgerEntry], any Error> {
-        Result {
-            try LedgerPerformance.measure("History.QueryExecution") {
-                try EntryQuery.entries(in: model.book, matching: activeFilter)
-            }
-        }
+    @State private var history = HistoryPageModel()
+    private var request: HistoryRequest {
+        HistoryRequest(filter: activeFilter, revision: model.historyRevision, isLoaded: model.isLoaded)
     }
     var body: some View {
         List {
-            switch results {
-            case .success(let entries):
-                if entries.isEmpty {
+            if history.hasLoaded {
+                if history.totalCount == 0 {
                     if model.book.entries.isEmpty {
                         ContentUnavailableView("还没有流水", systemImage: "list.bullet.rectangle")
                     } else {
@@ -34,8 +30,8 @@ struct HistoryView: View {
                         }
                     }
                 } else {
-                    Section { Text("共 \(entries.count) 笔").font(.subheadline).foregroundStyle(.secondary) }
-                    ForEach(groups(entries), id: \.day) { group in
+                    Section { Text("共 \(history.totalCount) 笔").font(.subheadline).foregroundStyle(.secondary) }
+                    ForEach(history.groups, id: \.day) { group in
                         Section {
                             ForEach(group.entries) { entry in
                                 Button { selectEntry(entry) } label: { EntryRow(model: model, entry: entry) }
@@ -45,11 +41,35 @@ struct HistoryView: View {
                         } header: { Text(BookDate.day(group.day)) }
                     }
                 }
-            case .failure:
-                ContentUnavailableView("筛选条件无效", systemImage: "exclamationmark.circle",
-                                       description: Text("请打开筛选，检查日期、币种和金额范围。"))
+            }
+            if let message = history.errorMessage {
+                Section {
+                    Text(message).foregroundStyle(.secondary)
+                    Button("重试") {
+                        Task {
+                            if history.hasLoaded { await history.loadMore(read: model.historyPage) }
+                            else { await history.reload(request, force: true, read: model.historyPage) }
+                        }
+                    }.accessibilityIdentifier("history.retry")
+                }
+            } else if history.nextCursor != nil {
+                Button {
+                    Task { await history.loadMore(read: model.historyPage) }
+                } label: {
+                    HStack {
+                        Text("加载更多流水")
+                        Spacer()
+                        if history.isLoading { ProgressView() }
+                    }
+                }
+                .disabled(history.isLoading)
+                .accessibilityIdentifier("history.more")
+            }
+            if history.isLoading && !history.hasLoaded {
+                ProgressView("正在读取流水…").accessibilityIdentifier("history.loading")
             }
         }
+        .task(id: request) { await history.reload(request, read: model.historyPage) }
         .searchable(text: $keyword, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索标题或备注")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -64,19 +84,6 @@ struct HistoryView: View {
         .onChange(of: showFilters) { _, presented in
             if presented { model.shortcutBlockingSheets.insert("history.filters") }
         }
-    }
-    private struct DayGroup { let day: Date; var entries: [LedgerEntry] }
-    private func groups(_ entries: [LedgerEntry]) -> [DayGroup] {
-        let interval = LedgerPerformance.begin("History.GroupExecution")
-        defer { LedgerPerformance.end(interval) }
-        var groups: [DayGroup] = []
-        let calendar = HistoryFilterView.calendar
-        for entry in entries {
-            let day = calendar.startOfDay(for: entry.occurredAt)
-            if groups.last?.day == day { groups[groups.count - 1].entries.append(entry) }
-            else { groups.append(DayGroup(day: day, entries: [entry])) }
-        }
-        return groups
     }
 }
 

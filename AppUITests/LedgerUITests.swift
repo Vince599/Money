@@ -156,7 +156,7 @@ final class LedgerUITests: XCTestCase {
         assertText(element(entryID), contains: "MPC")
         screenshot("01-home-after-relaunch")
         tap(app.tabBars.buttons["流水"])
-        XCTAssertEqual(rows.count, 1)
+        wait(rows, count: 1)
         assertText(element(entryID), contains: "正餐")
         tap(app.tabBars.buttons["账户"])
         assertText(element(accountID), contains: "79.90 CNY")

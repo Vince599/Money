@@ -6,6 +6,25 @@ public enum LedgerStoreError: Error, Equatable, Sendable {
     case unsupportedSchemaVersion(Int)
     case unrecognizedDatabase
     case corruptData(String)
+    case invalidPageSize, staleHistoryCursor
+}
+
+/// Opaque continuation, valid only for the same store, filter and database state.
+public struct EntryPageCursor: Equatable, Sendable {
+    fileprivate let storeID: UUID
+    fileprivate let dataVersion: Int
+    fileprivate let changes: Int
+    fileprivate let filter: EntryFilter
+    fileprivate let occurredAt: Date
+    fileprivate let createdAt: Date
+    fileprivate let id: UUID
+    fileprivate let totalCount: Int
+}
+
+public struct EntryPage: Sendable {
+    public let entries: [LedgerEntry]
+    public let totalCount: Int
+    public let nextCursor: EntryPageCursor?
 }
 
 /// Whether an ordinary new-entry command keeps or replaces the current draft.
@@ -36,6 +55,7 @@ public final class SQLiteLedgerStore: Sendable {
     public static let schemaVersion = 2
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
+    private let historyStoreID = UUID()
 
     public init(path: String) throws {
         database = try Self.openDatabase(path: path).database
@@ -55,6 +75,17 @@ public final class SQLiteLedgerStore: Sendable {
     private static func openDatabase(path: String) throws -> (database: DatabaseQueue, snapshot: SQLiteLedgerSnapshot) {
         var configuration = Configuration()
         configuration.foreignKeysEnabled = true
+        configuration.prepareDatabase { db in
+            db.add(function: DatabaseFunction("ledger_history_contains", argumentCount: 2, pure: true) { values in
+                guard let data = Data.fromDatabaseValue(values[0]),
+                      let keyword = String.fromDatabaseValue(values[1]) else {
+                    throw LedgerStoreError.corruptData("entries")
+                }
+                // Decode only searchable text. Full entry decoding is limited to the returned page.
+                let text = try Self.decode(HistoryText.self, payload: data, table: "entries")
+                return EntryQuery.containsKeyword(keyword, title: text.title, note: text.note)
+            })
+        }
         let database = try DatabaseQueue(path: path, configuration: configuration)
         let snapshot = try database.write { db in
             let version = try Int.fetchOne(db, sql: "PRAGMA user_version") ?? 0
@@ -90,7 +121,10 @@ public final class SQLiteLedgerStore: Sendable {
                 // matching the new NULL projections; validation below shares this transaction.
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
-            return try Self.readSnapshot(in: db)
+            let snapshot = try Self.readSnapshot(in: db)
+            // Derived access path only: no business data, payload or backup contract changes.
+            try db.execute(sql: "CREATE INDEX IF NOT EXISTS entries_history_order ON entries(occurred_at DESC, created_at DESC, id ASC)")
+            return snapshot
         }
         return (database, snapshot)
     }
@@ -107,6 +141,86 @@ public final class SQLiteLedgerStore: Sendable {
         try database.read { db in
             try Self.checkDatabase(db)
             return try Self.readBook(in: db, checkingRelationships: false)
+        }
+    }
+
+    private struct HistoryText: Decodable { let title: String; let note: String }
+
+    /// A consistent count and bounded page, without loading/validating the entire book.
+    /// Opening and all write paths retain full validation. Each returned row still
+    /// checks its payload against authoritative projected columns.
+    public func entryPage(matching filter: EntryFilter = EntryFilter(),
+                          after cursor: EntryPageCursor? = nil, limit: Int = 50) throws -> EntryPage {
+        try EntryQuery.validate(filter)
+        guard (1...200).contains(limit) else { throw LedgerStoreError.invalidPageSize }
+        return try database.read { db in
+            try Self.checkSchema(db)
+            let dataVersion = try Int.fetchOne(db, sql: "PRAGMA data_version") ?? 0
+            let changes = db.totalChangesCount
+            if let cursor {
+                guard cursor.storeID == historyStoreID, cursor.filter == filter,
+                      cursor.dataVersion == dataVersion, cursor.changes == changes else {
+                    throw LedgerStoreError.staleHistoryCursor
+                }
+            }
+            var clauses: [String] = []
+            var arguments: [DatabaseValue] = []
+            func add(_ sql: String, _ values: [DatabaseValue]) {
+                clauses.append(sql); arguments.append(contentsOf: values)
+            }
+            if let kind = filter.kind { add("kind = ?", [kind.rawValue.databaseValue]) }
+            if let id = filter.accountID {
+                add("(account_id = ? OR (kind = 'transfer' AND destination_account_id = ?))",
+                    [id.uuidString.databaseValue, id.uuidString.databaseValue])
+            }
+            if let id = filter.categoryID {
+                add("""
+                    category_id IN (SELECT id FROM categories WHERE
+                      (id = ? AND parent_id IS NOT NULL) OR
+                      (parent_id = ? AND EXISTS (SELECT 1 FROM categories WHERE id = ? AND parent_id IS NULL)))
+                    """, Array(repeating: id.uuidString.databaseValue, count: 3))
+            }
+            if let id = filter.subjectID { add("subject_id = ?", [id.uuidString.databaseValue]) }
+            if let currency = filter.currency { add("currency = ?", [currency.rawValue.databaseValue]) }
+            if let minimum = filter.minimumMinor { add("amount_minor >= ?", [minimum.databaseValue]) }
+            if let maximum = filter.maximumMinor { add("amount_minor <= ?", [maximum.databaseValue]) }
+            if let from = filter.from { add("occurred_at >= ?", [from.timeIntervalSinceReferenceDate.databaseValue]) }
+            if let to = filter.to { add("occurred_at < ?", [to.timeIntervalSinceReferenceDate.databaseValue]) }
+            let keyword = filter.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !keyword.isEmpty { add("ledger_history_contains(payload, ?)", [keyword.databaseValue]) }
+            let condition = clauses.isEmpty ? "1" : clauses.joined(separator: " AND ")
+            let total: Int
+            if let cursor { total = cursor.totalCount }
+            else { total = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM entries WHERE \(condition)",
+                                          arguments: StatementArguments(arguments)) ?? 0 }
+            var pageCondition = condition
+            if let cursor {
+                pageCondition += " AND (occurred_at < ? OR (occurred_at = ? AND created_at < ?) OR (occurred_at = ? AND created_at = ? AND id > ?))"
+                let occurred = cursor.occurredAt.timeIntervalSinceReferenceDate.databaseValue
+                let created = cursor.createdAt.timeIntervalSinceReferenceDate.databaseValue
+                arguments += [occurred, occurred, created, occurred, created, cursor.id.uuidString.databaseValue]
+            }
+            arguments.append((limit + 1).databaseValue)
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT * FROM entries WHERE \(pageCondition)
+                ORDER BY occurred_at DESC, created_at DESC, id ASC LIMIT ?
+                """, arguments: StatementArguments(arguments))
+            let entries = try rows.prefix(limit).map { row -> LedgerEntry in
+                let payload: Data = try row.decode(forColumn: "payload")
+                let entry = try Self.decode(LedgerEntry.self, payload: payload, table: "entries")
+                for (column, expected) in Self.columns(for: entry) {
+                    let stored: DatabaseValue = try row.decode(forColumn: column)
+                    guard stored == expected else { throw LedgerStoreError.corruptData("entries") }
+                }
+                return entry
+            }
+            let next: EntryPageCursor?
+            if rows.count > limit, let last = entries.last {
+                next = EntryPageCursor(storeID: historyStoreID, dataVersion: dataVersion, changes: changes,
+                                       filter: filter, occurredAt: last.occurredAt, createdAt: last.createdAt,
+                                       id: last.id, totalCount: total)
+            } else { next = nil }
+            return EntryPage(entries: entries, totalCount: total, nextCursor: next)
         }
     }
 

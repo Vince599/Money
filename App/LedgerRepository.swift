@@ -44,6 +44,14 @@ actor LedgerRepository {
         }
     }
 
+    func historyPage(matching filter: EntryFilter, after cursor: EntryPageCursor? = nil,
+                     limit: Int = 50) throws -> HistoryPage {
+        let page = try LedgerPerformance.measure("History.SQLPage") {
+            try store.entryPage(matching: filter, after: cursor, limit: limit)
+        }
+        return LedgerPerformance.measure("History.PageGrouping") { HistoryPage.make(page) }
+    }
+
     // Internal reads do not build unused home data before another mutation.
     private func readSnapshot() throws -> LedgerSnapshot {
         let value = try store.loadSnapshot()
