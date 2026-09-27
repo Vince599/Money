@@ -6,6 +6,48 @@ import Testing
 
 @Suite("Import persistence and transactions")
 struct ImportStoreTests {
+    @Test func schemaEightMigrationRetainsRulePayloadAndRollsBackOnInvalidRule() throws {
+        try withStore { store, inspection, path in
+            let rule = ImportRule(name: "旧规则", conditions: [.init(field: .kind, comparison: .equals, value: "expense")], actions: [.init(field: .category, targetID: SeedData.mealsID)])
+            let before = try store.saveImportRule(rule)
+            let payload = try inspection.read { try Data.fetchOne($0, sql: "SELECT payload FROM import_rules") }
+            try inspection.write { try $0.execute(sql: "PRAGMA user_version = 8; UPDATE import_rules SET payload = ?", arguments: [Data("bad JSON".utf8)]) }
+            #expect(throws: LedgerStoreError.corruptData("import_rules")) { try SQLiteLedgerStore(path: path) }
+            try inspection.read { (db: Database) throws -> Void in #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 8) }
+            try inspection.write { try $0.execute(sql: "UPDATE import_rules SET payload = ?", arguments: [payload]) }
+            #expect(try SQLiteLedgerStore(path: path).loadBook() == before.book)
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
+                #expect(try Data.fetchOne(db, sql: "SELECT payload FROM import_rules") == payload)
+            }
+        }
+    }
+
+    @Test func extendedRuleActionsPersistAtomicallyWithoutLosingExistingTags() throws {
+        try withStore { store, inspection, path in
+            let from = Account(name: "转出"), to = Account(name: "转入")
+            let old = EntryTag(name: "原"), new = EntryTag(name: "新"), project = EntryProject(name: "项目")
+            try store.commit(LedgerBook(accounts: [from, to], tags: [old, new], projects: [project]), draft: EntryDraft(amountText: "12+("))
+            var batch = try ImportCSV.parse(ImportCSV.template, name: "transfer", namespace: "bank")
+            batch.rows[0].raw[2] = "transfer"; batch.rows[0].accountID = from.id; batch.rows[0].tagIDs = [old.id]
+            _ = try store.saveImport(batch)
+            let rule = ImportRule(name: "转账", conditions: [.init(field: .kind, comparison: .equals, value: "transfer")], actions: [.init(field: .destinationAccount, targetID: to.id), .init(field: .tag, targetID: new.id), .init(field: .project, targetID: project.id)])
+            let saved = try store.saveImportRule(rule)
+            let review = try ImportRuleEngine.review(batchID: batch.id, rowID: batch.rows[0].id, in: saved.book)
+            let plan = try ImportRuleEngine.prepare(review, selections: [.destinationAccount: to.id, .tag: new.id, .project: project.id])
+            try inspection.write { try $0.execute(sql: "CREATE TRIGGER reject_extended_actions BEFORE INSERT ON import_batches BEGIN SELECT RAISE(ABORT, 'injected'); END") }
+            #expect(throws: (any Error).self) { try store.applyImportRule(plan) }
+            #expect(try store.loadBook() == saved.book)
+            try inspection.write { try $0.execute(sql: "DROP TRIGGER reject_extended_actions") }
+            let applied = try store.applyImportRule(plan)
+            let reopened = try SQLiteLedgerStore(path: path).loadSnapshot()
+            #expect(reopened.book == applied.book && reopened.draft?.amountText == "12+(")
+            #expect(reopened.book.importBatches[0].rows[0].tagIDs == [old.id, new.id])
+            #expect(reopened.book.importBatches[0].rows[0].projectID == project.id)
+            #expect(reopened.book.importBatches[0].rows[0].destinationAccountID == to.id)
+        }
+    }
+
     @Test func batchRuleFailureRollsBackAllRowsAndRetryPreservesLatestManualDraft() throws {
         try withStore { store, inspection, path in
             var batch = try stagedBatch()
@@ -94,7 +136,7 @@ struct ImportStoreTests {
             try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?", arguments: [payload]) }
             #expect(try SQLiteLedgerStore(path: path).loadBook() == before.book)
             try inspection.read { (db: Database) throws -> Void in
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 8)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
                 #expect(try Data.fetchOne(db, sql: "SELECT payload FROM import_batches") == payload)
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM import_rules") == 0)
             }

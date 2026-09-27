@@ -168,7 +168,7 @@ struct ImportRuleTests {
         book.importRules[0].actions[0].targetID = UUID()
         let snapshot = LedgerBackupSnapshot(book: book, draft: EntryDraft(amountText: "12+("), settings: LedgerSettings())
         let files = try BackupCodec.encode(snapshot)
-        #expect(files.count == 23 && BackupSchema.dbVersion == "8")
+        #expect(files.count == 23 && BackupSchema.dbVersion == "9")
         #expect(try BackupCodec.decode(files) == snapshot)
         for table in [BackupSchema.importRuleConditions, BackupSchema.importRuleActions] {
             var damaged = files

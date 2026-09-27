@@ -52,7 +52,7 @@ public struct SQLiteLedgerSnapshot: Sendable {
 /// Callers must coordinate read-modify-save operations; serialization of writes
 /// alone does not make two independently edited book snapshots merge safely.
 public final class SQLiteLedgerStore: Sendable {
-    public static let schemaVersion = 8
+    public static let schemaVersion = 9
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
     private let historyStoreID = UUID()
@@ -153,6 +153,10 @@ public final class SQLiteLedgerStore: Sendable {
             }
             if (1...7).contains(version) {
                 try db.execute(sql: Self.ruleSchema)
+                try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
+            }
+            if version == 8 {
+                // Expanded action enums use the existing payload. Keep old bytes intact.
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
             let snapshot = try Self.readSnapshot(in: db)

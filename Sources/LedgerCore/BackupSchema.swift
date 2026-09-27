@@ -136,9 +136,12 @@ enum BackupDates {
 }
 
 enum BackupSchema {
-    static let profile = "ledger-core-v8"
-    static let version = "8.0"
-    static let dbVersion = "8"
+    static let profile = "ledger-core-v9"
+    static let version = "9.0"
+    static let dbVersion = "9"
+    static let v8Profile = "ledger-core-v8"
+    static let v8Version = "8.0"
+    static let v8DBVersion = "8"
     static let v7Profile = "ledger-core-v7"
     static let v7Version = "7.0"
     static let v7DBVersion = "7"
@@ -260,7 +263,9 @@ enum BackupSchema {
         BackupColumn(name: "minimum_minor", type: "int64", nullable: true, unit: "currency minor units; 1/100", precision: "0...9223372036854775807"),
         BackupColumn(name: "maximum_minor", type: "int64", nullable: true, unit: "currency minor units; 1/100", precision: "0...9223372036854775807")])
     static let importRuleConditions = BackupTable(name: "import_rule_conditions.csv", columns: [position, uuid("rule_id", reference: "import_rules.csv.id"), choice("field", "title|note|category|account|kind"), choice("comparison", "equals|contains"), text("value")])
-    static let importRuleActions = BackupTable(name: "import_rule_actions.csv", columns: [position, uuid("rule_id", reference: "import_rules.csv.id"), choice("field", "account|category|subject"), uuid("target_id", reference: "soft:accounts.csv.id|categories.csv.id|subjects.csv.id")])
+    static let v8ImportRuleActions = BackupTable(name: "import_rule_actions.csv", columns: [position, uuid("rule_id", reference: "import_rules.csv.id"), choice("field", "account|category|subject"), uuid("target_id", reference: "soft:accounts.csv.id|categories.csv.id|subjects.csv.id")])
+    static let importRuleActions = BackupTable(name: "import_rule_actions.csv", columns: [position, uuid("rule_id", reference: "import_rules.csv.id"), choice("field", "account|destinationAccount|category|subject|tag|project"), uuid("target_id", reference: "soft:accounts.csv.id|categories.csv.id|subjects.csv.id|tags.csv.id|projects.csv.id")])
+    static let v8All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts, importRowTags, importRules, importRuleConditions, v8ImportRuleActions]
     static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts, importRowTags, importRules, importRuleConditions, importRuleActions]
     static let v7All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v7Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts, importRowTags]
     static let v6All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v6Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, v6ImportBatches, v6ImportRows, importAccounts, importRowTags]

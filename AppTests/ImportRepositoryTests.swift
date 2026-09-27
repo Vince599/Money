@@ -5,6 +5,35 @@ import LedgerCore
 
 @MainActor
 final class ImportRepositoryTests: XCTestCase {
+    func testExtendedRuleMappingAndBackupPreserveOrderedTagsProjectAndTransferTarget() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try LedgerRepository(path: directory.appendingPathComponent("ledger.sqlite").path)
+        let tag = EntryTag(name: "标签"), project = EntryProject(name: "项目")
+        _ = try await repo.saveTag(tag); _ = try await repo.saveProject(project)
+        // A formal account is needed for a persistent target; use the ordinary account creation path.
+        let account = Account(name: "目标账户")
+        _ = try await repo.addAccount(account, makeDefault: false)
+        var batch = try ImportCSV.parse(ImportCSV.template, name: "rules", namespace: "bank")
+        batch.rows[0].raw[2] = "transfer"
+        _ = try await repo.saveImport(batch)
+        let rule = ImportRule(name: "转账", conditions: [.init(field: .kind, comparison: .equals, value: "transfer")], actions: [.init(field: .destinationAccount, targetID: account.id), .init(field: .tag, targetID: tag.id), .init(field: .project, targetID: project.id)])
+        _ = try await repo.saveImportRule(rule)
+        let review = try await repo.reviewImportRules(batchID: batch.id, rowID: batch.rows[0].id)
+        let draft = EntryDraft(amountText: "8+(")
+        try await repo.saveDraft(draft, revision: 7)
+        let mapped = try await repo.applyImportRule(ImportRuleEngine.prepare(review, selections: [.destinationAccount: account.id, .tag: tag.id, .project: project.id]))
+        XCTAssertEqual(mapped.draft, draft); XCTAssertEqual(mapped.draftRevision, 7)
+        XCTAssertEqual(mapped.book.importBatches[0].rows[0].tagIDs, [tag.id])
+        let bytes = try await repo.exportBackup()
+        let preview = try await repo.prepareRestore(bytes)
+        let restored = try await repo.restore(previewID: preview.id, revision: 8)
+        XCTAssertEqual(restored.book, mapped.book)
+        XCTAssertEqual(restored.book.importBatches[0].rows[0].destinationAccountID, account.id)
+        XCTAssertEqual(restored.book.importBatches[0].rows[0].projectID, project.id)
+    }
+
     func testBatchRulePreviewRejectsNewerRulesAndCommitsAllRowsWithDraftAndBackup() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

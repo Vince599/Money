@@ -20,10 +20,16 @@ public struct ImportRuleCondition: Codable, Equatable, Sendable {
     }
 }
 public enum ImportRuleTargetField: String, Codable, CaseIterable, Sendable {
-    case account, category, subject
-    public var name: String { switch self { case .account: "付款／收款账户"; case .category: "分类"; case .subject: "主体" } }
+    case account, destinationAccount, category, subject, tag, project
+    public var name: String { switch self { case .account: "付款／收款账户"; case .destinationAccount: "转入账户"; case .category: "分类"; case .subject: "主体"; case .tag: "追加标签"; case .project: "项目" } }
     public func value(in row: ImportRow) -> UUID? {
-        switch self { case .account: row.accountID; case .category: row.categoryID; case .subject: row.subjectID }
+        switch self { case .account: row.accountID; case .destinationAccount: row.destinationAccountID; case .category: row.categoryID; case .subject: row.subjectID; case .tag: nil; case .project: row.projectID }
+    }
+}
+extension ImportRuleTargetField {
+    /// Tag actions append one target, but comparisons and previews retain the complete ordered list.
+    public func values(in row: ImportRow) -> [UUID] {
+        self == .tag ? row.tagIDs : value(in: row).map { [$0] } ?? []
     }
 }
 public struct ImportRuleAction: Codable, Equatable, Sendable {
@@ -85,7 +91,7 @@ public enum ImportRuleEngine {
             guard !rule.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, rule.name.utf8.count <= 256,
                   (0...10_000).contains(rule.priority), rule.version > 0,
                   !rule.conditions.isEmpty || rule.minimumMinor != nil || rule.maximumMinor != nil,
-                  rule.conditions.count <= 12, !rule.actions.isEmpty, rule.actions.count <= 3,
+                  rule.conditions.count <= 12, !rule.actions.isEmpty, rule.actions.count <= ImportRuleTargetField.allCases.count,
                   Set(rule.actions.map(\.field)).count == rule.actions.count else { throw ImportError.invalidFile("规则须填写名称、至少一个条件及动作；优先级范围为 0—10000。") }
             if let namespace = rule.namespace {
                 guard !namespace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, namespace.utf8.count <= 256 else { throw ImportError.invalidFile("来源身份不能为空白，最多 256 字节。") }
@@ -106,12 +112,16 @@ public enum ImportRuleEngine {
     public static func availabilityIssues(_ rule: ImportRule, in book: LedgerBook) -> [String] {
         rule.actions.compactMap { action in
             switch action.field {
-            case .account:
+            case .account, .destinationAccount:
                 guard let account = book.accounts.first(where: { $0.id == action.targetID }), account.isActive else { return "账户缺失或已停用" }
                 if let currency = rule.currency, account.currency != currency { return "账户与规则币种不同" }
             case .category:
                 guard let category = book.categories.first(where: { $0.id == action.targetID }), category.isActive,
                       let parent = book.categories.first(where: { $0.id == category.parentID }), parent.isActive else { return "分类缺失、已停用或不是启用的二级分类" }
+            case .tag:
+                guard book.tags.contains(where: { $0.id == action.targetID && $0.isActive }) else { return "标签缺失或已停用" }
+            case .project:
+                guard book.projects.contains(where: { $0.id == action.targetID && !$0.isArchived }) else { return "项目缺失或已归档" }
             case .subject:
                 guard book.subjects.contains(where: { $0.id == action.targetID && $0.isActive }) else { return "主体缺失或已停用" }
             }
@@ -135,7 +145,7 @@ public enum ImportRuleEngine {
     }
     public static func affectedRules(field: ImportRuleTargetField, id: UUID, in book: LedgerBook) -> [ImportRule] {
         book.importRules.filter { rule in rule.actions.contains { action in
-            action.field == field && (action.targetID == id || (field == .category && book.categories.contains { $0.id == action.targetID && $0.parentID == id }))
+            (action.field == field || (field == .account && action.field == .destinationAccount)) && (action.targetID == id || (field == .category && book.categories.contains { $0.id == action.targetID && $0.parentID == id }))
         } }
     }
     private static func matches(_ rule: ImportRule, row: ImportRow, batch: ImportBatch) -> Bool {
@@ -167,7 +177,10 @@ public enum ImportRuleEngine {
             let issues = availabilityIssues(rule, in: book)
             guard issues.isEmpty else { warnings.append(rule.name + "：已暂停建议（" + issues.joined(separator: "、") + "）"); continue }
             for action in rule.actions {
-                if action.field == .account, book.accounts.first(where: { $0.id == action.targetID })?.currency.rawValue != row.raw[4] {
+                if action.field == .destinationAccount && row.raw[2] != "transfer" {
+                    warnings.append(rule.name + "：转入账户只适用于转账"); continue
+                }
+                if (action.field == .account || action.field == .destinationAccount), book.accounts.first(where: { $0.id == action.targetID })?.currency.rawValue != row.raw[4] {
                     warnings.append(rule.name + "：账户币种与此行不符"); continue
                 }
                 if action.field == .category, book.categories.first(where: { $0.id == action.targetID })?.direction.rawValue != row.raw[2] {
@@ -202,9 +215,16 @@ public enum ImportRuleEngine {
             guard review.suggestions.contains(where: { $0.id == field && $0.choices.contains { $0.id == target } }) else { throw ImportError.invalidState }
             switch field {
             case .account: row.accountID = target
+            case .destinationAccount: row.destinationAccountID = target
+            case .project: row.projectID = target
+            case .tag: if !row.tagIDs.contains(target) { row.tagIDs.append(target) }
             case .category: row.categoryID = target
             case .subject: row.subjectID = target
             }
+        }
+        if row.raw[2] == "transfer", selections[.account] != nil || selections[.destinationAccount] != nil,
+           let account = row.accountID, account == row.destinationAccountID {
+            throw ImportError.invalidFile("来源交易 " + row.sourceID + " 的转出与转入账户不能相同，请调整选择。")
         }
         return row
     }

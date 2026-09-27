@@ -38,7 +38,7 @@ extension ImportRuleEngine {
     public static func unambiguousEmptySelections(_ review: ImportRuleBatchReview) -> [UUID: [ImportRuleTargetField: UUID]] {
         var result: [UUID: [ImportRuleTargetField: UUID]] = [:]
         for row in review.rows {
-            for suggestion in row.suggestions where suggestion.currentID == nil && !suggestion.hasConflict {
+            for suggestion in row.suggestions where suggestion.id != .tag && suggestion.currentID == nil && !suggestion.hasConflict {
                 if let target = suggestion.preferredID { result[row.rowID, default: [:]][suggestion.id] = target }
             }
         }
@@ -55,7 +55,7 @@ extension ImportRuleEngine {
             guard let fields = selections[before.id], !fields.isEmpty, let rowReview = reviewed[before.id] else { continue }
             // Use the same selection validation as the single-row review.
             let after = try applying(fields, to: before, review: rowReview)
-            let changedFields = ImportRuleTargetField.allCases.filter { $0.value(in: before) != $0.value(in: after) }
+            let changedFields = ImportRuleTargetField.allCases.filter { $0.values(in: before) != $0.values(in: after) }
             if !changedFields.isEmpty {
                 batch.rows[index] = after
                 changes.append(ImportRuleRowChange(before: before, after: after, fields: changedFields))

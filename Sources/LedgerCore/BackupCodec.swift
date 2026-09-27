@@ -121,6 +121,9 @@ public enum BackupCodec {
         case (BackupSchema.profile, BackupSchema.version, BackupSchema.dbVersion):
             contractTables = BackupSchema.all
             accountTable = BackupSchema.accounts
+        case (BackupSchema.v8Profile, BackupSchema.v8Version, BackupSchema.v8DBVersion):
+            contractTables = BackupSchema.v8All
+            accountTable = BackupSchema.accounts
         case (BackupSchema.v7Profile, BackupSchema.v7Version, BackupSchema.v7DBVersion):
             contractTables = BackupSchema.v7All
             accountTable = BackupSchema.accounts
@@ -144,6 +147,7 @@ public enum BackupCodec {
             accountTable = BackupSchema.legacyAccounts
         default:
             let reportedVersion = (profile == BackupSchema.profile && version == BackupSchema.version)
+                || (profile == BackupSchema.v8Profile && version == BackupSchema.v8Version)
                 || (profile == BackupSchema.v7Profile && version == BackupSchema.v7Version)
                 || (profile == BackupSchema.v6Profile && version == BackupSchema.v6Version)
                 || (profile == BackupSchema.v5Profile && version == BackupSchema.v5Version)

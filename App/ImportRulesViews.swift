@@ -2,13 +2,21 @@ import SwiftUI
 import LedgerCore
 
 enum ImportRuleDisplay {
+    static func current(_ row: ImportRow, field: ImportRuleTargetField, book: LedgerBook) -> String {
+        if field == .tag { return row.tagIDs.isEmpty ? "无标签" : row.tagIDs.map { target($0, field: .tag, book: book) }.joined(separator: "、") }
+        if field == .account || field == .destinationAccount,
+           let account = book.importBatches.flatMap(\.proposedAccounts).first(where: { $0.id == field.value(in: row) }) { return account.name + "（草稿）" }
+        return target(field.value(in: row), field: field, book: book)
+    }
     static func target(_ id: UUID?, field: ImportRuleTargetField, book: LedgerBook) -> String {
         guard let id else { return "未选择" }
         switch field {
-        case .account: return book.accounts.first { $0.id == id }?.name ?? "不可用账户"
+        case .account, .destinationAccount: return book.accounts.first { $0.id == id }?.name ?? "不可用账户"
         case .category:
             guard let category = book.categories.first(where: { $0.id == id }) else { return "不可用分类" }
             return (book.categories.first { $0.id == category.parentID }?.name ?? "") + " / " + category.name
+        case .tag: return book.tags.first { $0.id == id }?.name ?? "不可用标签"
+        case .project: return book.projects.first { $0.id == id }?.name ?? "不可用项目"
         case .subject: return book.subjects.first { $0.id == id }?.name ?? "不可用主体"
         }
     }
@@ -68,7 +76,7 @@ struct ImportRuleEditor: View {
         _enabledFields = State(initialValue: Set(rule.actions.map(\.field)))
         var choices = Dictionary(uniqueKeysWithValues: rule.actions.map { ($0.field, $0.targetID) })
         if let rememberedRow {
-            for field in ImportRuleTargetField.allCases { choices[field] = field.value(in: rememberedRow) }
+            for field in ImportRuleTargetField.allCases { choices[field] = field == .tag ? rememberedRow.tagIDs.first : field.value(in: rememberedRow) }
         }
         _targets = State(initialValue: choices)
     }
@@ -123,7 +131,7 @@ struct ImportRuleEditor: View {
                         if enabledFields.contains(field) { targetPicker(field) }
                     }
                 } header: { Text("独立选择要记住的字段") } footer: {
-                    Text("未勾选的字段不会保存为动作。草稿中新建的账户需先完成入账，才能用于长期规则。规则不会自动应用。")
+                    Text("未勾选的字段不会保存为动作。草稿中新建的账户需先完成入账，才能用于长期规则。规则不会自动应用。标签每条规则追加一个，保留原标签；项目设为所选值，转入账户仅用于转账。")
                 }
                 if let message { Text(message).foregroundStyle(.red) }
                 Button("保存规则") { save() }.accessibilityIdentifier("import.rules.save")
@@ -147,10 +155,12 @@ struct ImportRuleEditor: View {
     }
     private func availableTargets(_ field: ImportRuleTargetField) -> [UUID] {
         switch field {
-        case .account: model.book.accounts.filter(\.isActive).map(\.id)
+        case .account, .destinationAccount: model.book.accounts.filter(\.isActive).map(\.id)
         case .category: model.book.categories.filter { category in
             category.isActive && category.parentID != nil && model.book.categories.contains { $0.id == category.parentID && $0.isActive }
         }.map(\.id)
+        case .tag: model.book.tags.filter(\.isActive).map(\.id)
+        case .project: model.book.projects.filter { !$0.isArchived }.map(\.id)
         case .subject: model.book.subjects.filter(\.isActive).map(\.id)
         }
     }
@@ -190,7 +200,10 @@ struct ImportRuleReviewView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                     ForEach(review.suggestions) { suggestion in
                         Section(suggestion.id.name) {
-                            LabeledContent("当前值", value: name(suggestion.currentID, field: suggestion.id, book: review.expectedBook))
+                            if let current = review.expectedBook.importBatches.first(where: { $0.id == batchID })?.rows.first(where: { $0.id == rowID }) {
+                                LabeledContent("当前值", value: ImportRuleDisplay.current(current, field: suggestion.id, book: review.expectedBook))
+                            }
+                            if suggestion.id == .tag { Text("采用后追加此标签，已有标签保留。").font(.footnote).foregroundStyle(.secondary) }
                             if suggestion.hasConflict {
                                 Text(suggestion.preferredID == nil ? "同优先级存在冲突，需自行选择。" : "多条规则建议不同，请核对后选择。")
                             }
@@ -221,7 +234,7 @@ struct ImportRuleReviewView: View {
                    let after = plan.batch.rows.first(where: { $0.id == rowID }) {
                     Section("确认修改") {
                         ForEach(ImportRuleTargetField.allCases.filter { selections[$0] != nil }, id: \.self) { field in
-                            LabeledContent(field.name, value: name(field.value(in: before), field: field, book: plan.expectedBook) + " → " + name(field.value(in: after), field: field, book: plan.expectedBook))
+                            LabeledContent(field.name, value: ImportRuleDisplay.current(before, field: field, book: plan.expectedBook) + " → " + ImportRuleDisplay.current(after, field: field, book: plan.expectedBook))
                         }
                         Text("仅保存本行导入草稿，不入账。其他字段、其他行和手工记账草稿保持不变。")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -239,7 +252,7 @@ struct ImportRuleReviewView: View {
         }
     }
     private func name(_ id: UUID?, field: ImportRuleTargetField, book: LedgerBook) -> String {
-        if field == .account, let account = book.importBatches.first(where: { $0.id == batchID })?.proposedAccounts.first(where: { $0.id == id }) { return account.name + "（草稿）" }
+        if (field == .account || field == .destinationAccount), let account = book.importBatches.first(where: { $0.id == batchID })?.proposedAccounts.first(where: { $0.id == id }) { return account.name + "（草稿）" }
         return ImportRuleDisplay.target(id, field: field, book: book)
     }
     private func reload() async {
@@ -258,7 +271,7 @@ struct ImportRuleReferencesSection: View {
         if !rules.isEmpty {
             Section("关联导入规则") {
                 ForEach(rules) { Text($0.name).font(.subheadline) }
-                Text("停用此资料会暂停相关规则的建议；恢复可用后，已启用的规则重新提供建议。已入账流水不会改变，可在设置的导入规则中修复动作。")
+                Text("停用或归档此资料会暂停相关规则的建议；恢复可用后，已启用的规则重新提供建议。已入账流水不会改变，可在设置的导入规则中修复动作。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }

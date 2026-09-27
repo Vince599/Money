@@ -130,7 +130,7 @@ struct RecoveryTests {
         #expect(restored == snapshot)
         let files = try BackupCodec.encode(snapshot)
         let manifest = try #require(BackupSchema.manifest.read(files["manifest.csv"]!).first)
-        #expect(try manifest.string("profile") == "ledger-core-v8")
+        #expect(try manifest.string("profile") == "ledger-core-v9")
         var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
         object.removeValue(forKey: "originalEntryID"); object.removeValue(forKey: "allowsNetRecovery")
         let legacy = try JSONDecoder().decode(LedgerEntry.self, from: JSONSerialization.data(withJSONObject: object))

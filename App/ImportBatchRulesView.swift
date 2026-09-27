@@ -29,7 +29,7 @@ struct ImportBatchRulesView: View {
                         }.accessibilityIdentifier("import.batchRules.fillEmpty")
                         Button("清除本次全部选择") { selections = [:]; message = nil }
                     } footer: {
-                        Text("快捷填充也不会选择存在较低优先级冲突的字段。主体已有默认值，需逐行明确选择才会变更。")
+                        Text("快捷填充也不会选择存在较低优先级冲突的字段。主体已有默认值，需逐行明确选择才会变更；追加标签也需逐行选择。")
                     }
                     ForEach(review.rows, id: \.rowID) { rowReview in
                         if let row = review.batch.rows.first(where: { $0.id == rowReview.rowID }) {
@@ -63,7 +63,10 @@ struct ImportBatchRulesView: View {
         if row.suggestions.isEmpty { Text("暂无可用建议").foregroundStyle(.secondary) }
         ForEach(row.suggestions) { suggestion in
             VStack(alignment: .leading, spacing: 6) {
-                LabeledContent(suggestion.id.name + "当前值", value: name(suggestion.currentID, field: suggestion.id, review: review))
+                if let current = review.batch.rows.first(where: { $0.id == row.rowID }) {
+                    LabeledContent(suggestion.id.name + "当前值", value: ImportRuleDisplay.current(current, field: suggestion.id, book: review.expectedBook))
+                }
+                if suggestion.id == .tag { Text("采用后追加此标签，已有标签保留。").font(.footnote) }
                 if suggestion.hasConflict {
                     Text(suggestion.preferredID == nil ? "同级冲突，请明确选择。" : "多个建议不一致，请核对。")
                         .font(.footnote)
@@ -96,7 +99,7 @@ struct ImportBatchRulesView: View {
                 Text(change.before.raw[3] + " " + change.before.raw[4] + " · " + change.before.raw[1]).font(.caption).foregroundStyle(.secondary)
                 if let review {
                     ForEach(change.fields, id: \.self) { field in
-                        LabeledContent(field.name, value: name(field.value(in: change.before), field: field, review: review) + " → " + name(field.value(in: change.after), field: field, review: review))
+                        LabeledContent(field.name, value: ImportRuleDisplay.current(change.before, field: field, book: review.expectedBook) + " → " + ImportRuleDisplay.current(change.after, field: field, book: review.expectedBook))
                     }
                 }
             }
@@ -107,7 +110,7 @@ struct ImportBatchRulesView: View {
         Button("返回调整选择") { self.plan = nil; message = nil }
     }
     private func name(_ id: UUID?, field: ImportRuleTargetField, review: ImportRuleBatchReview) -> String {
-        if field == .account, let account = review.batch.proposedAccounts.first(where: { $0.id == id }) { return account.name + "（草稿）" }
+        if (field == .account || field == .destinationAccount), let account = review.batch.proposedAccounts.first(where: { $0.id == id }) { return account.name + "（草稿）" }
         return ImportRuleDisplay.target(id, field: field, book: review.expectedBook)
     }
     private func prepare(_ review: ImportRuleBatchReview) {

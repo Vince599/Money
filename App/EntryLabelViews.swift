@@ -63,6 +63,7 @@ struct EntryLabelEditorView: View {
             Form {
                 TextField(kind.title + "名称", text: $value.name).accessibilityIdentifier("label.name")
                 Toggle(kind == .tag ? "停用标签" : "归档项目", isOn: $value.unavailable).accessibilityIdentifier("label.unavailable")
+                ImportRuleReferencesSection(book: model.book, field: kind == .tag ? .tag : .project, id: value.id)
                 if let message { Text(message).foregroundStyle(.red) }
                 Button("保存") {
                     let name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
