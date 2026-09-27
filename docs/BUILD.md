@@ -119,7 +119,7 @@ Windows 真机安装统一使用工作区以外的 **`D:\Data\Ledger-Install\Led
 ## 验证记录
 
 - 体验与版本政策：2026-09-26 新增[体验质量标准](EXPERIENCE_QUALITY.md)，要求最新稳定原生技术和分阶段体验验收；Xcode 27 升级、Q01—Q09 真机性能及完整 Widget 品质均尚未验证。模拟器截图和基础安装成功不能代替这些证据。
-- Windows 核心测试：2026-09-27 当前 Swift 6.4 实测 151 项／15 个套件通过；历史第三批基线为 106 项／10 个套件。
+- Windows 核心测试：2026-09-27 当前 Swift 6.4 实测 239 项／24 个套件通过；历史第三批基线为 106 项／10 个套件。
 - 2026-09-26，[云端运行 #3](https://github.com/Vince599/Money/actions/runs/36212521636)（提交 `073742da04b90498938dccf703d2693a0e50caeb`）：macOS 包测试 84 项／8 个 suite 通过，iOS 模拟器 AppTests 7 项通过，Release `iphoneos` arm64 构建成功并生成未签名 IPA。实际编译器为 Apple Swift 6.3.3，产物为 `ledger-ios-3`（artifact ID `10896510760`）。
 - 2026-09-26，[云端运行 #4](https://github.com/Vince599/Money/actions/runs/36212928265)（提交 `c5ba22d45f000a611cb2dd57293b2537ae6c1366`）：在前述 84 项包测试、7 项 App 测试之外，通过 1 项 UI 操作测试；新增账户与支出、重启后数据保留、备份入口均验证通过，导出截图并生成同版未签名 IPA。UI 测试未操作系统文件选择器或执行页面恢复。
 - 运行 #4 的 [完整产物](https://github.com/Vince599/Money/actions/runs/36212928265/artifacts/10896293141)为 `ledger-ios-4`；IPA 为 3,059,852 字节，SHA-256 `fdd7f69b98079e46ae1598a7fe193e0a16a5d1aee3aabfcb6da5480b0de78132`，已下载核对一致。3 张截图来自 iPhone 17 Pro Max／iOS 26.5 模拟器，分辨率 1320×2868，内容为重启后首页、账户页及备份入口。
@@ -189,3 +189,24 @@ Windows 已下载并核对 [ledger-ios-29 内部产物](https://github.com/Vince
 ## 2026-09-27：免费额度耗尽后的开发安排
 
 用户提供 GitHub Billing 截图确认 Actions 已用 2,000／2,000 免费分钟，Billable usage 为 $0；截图提示额度 4 天后重置。用户已同意先继续本地开发，恢复额度后集中执行 Apple 完整验证。未修改账户付费配置、仓库可见性或工作流，也未再次派发构建。标签／项目与通用导入批次的 Store、App 和页面验证仍为待执行，不沿用旧构建通过结论。
+
+
+## 2026-09-27：恢复 Apple 完整验证
+
+用户确认可以重新编译和验证后，恢复当前开发分支的手动工作流；未修改付费配置或仓库可见性，固定安装目录仍不更新。
+
+- [运行 #32](https://github.com/Vince599/Money/actions/runs/36321071919)验证 `00e1eabec84036456179da9cef0232e34088547b`，成功分配 macOS runner，编译包测试时发现 Store／App 测试引用 Core 内部日期解析函数，以及 Swift Testing 宏内数据库读取缺少显式抛出处理。提交 `547d8db` 修复测试边界，不放宽断言；该轮没有运行完整测试或生成 IPA。
+- [运行 #33](https://github.com/Vince599/Money/actions/runs/36321289414)验证 `547d8dbcde7fad1adc86bf15fcb6a3ea7c4fbc25`，306 项包测试／31 套件实际运行，仅普通 CSV 的 BOM／CRLF／多行字段回归失败。原生成器用字符串字符匹配判断换行，在 Apple 平台漏转义 CRLF；提交 `dc9f26a` 改为按 UTF-8 字节判断并转义 CSV 分隔符，补充 CRLF／LF／CR 与带组合字符的逗号、引号固定字节样本。Windows Core 239 项／24 套件通过；该轮未进入模拟器或 Release 构建。
+- [运行 #34](https://github.com/Vince599/Money/actions/runs/36321516487)验证 `dc9f26a1017903a2c16f9e43ec1fc97441cdd6d4`，**307 项包测试／31 套件（239 Core＋68 Store）全部通过**。随后 SwiftUI 编译发现导入筛选的 Section 标题／页脚初始化不匹配，标签编辑长视图表达式也无法完成类型推断。提交 `fdea171` 使用显式 header 并拆分标签编辑、逐行预览视图；未更改账务规则。该轮没有完成模拟器测试或 Release 构建。
+- [运行 #35](https://github.com/Vince599/Money/actions/runs/36321933840)验证 `fdea171069b3180347ae5c3c5cad2eac3570f978`：307 项包测试和 62 项 AppTests 全部通过，6 项 UITests 中 4 项通过、2 项失败。账户模板路径在重启后账户行点击检查失败，行中间的 Spacer 没有明确点击区域；标签路径定位了底层账户导航栏同名“设置”按钮。提交 `af2d37d` 给账户行内容添加矩形点击区域，并将标签／项目返回定位限定在当前导航栏，归档开关采用实际控件并保留开启断言；没有降低持久化或金额断言。该轮没有 Release 构建或 IPA。
+- 已下载并核验 [运行 #35 产物](https://github.com/Vince599/Money/actions/runs/36321933840/artifacts/10932943134)：264,197,575 字节，SHA-256 `cb57ef6f6064e4c9369d0a7acce12d60cdf269c6444f62c36b48c65f60532581`，提交匹配。模拟器摘要为 68 项、66 通过、2 失败、0 跳过；失败层级信息已用于定位。已查看退款整组删除和分类图标预览截图，相关文本与金额可见；其余截图不计为本轮全部视觉验收。记录位于 `build/validation/run-35-internal/`。
+- [运行 #36](https://github.com/Vince599/Money/actions/runs/36323941527)验证 `af2d37d0192d3d05ed0bd505cc9057c6f664dc4f`：307 项包测试、62 项 AppTests 和 5／6 项 UITests 通过。账户行修复生效；标签路径已完成创建和项目选择，但返回记账表单时数字键盘遮住保存按钮，且通用点击没有开启标签开关。该 UI 用例实际失败，随后产物上传阶段达到 45 分钟上限，运行最终为 cancelled；不能只归为超时或写成测试通过。失败日志保存在 `build/validation/run-36-job.log`，云端保留失败产物 `ledger-ios-36`，没有 Release IPA。
+- 提交 `5ca0620` 为记账表单补充 FocusState、键盘“收起键盘”操作与滚动收起行为；标签和筛选测试使用原生开关控制区域并明确等待开启，保留最终关联及单笔结果断言。工作流时限从 45 分钟提高到 60 分钟，测试范围不减。
+- 运行 [#37](https://github.com/Vince599/Money/actions/runs/36326797151)验证 `5ca062039988baf0516180f2f44ff57d3f4a04c4`：307 项包测试与 62 项 AppTests 通过，标签／项目的创建、关联、保存、重启、归档和历史组合筛选完整通过；6 项 UITests 中 4 项通过。账户模板在搜索键盘打开时等待条目可点击超时，可访问性快照明显延迟；计算器路径在空标题框获得焦点后第二次坐标点击导致输入失焦，未完成后续断言。未生成 Release IPA，日志为 `build/validation/run-37-job.log`。
+- 提交 `e6f4815` 仅调整 UI 测试：空输入不再进行右端坐标点击或将 placeholder 当作已有文本删除；模板搜索提交后等待键盘收起；可点击后立即结束滚动检查，避免多余可访问性查询，状态等待上限调到 30 秒，业务断言不减。
+- 运行 [#38](https://github.com/Vince599/Money/actions/runs/36328614949)验证 `e6f4815523131c5642d6185afbf8b4871b7852be`：307 项包测试、62 项 AppTests 和 5／6 项 UITests 通过，账户模板及标签／项目路径均成功；计算器路径标题 `Lunch` 输入成功，但随后通用滑动落在键盘区域，保存按钮仍被遮住。提交 `c31a5e4` 将六处记账保存统一为显式收起键盘、等待消失、在前台表单滚动后保存，未改产品代码或业务断言。本轮无 Release IPA，日志为 `build/validation/run-38-job.log`。
+- 2026-09-28（北京时间），运行 [#39](https://github.com/Vince599/Money/actions/runs/36330351402)在 `c31a5e4d5cdaa6863173f388abb138a591f200d1` 上完整成功：**307 项包测试／31 套件（239 Core＋68 Store）、62 项 AppTests 和 6 项 UITests，共 375 项通过**。六条页面路径全部完成，包括计算器标题输入／复制／搜索、账户模板重启、标签与项目归档筛选；arm64 Release 构建成功。实际工具链为 Xcode 26.6／Apple Swift 6.3.3，模拟器为 iPhone 17 Pro Max／iOS 26.5。仍有既有 `requestValue` 弃用、无实际异步的 `await`、屏幕方向与模拟器元数据警告，不称为零警告构建。
+
+已下载并核验 [ledger-ios-39 内部产物](https://github.com/Vince599/Money/actions/runs/36330351402/artifacts/10936265284)：ZIP 为 **193,762,874 字节**，SHA-256 `9e208d39aa000b59ded66bfc087ffca4ff9b738b0e893f4d345118f3994d1c8e` 与 GitHub 摘要一致；源码提交、运行编号、成功状态和 arm64 均匹配。模拟器测试摘要为 **68 通过、0 失败、0 跳过**。另在 ZIP 内核对未签名 IPA：7,441,448 字节，SHA-256 `f85b1063bfffe9fd57d3043ddd702641847cc172a3977b8ad48f3ae4c78b6541` 与随包校验文件一致，Bundle ID 为 `app.vince.ledger`，平台 iPhoneOS，主程序为 arm64，资源目录存在且没有 provisioning profile。IPA 未提取或发布；核对记录在忽略目录 `build/validation/run-39-internal/review/review.json`。
+
+已逐张查看全部十二张 1320×2868 截图，覆盖首页、账户列表与模板编辑、计算器、搜索、备份入口、分类图标搜索与保存、退款流水／净花费／删除影响，以及标签项目归档后的历史筛选。当前合成样本的关键文本、金额和操作入口可读，未见遮挡或截断；原购买删除预览改为静态可读行的修正已确认。此次不包含深色、大字号、其他屏幕尺寸或 iOS 27 真机视觉验收；通用导入页面专项与设备性能仍待验证。未运行发布脚本，固定安装目录不变。
