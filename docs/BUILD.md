@@ -4,7 +4,7 @@
 
 ## 当前已验证的固定基线
 
-主要体验目标已更新为用户当前 iOS 27 真机。下表记录实际采用过的构建基线；最新稳定工具链目标、升级流程和性能证据要求见[原生体验与工程质量标准](EXPERIENCE_QUALITY.md)。配置已精确固定 Apple Swift 6.3.3 并增加只读探测入口；云端运行 #14 已按该基线完成新一轮 Apple 验证，尚未切换到 Xcode 27。
+主要体验目标已更新为用户当前 iOS 27 真机。下表记录实际采用过的构建基线；最新稳定工具链目标、升级流程和性能证据要求见[原生体验与工程质量标准](EXPERIENCE_QUALITY.md)。配置已精确固定 Apple Swift 6.3.3 并增加只读探测入口；云端运行 #15 已按该基线完成新一轮 Apple 验证，尚未切换到 Xcode 27。
 
 | 项目 | 固定值 |
 |---|---|
@@ -96,7 +96,7 @@ bash scripts/build-ios.sh
 
 未签名 IPA 不能直接在普通 iPhone 上运行。下载成功产物后在 Windows 使用用户自己的 Sideloadly／Apple 账号签名安装，密码与签名凭据不交给 GitHub Actions。第一次安装只用合成数据，验证启动、记账、重启、覆盖安装后数据保留；真实续签及到期恢复必须记录发生日期，不能用首次安装代替。
 
-本批包含主 App、AppTests 与两条 UI 操作测试：基础入账重开，以及计算器、复制和搜索筛选；尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
+本批包含主 App 内的两个快捷记账动作、AppTests 与两条 UI 操作测试：基础入账重开，以及计算器、复制和搜索筛选。快捷动作与页面共用主 App 数据入口，未添加单独扩展；系统发现及前台／后台／锁屏行为须按[快捷指令清单](SHORTCUTS.md)实测。尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
 
 ## 验证记录
 
@@ -113,11 +113,14 @@ bash scripts/build-ios.sh
 - 运行 #11 验证的是固定快照，包括普通记账增量事务、性能插桩、账户模板素材和 AppIcon；随后并行新增的快捷记账代码不在此提交中。原工作区 `main` 与暂存区未由本批提交或重置。该 IPA 尚未真机安装验证，Instruments trace、性能指标及最终 UI 仍待专项验收。
 - 2026-09-26，[云端运行 #12](https://github.com/Vince599/Money/actions/runs/36224785602)（`codex/incremental-entry-validation`，提交 `f50dd055e6662932c40de56adc6095617ac160bf`）全部成功：145 项包测试（112 Core＋33 Store，14 套件）、16 项 AppTests、2 项 UITests，共 **163 项**。本批只在上一验证快照增加 5 个代码／测试文件，覆盖一致快照、启动去重和相应回归；保留普通保存与备份恢复测试。实际工具仍为 Xcode 26.6（17F113）、Apple Swift 6.3.3，runner 镜像 `20260907.0351.1`，完成 arm64 Release 构建。
 - 2026-09-27 完成运行 #12 的[完整产物](https://github.com/Vince599/Money/actions/runs/36224785602/artifacts/10900386916)核对：`ledger-ios-12` 的 ZIP 为 113,682,285 字节，SHA-256 `02663953656b10d19f245ac477f66c9ee2802f0242f33406487305cf3129fa31` 与 GitHub 摘要一致；安全解压至 `build/validation/run-12-artifact/20260926T064703Z-4677/`。IPA 为 **5,843,152 字节**，SHA-256 `f41ae9389f1cf6703253af078d52c98658210ddd0ff08a3a906a8e4ba4c46b56` 与随附清单一致，构建元数据的源码提交与本次运行匹配。测试摘要确认 iPhone 17 Pro Max／iOS 26.5（23F77）上 18 项 App／UI 测试零失败、零跳过；5 张 1320×2868 截图（首页、账户、备份入口、计算器、搜索）已查看，当前合成数据下未见遮挡或截断。
-- 运行 #12 同样不包含并行快捷记账代码及其启动协调变更。原工作区已用最小补丁接入本批工厂与读取 API，保留快捷入口；两者整合后的完整 Apple 回归须另记证据。整本读取仍存在，尚未进行本版本的真机安装、Instruments trace 或性能验收。
+- 运行 #12 同样不包含并行快捷记账代码及其启动协调变更。原工作区已用最小补丁接入本批工厂与读取 API，保留快捷入口；两者整合后的完整 Apple 回归随后记入运行 #15。整本读取仍存在，尚未进行本版本的真机安装、Instruments trace 或性能验收。
 - 2026-09-27，[云端运行 #13](https://github.com/Vince599/Money/actions/runs/36283696910)（提交 `6418ee3fdd2ce90c7bd68bedc6e40bf400e9462f`）在新增首页摘要测试的复杂表达式处触发 Apple Swift 6.3.3 类型推断耗时错误；包测试未执行完成，App／UI 测试未运行，未生成 IPA。拆分测试表达式后重新执行完整构建。
 - 2026-09-27，[云端运行 #14](https://github.com/Vince599/Money/actions/runs/36283853854)（`codex/incremental-entry-validation`，提交 `c59628f73f9c32005ae125762f8e8dd0e792ff04`）全部成功：157 项包测试（124 Core＋33 Store，15 套件）、30 项 AppTests、2 项 UITests，共 **189 项**。新增回归覆盖首页分币种汇总、金额边界、最近五条、上海月界、延迟刷新、草稿保护，以及保存／编辑／删除／目录修改／更正／恢复后的摘要一致性；工具链仍为 Xcode 26.6（17F113）／Apple Swift 6.3.3，完成 arm64 Release 构建。
 - 运行 #14 的[完整产物](https://github.com/Vince599/Money/actions/runs/36283853854/artifacts/10920231592)为 `ledger-ios-14`，已下载并核对：ZIP 为 113,072,281 字节，SHA-256 `291c7449a24b115b8ea3414227dbd381b801aad4b4bac9d432fed04f85478def` 与 GitHub 摘要一致；解压至 `build/validation/run-14-artifact/20260927T005331Z-7609/`。IPA 为 **5,870,993 字节**，SHA-256 `573816d47a7efa7384ab77da89a57d0b36b4018fd671159aa9dd158d08d1245f` 与随附清单一致，元数据提交及 run ID 匹配。摘要确认 iPhone 17 Pro Max／iOS 26.5（23F77）上 32 项 App／UI 测试零失败、零跳过；5 张 1320×2868 截图已查看，首页余额 79.90／消费 20.10 与合成账本一致，当前场景未见遮挡或截断。
-- 运行 #14 固定快照包含本轮首页优化，仍不含并行快捷指令记账。原工作区已保留这些入口并接入首页摘要；合并后的完整 Apple 回归、真机安装和 Instruments 性能测量仍待实施。本机完整 Core 已通过 133 项／13 套件（含快捷请求的 9 项），不可与此快照的包测试总数直接混比；原主分支与暂存区保持原状。
+- 运行 #14 固定快照包含该轮首页优化，不含并行快捷指令记账。原工作区保留这些入口并接入首页摘要；合并后的 Apple 回归记录见运行 #15。运行 #14 对应的本机完整 Core 为 133 项／13 套件（含快捷请求的 9 项），不可与该 Apple 快照的包测试总数直接混比；原主分支与暂存区保持原状。
+- 2026-09-27，[云端运行 #15](https://github.com/Vince599/Money/actions/runs/36285466571)（`codex/incremental-entry-validation`，提交 `fbbe3d03f61d2df6c83fc731802e47d8e65f2a7b`）全部成功：166 项包测试（133 Core＋33 Store，16 套件）、39 项 AppTests、2 项 UITests，共 **207 项**。本轮把快捷记账、共享启动、弹窗协调及首页摘要整合进同一固定快照；新增两项回归确认快捷保存后旧首页结果／错误不会覆盖新状态和手动草稿。Xcode 26.6（17F113）／Apple Swift 6.3.3 完成 arm64 Release 构建，runner 镜像仍为 `20260907.0351.1`。
+- 运行 #15 的[完整产物](https://github.com/Vince599/Money/actions/runs/36285466571/artifacts/10920687143)为 `ledger-ios-15`，已下载并核对：ZIP 为 112,238,100 字节，SHA-256 `7a036f9a8ee083624abc458c37391f76fa1a2bd9b9dcd122a42039c0dd9e9caa` 与 GitHub 摘要一致；解压至 `build/validation/run-15-artifact/20260927T012516Z-1823/`。IPA 为 **6,008,239 字节**，SHA-256 `0e2b132c2c55edfec72efd71a5439e5be88bddebac28157acebb5c17013d8cb3` 与随附清单一致，元数据源码提交与 run ID 匹配。测试摘要确认 iPhone 17 Pro Max／iOS 26.5（23F77）上 41 项 App／UI 测试零失败、零跳过；5 张 1320×2868 截图已查看，当前合成场景未见遮挡或截断。
+- 运行 #15 的 IPA 内已核对 `Metadata.appintents/extract.actionsdata` 与 `root.ssu.yaml`，确含“直接记一笔”“准备记一笔”、账户／分类／主体实体与查询、三个中文短语；元数据版本 3.0、工具 build `17F113`。这不证明系统动作已索引或真实后台执行通过。主 App 三处同步 `requestValue` 重载出现弃用警告，另有既有无实际异步的 `await` 与屏幕方向警告；构建及测试成功，不称为零警告构建。签名覆盖安装、系统快捷指令、最终视觉和 Instruments／真机性能仍待验证。核对记录保存在 `build/validation/run-15-verified.json`，原工作区 `main` 与暂存区未由本批提交或重置。
 - 2026-09-26，用户反馈此前提供版本在 iOS 27 真机签名安装成功：新建“真机测试”账户期初 100.00 元、本月消费 0；记录 20.10 元餐饮／正餐支出后余额 79.90 元、消费 20.10 元且只有一笔流水；强制退出重开后保留；完整 ZIP 可导出到系统“文件”；再支出 5.00 元后恢复原 ZIP，余额从 74.90 元回到 79.90 元且恢复一笔流水。精确 iOS build、已安装包哈希未取得，证据类型为用户反馈；不能作为第三批新增功能的真机测试结果。
 - 覆盖升级、续签与过期恢复：待真机验证。模拟器结果仍为 iOS 26.5；上述 iOS 27 基础人工验证不代表全量兼容性验收。
 - 家庭 fnOS、iCloud 目录与 Widget：本批未实现、未验证。

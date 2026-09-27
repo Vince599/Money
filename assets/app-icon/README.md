@@ -19,6 +19,6 @@
 
 当前浅色版本已检查资源 JSON 与文件引用、1024 × 1024 生产尺寸、24 位 RGB 无透明通道、四角与环内中心的浅色背景，以及差异格式。已目视检查编辑原图和 60 × 60 缩略图，开环与独立圆点保持可辨识。目标构建设置沿用已接入的 AppIcon。
 
-尚未通过 Apple `actool` 编译或在已安装的 iPhone App 上检查。本次是静态图标资源与工程配置接入，不是新的 IPA 构建；未制作 Icon Composer 分层文件或单独的深色／着色版本。
+该生产图标已纳入[云端运行 #14](https://github.com/Vince599/Money/actions/runs/36283853854)，通过 Apple `actool` 编译并打包到 arm64 Release IPA，产物记录见[构建说明](../../docs/BUILD.md)。已安装 iPhone 上的实际显示仍待检查；未制作 Icon Composer 分层文件或单独的深色／着色版本。
 
 规格参考：[Apple 资源目录图标配置](https://developer.apple.com/documentation/xcode/configuring-your-app-icon)、[Apple 图标设计指南](https://developer.apple.com/design/human-interface-guidelines/app-icons)。

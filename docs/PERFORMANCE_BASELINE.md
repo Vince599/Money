@@ -13,6 +13,7 @@
 | `Repository.Snapshot` | 同一个数据库只读事务内读取完整账本、草稿、设置，随后派生首页摘要，至返回快照构造结束 | actor 入场前的排队、模型更新和绘制；正常磁盘启动不再额外调用此区间 |
 | `Entry.SaveToModel` | `model.save()` 入场，至 Repository 返回且模型应用完成或未应用 | 原始点击、按钮内金额解析、调用前排队和 SwiftUI 呈现；不是 Q05 |
 | `Repository.SaveEntry` | actor 内保存入口，至完整返回快照构造结束 | actor 入场前等待、模型更新和绘制 |
+| `Repository.SaveShortcutEntry` | actor 内快捷保存入口，包含增量事务及首页摘要构造，至返回快照；保留手动草稿及其序号 | 系统快捷指令调度、实体查询、actor 入场前等待、模型更新和绘制；不能视为快捷指令总耗时 |
 | `Entry.Commit` | 调用 `store.saveEntry()`，包含同事务读取、领域计算、目标行写入、草稿处理和快照核对，至数据库提交返回 | 模型更新和绘制；不是纯 SQL 执行时间，区间结束在 `database.write` 返回之后 |
 | `History.QueryExecution` | 一次内存筛选和排序 | 输入事件、呈现、分页；同一次 SwiftUI 更新可能多次执行 |
 | `History.GroupExecution` | 已筛选结果按天分组 | 查询、行布局和绘制 |
@@ -109,4 +110,6 @@ Instruments trace 和真机性能仍待验证：需用合成数据采集成功�
 
 报告 SHA-256 为 `275dd0aec335153f1982d70e6acafae4e7021c51e6284dfe4f0dc4707717f0ca`，实际 Core／驱动源码摘要为 `843d8f3ed071f8a834e154ff735d886291bd2be95951fa829e29d3b47bf3ce90`；采样发生在源码提交前，metadata 中的旧 Git HEAD 不能代替这些源码哈希。
 
-本机集成后的 Core 为 133 项／13 套件通过，其中包含并行快捷记账的 9 项。[Apple 运行 #14](https://github.com/Vince599/Money/actions/runs/36283853854)验证提交 `c59628f73f9c32005ae125762f8e8dd0e792ff04`，157 项包测试（124 Core＋33 Store）与 30 项 App／2 项 UI 测试共 189 项全部通过，已生成 arm64 Release IPA。运行 #13 曾因新增测试表达式的 Apple 类型推断耗时错误在编译阶段失败；拆分表达式后完整重跑。固定 Apple 快照不含并行快捷记账，当前主工作区两者合并后的 Apple 验证须另记。首页已减少重复派生和全量排序，仍没有 SQL 最小查询、流水分页、增量读取或真机 Instruments／能耗证据。
+本机集成后的 Core 为 133 项／13 套件通过，其中包含并行快捷记账的 9 项。[Apple 运行 #14](https://github.com/Vince599/Money/actions/runs/36283853854)验证提交 `c59628f73f9c32005ae125762f8e8dd0e792ff04`，157 项包测试（124 Core＋33 Store）与 30 项 App／2 项 UI 测试共 189 项全部通过，已生成 arm64 Release IPA。运行 #13 曾因新增测试表达式的 Apple 类型推断耗时错误在编译阶段失败；拆分表达式后完整重跑。运行 #14 的固定快照不含并行快捷记账。
+
+随后[Apple 运行 #15](https://github.com/Vince599/Money/actions/runs/36285466571)验证整合提交 `fbbe3d03f61d2df6c83fc731802e47d8e65f2a7b`：166 项包测试（133 Core＋33 Store）、39 项 App 与 2 项 UI 共 207 项通过，并生成包含快捷动作元数据的 arm64 Release IPA。新增两项并发回归确认快捷保存后，旧首页结果或错误不能覆盖新状态与草稿；此前共享启动及快捷存储／模型测试也已执行。本次未重新采集性能样本，上表仍仅代表原固定源码的 Windows 领域计算。首页已减少重复派生和全量排序，仍没有 SQL 最小查询、流水分页、增量读取或真机 Instruments／能耗证据。

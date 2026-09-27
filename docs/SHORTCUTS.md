@@ -1,6 +1,6 @@
 # 快捷指令记账
 
-按用户偏好，以直接后台记账为主入口，参数齐全时不打开 App、不要求再次确认；预填页面保留为可选动作。当前已接入 App Intents 代码，支持普通支出、收入和同币种转账。Windows 核心测试已通过；Apple SDK 编译、系统动作发现、后台执行及签名安装后的真机体验尚待验证，旧版 IPA 不包含本次改动。
+按用户偏好，以直接后台记账为主入口，参数齐全时不打开 App、不要求再次确认；预填页面保留为可选动作。当前已接入 App Intents，支持普通支出、收入和同币种转账。2026-09-27 的云端运行 #15 已通过 Apple SDK 编译、模型／存储集成回归并生成包含两个动作元数据的 IPA；系统动作发现、实际后台执行及签名安装后的真机体验仍待验证。运行 #14 及更早的 IPA 不包含这些动作。
 
 ## 动作与参数
 
@@ -37,14 +37,19 @@
 
 2026-09-26：Windows Swift 6.4 核心测试 121 项／12 套件通过（新增快捷指令 9 项测试，含参数化非法金额用例）。日志：`build/validation/windows-shortcuts-core-tests.txt`。App、AppTests、AppUITests、Store 和 StoreTests 的 Swift 前端语法解析通过，日志：`build/validation/windows-shortcuts-parse.txt`；这不等于 Apple SDK 类型检查。
 
-新增 `ShortcutRepositoryTests` 和 `ShortcutModelTests` 共 7 项 Apple 集成测试，覆盖三种直接记账、持久化／备份／重开、保留草稿、防重、无效输入回滚、并发启动、预填替换确认和模型刷新，尚未在 Apple 平台执行。
+2026-09-27，[云端运行 #15](https://github.com/Vince599/Money/actions/runs/36285466571)验证提交 `fbbe3d03f61d2df6c83fc731802e47d8e65f2a7b`，将快捷记账、共享启动与首页优化纳入同一固定快照。166 项包测试（133 Core＋33 Store，16 套件）、39 项 AppTests 和 2 项 UITests 共 207 项通过；工具为 Xcode 26.6／Apple Swift 6.3.3，模拟器为 iPhone 17 Pro Max／iOS 26.5（23F77）。IPA 路径及哈希见[构建记录](BUILD.md)。
 
-下一次 Apple 验证须完成：
+其中 `ShortcutRepositoryTests` 和 `ShortcutModelTests` 的 7 项集成测试实际通过，覆盖三种直接记账、持久化／备份／重开、保留草稿、防重、无效输入回滚、并发启动、预填替换确认和模型刷新。新增 `ShortcutHomeIntegrationTests` 两项测试也已通过：快捷保存之后，延迟的旧首页结果或错误不能覆盖新账本、摘要和手动草稿；继续输入仍使用正确草稿序号。测试调用独立模型和真实 SQLite Repository，并非从系统快捷指令执行 `perform()`。
 
-- 编译 App Intents 元数据，确认系统可发现两个动作，账户／主体默认值、分类方向及改名停用后的选择行为正确。
-- 冷启动预填、空账本缺项、已有草稿取消／替换、嵌套编辑页等待、取消和保存后返回；输入不丢失、未确认不入账。
-- App 前台／后台／已终止时直接记录三类流水，精确金额、余额、UUID 返回、失败反馈和手动草稿保持正确。
-- 设备锁定、解锁后首次启动、签名更新与覆盖安装，以及恢复期间运行快捷指令；如系统限制运行，显示真实错误，不报告保存成功。
-- 复用现有页面与备份回归；旧版云端构建结果不能用作本批验证证据。
+已检查未签名 IPA 内的 `Metadata.appintents/extract.actionsdata` 和 `root.ssu.yaml`：含两个动作、账户／分类／主体实体与查询、三个中文短语；预填动作记录打开 App，直接动作记录不打开 App 并返回文本。元数据版本为 3.0、工具 build 为 `17F113`。这证明元数据已提取并打包，不等于签名安装后系统已发现动作。当前 SDK 对三处同步 `requestValue` 缺参重载给出弃用警告；构建成功，后续 API 迁移与真实补参交互仍须验证。
+
+下一次真机验证优先完成以下场景，并记录所装 IPA 哈希、有效 Bundle ID 和系统 build：
+
+1. 使用原 App 身份覆盖安装运行 #15 的包，确认账本／草稿仍在，系统快捷指令能找到两个动作并显示参数。
+2. 留下草稿 `12+(`，App 退到后台后执行 `20.10` 的完整支出：不打开确认页、返回 UUID；回到 App 后余额与最近流水更新，草稿原文保留。再验证收入及同币种转账。
+3. 终止 App 后再次运行，并检查锁屏与解锁后首次运行。成功对应一条持久记录；系统限制或失败时不能报告已保存。再次运行整个快捷指令应新增一笔。
+4. 设置或编辑页打开时运行预填动作，关闭原页面后处理请求；分别选择保留和替换旧草稿，确认正式保存之前没有入账。
+5. 空账本或缺少必需账户／分类／转入账户时，检查中文补参提示；转账分类留空，成功后不增加消费，不能出现虚假保存。
+6. 已配置账户改名后仍指向同一账户，停用后明确失败；非法金额 `1+2`／`1.001` 和恢复期间的请求保持账本与草稿不变，并检查中文错误。签名更新后的动作与原有页面／备份链路也须回归。
 
 API 依据：[Apple 运行模式](https://developer.apple.com/documentation/appintents/configuring-the-runtime-behavior-of-your-app-intents)、[参数](https://developer.apple.com/documentation/appintents/adding-parameters-to-an-app-intent)、[实体查询](https://developer.apple.com/documentation/appintents/entityquery)、[App Shortcuts](https://developer.apple.com/documentation/appintents/appshortcutsprovider/appshortcuts)。当前最低 iOS 26，使用 `supportedModes` 声明前台／后台动作。
