@@ -51,6 +51,19 @@ struct BackupCodecTests {
         rehash(&files)
     }
 
+    private func removeLabelTables(_ files: inout [String: Data]) throws {
+        for table in [BackupSchema.tags, BackupSchema.projects, BackupSchema.entryTags, BackupSchema.draftTags] {
+            files.removeValue(forKey: table.name)
+        }
+        try edit(&files, table: BackupSchema.manifest, column: "file_count", value: "12")
+        let counts: [[String?]] = try files.keys.sorted().map { name in
+            let count = name == "counts.csv" ? 12 : name == "checksums.csv" ? 11 : try BackupCSV.decode(files[name]!, file: name).count - 1
+            return [name, String(count)]
+        }
+        files[BackupSchema.counts.name] = BackupCSV.encode([BackupSchema.counts.header] + counts)
+        rehash(&files)
+    }
+
     private func legacyFiles(from snapshot: LedgerBackupSnapshot) throws -> [String: Data] {
         var files = try BackupCodec.encode(snapshot, createdAt: timestamp)
         for (current, legacy) in [(BackupSchema.entries, BackupSchema.v2Entries), (BackupSchema.draft, BackupSchema.v2Draft)] {
@@ -72,6 +85,7 @@ struct BackupCodecTests {
         countRows[dictionaryIndex][1] = String(BackupSchema.legacyDictionaryRecords.count)
         files[BackupSchema.counts.name] = BackupCSV.encode([BackupSchema.counts.header] + countRows)
         rehash(&files)
+        try removeLabelTables(&files)
         return files
     }
 
@@ -186,7 +200,7 @@ struct BackupCodecTests {
         #expect(throws: BackupError.self) { try BackupCodec.decode(files) }
     }
 
-    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "4.0"), ("backup_format_version", "3.1"), ("db_schema_version", "4")])
+    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "5.0"), ("backup_format_version", "3.1"), ("db_schema_version", "5")])
     func rejectsUnsupportedVersionsDistinctly(_ field: String, _ value: String) throws {
         var files = try BackupCodec.encode(blank())
         try edit(&files, table: BackupSchema.manifest, column: field, value: value)
@@ -213,6 +227,7 @@ struct BackupCodecTests {
         }
         files[BackupSchema.counts.name] = BackupCSV.encode([BackupSchema.counts.header] + countRows)
         rehash(&files)
+        try removeLabelTables(&files)
         #expect(try BackupCodec.decode(files) == source)
         // A current header hidden behind an old manifest must still fail.
         files[BackupSchema.entries.name] = try BackupCodec.encode(source)[BackupSchema.entries.name]

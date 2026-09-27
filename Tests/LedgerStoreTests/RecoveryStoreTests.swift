@@ -65,6 +65,11 @@ struct RecoveryStoreTests {
     @Test func schemaTwoMigratesWithoutRewritingPayloadAndFailureRollsBack() throws {
         try withStore { _, inspection, path, original, _ in
             try inspection.write { db in
+                try db.execute(sql: "DROP INDEX entries_project")
+                try db.execute(sql: "DROP TABLE entry_tags")
+                try db.execute(sql: "ALTER TABLE entries DROP COLUMN project_id")
+                try db.execute(sql: "DROP TABLE tags")
+                try db.execute(sql: "DROP TABLE projects")
                 try db.execute(sql: "DROP INDEX entries_original")
                 try db.execute(sql: "ALTER TABLE entries DROP COLUMN original_entry_id")
                 try db.execute(sql: "ALTER TABLE entries DROP COLUMN allows_net_recovery")
@@ -83,7 +88,7 @@ struct RecoveryStoreTests {
             let opened = try SQLiteLedgerStore(path: path)
             #expect(try opened.loadBook().entries == [original])
             try inspection.read { (db: Database) throws -> Void in
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 3)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
                 #expect(try Data.fetchOne(db, sql: "SELECT payload FROM entries") == payload)
                 #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
             }

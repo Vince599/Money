@@ -165,6 +165,20 @@ actor LedgerRepository {
         return try snapshot()
     }
 
+    func saveTag(_ tag: EntryTag) throws -> LedgerSnapshot {
+        var current = try readSnapshot()
+        current.book = try CatalogEditor.saveTag(tag, in: current.book)
+        try store.commit(current.book, draft: current.draft)
+        return try snapshot()
+    }
+
+    func saveProject(_ project: EntryProject) throws -> LedgerSnapshot {
+        var current = try readSnapshot()
+        current.book = try CatalogEditor.saveProject(project, in: current.book)
+        try store.commit(current.book, draft: current.draft)
+        return try snapshot()
+    }
+
     func saveSubject(_ subject: LedgerCore.Subject) throws -> LedgerSnapshot {
         var current = try readSnapshot()
         guard subject.isActive || current.settings.defaultSubjectID != subject.id else {
@@ -203,7 +217,7 @@ actor LedgerRepository {
         return BackupRestorePreview(id: id, accountCount: value.book.accounts.count,
                                     entryCount: value.book.entries.count, adjustmentCount: value.book.adjustments.count,
                                     categoryCount: value.book.categories.count, subjectCount: value.book.subjects.count,
-                                    hasDraft: value.draft != nil)
+                                    tagCount: value.book.tags.count, projectCount: value.book.projects.count, hasDraft: value.draft != nil)
     }
 
     func prepareRestore(from url: URL) throws -> BackupRestorePreview {

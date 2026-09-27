@@ -141,6 +141,26 @@ struct HistoryFilterView: View {
                         ForEach(book.subjects) { subject in Text(subject.name + (subject.isActive ? "" : "（已停用）")).tag(Optional(subject.id)) }
                     }
                 } footer: { Text("条件同时满足才会显示；转账可通过转出或转入账户找到，一级分类包含其二级分类。") }
+                Section {
+                    Picker("项目", selection: $value.projectID) {
+                        Text("全部项目").tag(Optional<UUID>.none)
+                        ForEach(book.projects) { project in
+                            Text(project.name + (project.isArchived ? "（已归档）" : "")).tag(Optional(project.id))
+                        }
+                    }.accessibilityIdentifier("filter.project")
+                    Picker("标签匹配", selection: $value.tagMatch) {
+                        Text("全部匹配").tag(TagMatchMode.all)
+                        Text("任一匹配").tag(TagMatchMode.any)
+                    }.pickerStyle(.segmented).accessibilityIdentifier("filter.tagMatch")
+                    ForEach(book.tags) { tag in
+                        Toggle(tag.name + (tag.isActive ? "" : "（已停用）"), isOn: Binding(
+                            get: { value.tagIDs.contains(tag.id) },
+                            set: { if $0 { value.tagIDs.insert(tag.id) } else { value.tagIDs.remove(tag.id) } }))
+                            .accessibilityIdentifier("filter.tag." + tag.id.uuidString.lowercased())
+                    }
+                } header: { Text("标签／项目") } footer: {
+                    Text("未选择标签时不限制标签；已停用标签和已归档项目仍可筛选历史。")
+                }
                 Section("发生日期") {
                     Toggle("限定日期范围", isOn: $useDates)
                     if useDates {

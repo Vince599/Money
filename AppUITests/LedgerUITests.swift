@@ -4,6 +4,76 @@ import XCTest
 final class LedgerUITests: XCTestCase {
     private let app = XCUIApplication()
 
+    func testTagsAndProjectPersistAndFilterAfterProjectArchive() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]
+        app.launch()
+        tap(app.tabBars.buttons["账户"])
+        tap(element("accounts.add"))
+        replace(app.textFields["account.name"], with: "Labels Wallet")
+        replace(app.textFields["account.opening"], with: "100.00")
+        tap(element("account.save"))
+        wait(app.textFields["account.name"], for: "exists == false")
+        tap(element("accounts.settings"))
+        tap(element("settings.tags"))
+        tap(element("tag.add"))
+        replace(app.textFields["label.name"], with: "Travel")
+        tap(element("label.save"))
+        wait(app.textFields["label.name"], for: "exists == false")
+        let tag = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "tag.row.")).firstMatch
+        assertText(tag, contains: "Travel")
+        let tagID = String(tag.identifier.dropFirst("tag.row.".count))
+        tap(app.navigationBars.buttons["设置"])
+        tap(element("settings.projects"))
+        tap(element("project.add"))
+        replace(app.textFields["label.name"], with: "Shanghai")
+        tap(element("label.save"))
+        wait(app.textFields["label.name"], for: "exists == false")
+        let project = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "project.row.")).firstMatch
+        assertText(project, contains: "Shanghai")
+        let projectID = project.identifier
+        tap(app.navigationBars.buttons["设置"])
+        tap(element("settings.done"))
+        tap(app.tabBars.buttons["首页"])
+        tap(element("entry.add"))
+        replace(app.textFields["entry.amount"], with: "20.10")
+        tap(element("entry.category"))
+        tap(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ OR label == %@",
+            "entry.category.option.00000000-0000-4000-8000-000000000011", "餐饮 / 正餐")).firstMatch)
+        tap(app.buttons.matching(NSPredicate(format: "identifier == %@ OR label == %@", "entry.more", "更多信息")).firstMatch)
+        tap(element("entry.labels"))
+        tap(element("entry.tag." + tagID))
+        tap(element("entry.project"))
+        tap(app.buttons["Shanghai"])
+        tap(element("entry.labels.done"))
+        assertText(element("entry.labels"), contains: "Shanghai")
+        tap(element("entry.save"))
+        wait(app.textFields["entry.amount"], for: "exists == false")
+        app.terminate(); app.launch()
+        tap(app.tabBars.buttons["账户"])
+        tap(element("accounts.settings"))
+        tap(element("settings.projects"))
+        tap(element(projectID))
+        tap(element("label.unavailable"))
+        tap(element("label.save"))
+        wait(app.textFields["label.name"], for: "exists == false")
+        assertText(element(projectID), contains: "已归档")
+        tap(app.navigationBars.buttons["设置"])
+        tap(element("settings.done"))
+        tap(app.tabBars.buttons["流水"])
+        tap(element("history.filter"))
+        tap(element("filter.project"))
+        tap(app.buttons["Shanghai（已归档）"])
+        tap(element("filter.tag." + tagID))
+        tap(element("filter.apply"))
+        wait(element("filter.apply"), for: "exists == false")
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.row."))
+        wait(rows, count: 1)
+        assertText(rows.firstMatch, contains: "Shanghai")
+        assertText(rows.firstMatch, contains: "#Travel")
+        screenshot("12-tags-project-filter-after-archive")
+    }
+
     func testCategoryIconSearchCancelSaveRelaunchAndRestoreDefault() throws {
         continueAfterFailure = false
         app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]

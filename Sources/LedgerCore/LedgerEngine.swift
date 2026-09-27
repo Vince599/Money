@@ -179,6 +179,14 @@ public enum LedgerEngine {
     }
 
     private static func validatedBalances(in book: LedgerBook) throws -> [UUID: Money] {
+        try unique(book.tags.map(\.id))
+        try unique(book.projects.map(\.id))
+        guard book.tags.allSatisfy({ !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+            throw LedgerError.invalidTag
+        }
+        guard book.projects.allSatisfy({ !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+            throw LedgerError.invalidProject
+        }
         try unique(book.accounts.map(\.id))
         try unique(book.subjects.map(\.id))
         try unique(book.categories.map(\.id))
@@ -235,6 +243,9 @@ public enum LedgerEngine {
     }
 
     private static func checkEntry(_ entry: LedgerEntry, in book: LedgerBook) throws {
+        guard Set(entry.tagIDs).count == entry.tagIDs.count,
+              Set(entry.tagIDs).isSubset(of: Set(book.tags.map(\.id))) else { throw LedgerError.invalidTag }
+        if let id = entry.projectID, !book.projects.contains(where: { $0.id == id }) { throw LedgerError.invalidProject }
         guard entry.amount.minorUnits > 0 else { throw LedgerError.invalidAmount }
         guard entry.version > 0 else { throw LedgerError.staleVersion }
         guard entry.occurredAt.timeIntervalSinceReferenceDate.isFinite,
@@ -266,6 +277,12 @@ public enum LedgerEngine {
     }
 
     private static func checkActiveReferences(_ entry: LedgerEntry, replacing previous: LedgerEntry?, in book: LedgerBook) throws {
+        for id in Set(entry.tagIDs).subtracting(previous?.tagIDs ?? []) {
+            guard book.tags.contains(where: { $0.id == id && $0.isActive }) else { throw LedgerError.invalidTag }
+        }
+        if let id = entry.projectID, previous?.projectID != id {
+            guard book.projects.contains(where: { $0.id == id && !$0.isArchived }) else { throw LedgerError.invalidProject }
+        }
         let previousAccounts = previous.map { Set([$0.accountID, $0.destinationAccountID].compactMap { $0 }) } ?? []
         let selectedAccounts = Set([entry.accountID, entry.destinationAccountID].compactMap { $0 })
         for id in selectedAccounts.subtracting(previousAccounts) {

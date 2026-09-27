@@ -52,7 +52,7 @@ public struct SQLiteLedgerSnapshot: Sendable {
 /// Callers must coordinate read-modify-save operations; serialization of writes
 /// alone does not make two independently edited book snapshots merge safely.
 public final class SQLiteLedgerStore: Sendable {
-    public static let schemaVersion = 3
+    public static let schemaVersion = 4
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
     private let historyStoreID = UUID()
@@ -105,6 +105,7 @@ public final class SQLiteLedgerStore: Sendable {
                     throw LedgerStoreError.unrecognizedDatabase
                 }
                 try db.execute(sql: Self.initialSchema)
+                try db.execute(sql: Self.labelSchema)
                 let seed = LedgerBook()
                 try LedgerEngine.validate(seed)
                 try Self.writeBook(seed, in: db)
@@ -132,9 +133,18 @@ public final class SQLiteLedgerStore: Sendable {
                 try db.execute(sql: "ALTER TABLE entries ADD COLUMN allows_net_recovery INTEGER CHECK (allows_net_recovery IS NULL OR allows_net_recovery IN (0, 1))")
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
+            if (1...3).contains(version) {
+                guard try Int.fetchOne(db, sql: "PRAGMA application_id") == Self.applicationID else {
+                    throw LedgerStoreError.unrecognizedDatabase
+                }
+                try db.execute(sql: Self.labelSchema)
+                try db.execute(sql: "ALTER TABLE entries ADD COLUMN project_id TEXT REFERENCES projects(id)")
+                try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
+            }
             let snapshot = try Self.readSnapshot(in: db)
             // Derived access path only: no business data, payload or backup contract changes.
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS entries_history_order ON entries(occurred_at DESC, created_at DESC, id ASC)")
+            try db.execute(sql: "CREATE INDEX IF NOT EXISTS entries_project ON entries(project_id)")
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS entries_original ON entries(original_entry_id)")
             return snapshot
         }
@@ -193,6 +203,15 @@ public final class SQLiteLedgerStore: Sendable {
                     """, Array(repeating: id.uuidString.databaseValue, count: 3))
             }
             if let id = filter.subjectID { add("subject_id = ?", [id.uuidString.databaseValue]) }
+            if let id = filter.projectID { add("project_id = ?", [id.uuidString.databaseValue]) }
+            if !filter.tagIDs.isEmpty {
+                let ids = filter.tagIDs.sorted { $0.uuidString < $1.uuidString }
+                let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
+                let predicate = "SELECT COUNT(*) FROM entry_tags WHERE entry_id = entries.id AND tag_id IN (\(placeholders))"
+                if filter.tagMatch == .all {
+                    add("(\(predicate)) = ?", ids.map { $0.uuidString.databaseValue } + [ids.count.databaseValue])
+                } else { add("(\(predicate)) > 0", ids.map { $0.uuidString.databaseValue }) }
+            }
             if let currency = filter.currency { add("currency = ?", [currency.rawValue.databaseValue]) }
             if let minimum = filter.minimumMinor { add("amount_minor >= ?", [minimum.databaseValue]) }
             if let maximum = filter.maximumMinor { add("amount_minor <= ?", [maximum.databaseValue]) }
@@ -224,6 +243,7 @@ public final class SQLiteLedgerStore: Sendable {
                     let stored: DatabaseValue = try row.decode(forColumn: column)
                     guard stored == expected else { throw LedgerStoreError.corruptData("entries") }
                 }
+                try Self.checkTagLinks(entry, in: db)
                 return entry
             }
             let next: EntryPageCursor?
@@ -333,6 +353,7 @@ public final class SQLiteLedgerStore: Sendable {
                     try Self.register(inserted.operationID, recordID: inserted.id, kind: "entry", in: db)
                     try Self.insertRow(inserted, position: current.entries.count, table: "entries",
                                        fields: Self.columns(for: inserted), in: db)
+                    try Self.writeTagLinks(inserted, in: db)
                 }
                 // A no-op entry retry still obeys the caller's draft policy.
                 if case .replace(let nextDraft) = draftUpdate {
@@ -394,6 +415,8 @@ public final class SQLiteLedgerStore: Sendable {
         let assignments = names.map { "\($0) = ?" }.joined(separator: ", ")
         let values = names.compactMap { fields[$0] } + [entry.id.uuidString.databaseValue]
         try db.execute(sql: "UPDATE entries SET \(assignments) WHERE id = ?", arguments: StatementArguments(values))
+        try db.execute(sql: "DELETE FROM entry_tags WHERE entry_id = ?", arguments: [entry.id.uuidString])
+        try writeTagLinks(entry, in: db)
     }
 
     private static func writeSettings(_ settings: LedgerSettings, in db: Database) throws {
@@ -420,13 +443,18 @@ public final class SQLiteLedgerStore: Sendable {
         // Children precede parents. LedgerCore.Category self-references are deferred so
         // arbitrary display order, including children before parents, is valid.
         try db.execute(sql: """
+            DELETE FROM entry_tags;
             DELETE FROM entries;
+            DELETE FROM tags;
+            DELETE FROM projects;
             DELETE FROM adjustments;
             DELETE FROM operation_registry;
             DELETE FROM categories;
             DELETE FROM subjects;
             DELETE FROM accounts;
             """)
+        try writeRows(book.tags, table: "tags", in: db) { columns(for: $0) }
+        try writeRows(book.projects, table: "projects", in: db) { columns(for: $0) }
         try writeRows(book.accounts, table: "accounts", in: db) { columns(for: $0) }
         try writeRows(book.subjects, table: "subjects", in: db) { columns(for: $0) }
         try writeRows(book.categories, table: "categories", in: db) { columns(for: $0) }
@@ -444,6 +472,7 @@ public final class SQLiteLedgerStore: Sendable {
                 """, arguments: [operationID.uuidString])
         }
         try writeRows(book.entries, table: "entries", in: db) { columns(for: $0) }
+        for entry in book.entries { try writeTagLinks(entry, in: db) }
         try writeRows(book.adjustments, table: "adjustments", in: db) { columns(for: $0) }
     }
 
@@ -492,7 +521,24 @@ public final class SQLiteLedgerStore: Sendable {
             adjustments: try readRows(BalanceAdjustment.self, table: "adjustments", in: db) { columns(for: $0) },
             subjects: try readRows(LedgerCore.Subject.self, table: "subjects", in: db) { columns(for: $0) },
             categories: try readRows(LedgerCore.Category.self, table: "categories", in: db) { columns(for: $0) },
-            retiredOperationIDs: retiredIDs)
+            retiredOperationIDs: retiredIDs,
+            tags: try readRows(EntryTag.self, table: "tags", in: db) { columns(for: $0) },
+            projects: try readRows(EntryProject.self, table: "projects", in: db) { columns(for: $0) })
+        // Validate all links in one query; full-book reads must not add one SQL read per entry.
+        var storedLinks: [String: [String]] = [:]
+        for row in try Row.fetchAll(db, sql: "SELECT entry_id, tag_id, position FROM entry_tags ORDER BY entry_id, position") {
+            let entryID: String = try row.decode(forColumn: "entry_id")
+            let tagID: String = try row.decode(forColumn: "tag_id")
+            let position: Int = try row.decode(forColumn: "position")
+            guard position == storedLinks[entryID, default: []].count else { throw LedgerStoreError.corruptData("entry_tags") }
+            storedLinks[entryID, default: []].append(tagID)
+        }
+        for entry in book.entries {
+            guard (storedLinks.removeValue(forKey: entry.id.uuidString) ?? []) == entry.tagIDs.map(\.uuidString) else {
+                throw LedgerStoreError.corruptData("entry_tags")
+            }
+        }
+        guard storedLinks.isEmpty else { throw LedgerStoreError.corruptData("entry_tags") }
         try LedgerEngine.validate(book)
         if checkingRelationships { try checkRelationships(db) }
         return book
@@ -585,6 +631,32 @@ public final class SQLiteLedgerStore: Sendable {
          "symbol": category.symbol.databaseValue, "is_active": category.isActive.databaseValue]
     }
 
+    private static func writeTagLinks(_ entry: LedgerEntry, in db: Database) throws {
+        for (position, id) in entry.tagIDs.enumerated() {
+            try db.execute(sql: "INSERT INTO entry_tags(entry_id, tag_id, position) VALUES (?, ?, ?)",
+                           arguments: [entry.id.uuidString, id.uuidString, position])
+        }
+    }
+
+    private static func checkTagLinks(_ entry: LedgerEntry, in db: Database) throws {
+        let rows = try Row.fetchAll(db, sql: "SELECT tag_id, position FROM entry_tags WHERE entry_id = ? ORDER BY position",
+                                   arguments: [entry.id.uuidString])
+        guard rows.count == entry.tagIDs.count else { throw LedgerStoreError.corruptData("entry_tags") }
+        for (index, row) in rows.enumerated() {
+            let id: String = try row.decode(forColumn: "tag_id")
+            let position: Int = try row.decode(forColumn: "position")
+            guard position == index, id == entry.tagIDs[index].uuidString else { throw LedgerStoreError.corruptData("entry_tags") }
+        }
+    }
+
+    private static func columns(for tag: EntryTag) -> [String: DatabaseValue] {
+        ["id": tag.id.uuidString.databaseValue, "name": tag.name.databaseValue, "is_active": tag.isActive.databaseValue]
+    }
+
+    private static func columns(for project: EntryProject) -> [String: DatabaseValue] {
+        ["id": project.id.uuidString.databaseValue, "name": project.name.databaseValue, "is_archived": project.isArchived.databaseValue]
+    }
+
     private static func columns(for entry: LedgerEntry) -> [String: DatabaseValue] {
         ["id": entry.id.uuidString.databaseValue, "operation_id": entry.operationID.uuidString.databaseValue,
          "record_kind": "entry".databaseValue, "kind": entry.kind.rawValue.databaseValue,
@@ -595,6 +667,7 @@ public final class SQLiteLedgerStore: Sendable {
          "amount_minor": entry.amount.minorUnits.databaseValue, "currency": entry.amount.currency.rawValue.databaseValue,
          "occurred_at": entry.occurredAt.timeIntervalSinceReferenceDate.databaseValue,
          "created_at": entry.createdAt.timeIntervalSinceReferenceDate.databaseValue, "version": entry.version.databaseValue,
+         "project_id": entry.projectID?.uuidString.databaseValue ?? .null,
          "original_entry_id": entry.originalEntryID?.uuidString.databaseValue ?? .null,
          "allows_net_recovery": entry.allowsNetRecovery?.databaseValue ?? .null]
     }
@@ -608,6 +681,28 @@ public final class SQLiteLedgerStore: Sendable {
          "target_currency": adjustment.target.currency.rawValue.databaseValue,
          "occurred_at": adjustment.occurredAt.timeIntervalSinceReferenceDate.databaseValue]
     }
+
+    private static let labelSchema = """
+        CREATE TABLE tags (
+            id TEXT PRIMARY KEY NOT NULL,
+            position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
+            name TEXT NOT NULL, is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
+            payload BLOB NOT NULL CHECK (typeof(payload) = 'blob')
+        );
+        CREATE TABLE projects (
+            id TEXT PRIMARY KEY NOT NULL,
+            position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
+            name TEXT NOT NULL, is_archived INTEGER NOT NULL CHECK (is_archived IN (0, 1)),
+            payload BLOB NOT NULL CHECK (typeof(payload) = 'blob')
+        );
+        CREATE TABLE entry_tags (
+            entry_id TEXT NOT NULL REFERENCES entries(id),
+            tag_id TEXT NOT NULL REFERENCES tags(id),
+            position INTEGER NOT NULL CHECK (position >= 0),
+            PRIMARY KEY (entry_id, tag_id), UNIQUE (entry_id, position)
+        );
+        CREATE INDEX entry_tags_tag ON entry_tags(tag_id, entry_id);
+        """
 
     private static let initialSchema = """
         CREATE TABLE accounts (
@@ -658,6 +753,7 @@ public final class SQLiteLedgerStore: Sendable {
             amount_minor INTEGER NOT NULL CHECK (typeof(amount_minor) = 'integer' AND amount_minor > 0),
             currency TEXT NOT NULL, occurred_at REAL NOT NULL, created_at REAL NOT NULL,
             version INTEGER NOT NULL CHECK (version > 0),
+            project_id TEXT REFERENCES projects(id),
             original_entry_id TEXT REFERENCES entries(id) DEFERRABLE INITIALLY DEFERRED,
             allows_net_recovery INTEGER CHECK (allows_net_recovery IS NULL OR allows_net_recovery IN (0, 1)),
             payload BLOB NOT NULL CHECK (typeof(payload) = 'blob'),

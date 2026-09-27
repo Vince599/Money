@@ -149,6 +149,9 @@ struct EntryRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.displayTitle(entry)).foregroundStyle(.primary).lineLimit(1)
                 Text(metadata).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                if !entry.tagIDs.isEmpty || entry.projectID != nil {
+                    Text(labels).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
             }
             Spacer(minLength: 8)
             Text(amount).monospacedDigit().foregroundStyle(entry.kind == .expense ? Color.red : .primary)
@@ -167,5 +170,10 @@ struct EntryRow: View {
     }
     private var amount: String {
         (entry.kind == .expense ? "−" : entry.kind == .income || entry.kind.isRecovery ? "+" : "") + entry.amount.decimalString + " " + entry.amount.currency.rawValue
+    }
+    private var labels: String {
+        let project = model.book.projects.first { $0.id == entry.projectID }.map { [$0.name] } ?? []
+        let tags = entry.tagIDs.compactMap { id in model.book.tags.first { $0.id == id }?.name }.map { "#" + $0 }
+        return (project + tags).joined(separator: " · ")
     }
 }

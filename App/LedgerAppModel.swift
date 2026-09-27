@@ -227,6 +227,12 @@ final class LedgerAppModel {
     func saveCategory(_ value: LedgerCore.Category) async -> Bool {
         await mutate { repo in try await repo.saveCategory(value) }
     }
+    func saveTag(_ value: EntryTag) async -> Bool {
+        await mutate { repo in try await repo.saveTag(value) }
+    }
+    func saveProject(_ value: EntryProject) async -> Bool {
+        await mutate { repo in try await repo.saveProject(value) }
+    }
     func saveSubject(_ value: LedgerCore.Subject) async -> Bool {
         await mutate { repo in try await repo.saveSubject(value) }
     }
@@ -317,6 +323,8 @@ final class LedgerAppModel {
         case .accountNotFound, .inactiveAccount: return "请选择有效的付款／收款账户。"
         case .sameAccountTransfer: return "转出与转入账户不能相同。"
         case .invalidCategory: return "请选择当前类型对应的二级分类。"
+        case .invalidTag: return "请检查标签名称，或移除缺失／已停用的标签后重选。"
+        case .invalidProject: return "请检查项目名称，或清除缺失／已归档的项目后重选。"
         case .invalidSubject: return "请选择有效主体。"
         case .invalidAccount: return "请检查账户名称、类型和期初金额。"
         case .entryNotFound: return "这条记录已经不存在，请返回刷新。"

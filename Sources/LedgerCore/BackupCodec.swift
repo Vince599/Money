@@ -30,11 +30,18 @@ public enum BackupCodec {
         rows[BackupSchema.categories.name] = book.categories.enumerated().map { index, category in
             [String(index), id(category.id), category.name, id(category.parentID), category.direction.rawValue, category.symbol, String(category.isActive)]
         }
+        rows[BackupSchema.tags.name] = book.tags.enumerated().map { [String($0.offset), id($0.element.id), $0.element.name, String($0.element.isActive)] }
+        rows[BackupSchema.projects.name] = book.projects.enumerated().map { [String($0.offset), id($0.element.id), $0.element.name, String($0.element.isArchived)] }
+        let links = book.entries.flatMap { entry in entry.tagIDs.map { [id(entry.id), id($0)] } }
+        rows[BackupSchema.entryTags.name] = links.enumerated().map { [String($0.offset)] + $0.element }
+        rows[BackupSchema.draftTags.name] = snapshot.draft.map { draft in
+            draft.tagIDs.enumerated().map { [String($0.offset), id(draft.entryID), id($0.element)] }
+        } ?? []
         rows[BackupSchema.entries.name] = try book.entries.enumerated().map { index, entry in
             [String(index), id(entry.id), id(entry.operationID), entry.kind.rawValue, String(entry.amount.minorUnits),
              entry.amount.currency.rawValue, id(entry.accountID), id(entry.destinationAccountID), id(entry.categoryID), id(entry.subjectID)]
                 + (try BackupDates.values(entry.occurredAt)) + (try BackupDates.values(entry.createdAt))
-                + [entry.title, entry.note, String(entry.version), id(entry.originalEntryID), entry.allowsNetRecovery.map { String($0) }]
+                + [entry.title, entry.note, String(entry.version), id(entry.originalEntryID), entry.allowsNetRecovery.map { String($0) }, id(entry.projectID)]
         }
         rows[BackupSchema.adjustments.name] = try book.adjustments.enumerated().map { index, adjustment in
             [String(index), id(adjustment.id), id(adjustment.operationID), id(adjustment.accountID), String(adjustment.difference.minorUnits),
@@ -45,7 +52,7 @@ public enum BackupCodec {
         if let draft = snapshot.draft {
             rows[BackupSchema.draft.name] = [[id(draft.entryID), id(draft.operationID), draft.kind.rawValue, draft.amountText,
                 id(draft.accountID), id(draft.destinationAccountID), id(draft.subjectID), id(draft.expenseCategoryID), id(draft.incomeCategoryID)]
-                + (try BackupDates.values(draft.occurredAt)) + [draft.title, draft.note, id(draft.originalEntryID), draft.allowsNetRecovery.map { String($0) }]]
+                + (try BackupDates.values(draft.occurredAt)) + [draft.title, draft.note, id(draft.originalEntryID), draft.allowsNetRecovery.map { String($0) }, id(draft.projectID)]]
         } else { rows[BackupSchema.draft.name] = [] }
         rows[BackupSchema.settings.name] = [[id(snapshot.settings.defaultAccountID), id(snapshot.settings.defaultSubjectID)]]
         let appVersion = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "unbundled"
@@ -79,7 +86,8 @@ public enum BackupCodec {
     }
 
     public static func decode(_ files: [String: Data]) throws -> LedgerBackupSnapshot {
-        guard Set(files.keys) == BackupSchema.fileNames else {
+        let fileNames = Set(files.keys)
+        guard fileNames == BackupSchema.fileNames || fileNames == Set(BackupSchema.v3All.map(\.name)) else {
             throw BackupError.invalidArchive(reason: "Missing or unknown backup files")
         }
         guard files.values.allSatisfy({ $0.count <= BackupCSV.maxFileBytes }),
@@ -96,7 +104,7 @@ public enum BackupCodec {
                 throw BackupError.invalidArchive(reason: "Duplicate, unknown or mismatched checksum: \(file)")
             }
         }
-        guard checked == BackupSchema.fileNames.subtracting([BackupSchema.checksums.name]) else {
+        guard checked == fileNames.subtracting([BackupSchema.checksums.name]) else {
             throw BackupError.invalidArchive(reason: "Incomplete checksum list")
         }
         let manifests = try BackupSchema.manifest.read(files[BackupSchema.manifest.name]!)
@@ -111,6 +119,9 @@ public enum BackupCodec {
         case (BackupSchema.profile, BackupSchema.version, BackupSchema.dbVersion):
             contractTables = BackupSchema.all
             accountTable = BackupSchema.accounts
+        case (BackupSchema.v3Profile, BackupSchema.v3Version, BackupSchema.v3DBVersion):
+            contractTables = BackupSchema.v3All
+            accountTable = BackupSchema.accounts
         case (BackupSchema.v2Profile, BackupSchema.v2Version, BackupSchema.v2DBVersion):
             contractTables = BackupSchema.v2All
             accountTable = BackupSchema.accounts
@@ -119,11 +130,13 @@ public enum BackupCodec {
             accountTable = BackupSchema.legacyAccounts
         default:
             let reportedVersion = (profile == BackupSchema.profile && version == BackupSchema.version)
+                || (profile == BackupSchema.v3Profile && version == BackupSchema.v3Version)
                 || (profile == BackupSchema.v2Profile && version == BackupSchema.v2Version)
                 || (profile == BackupSchema.legacyProfile && version == BackupSchema.legacyVersion)
                 ? version + ";db=" + dbVersion : version
             throw BackupError.unsupportedFormat(profile: profile, version: reportedVersion)
         }
+        guard fileNames == Set(contractTables.map(\.name)) else { throw BackupError.invalidArchive(reason: "Files differ from profile") }
         guard try manifest.bool("complete"), try manifest.int("file_count") == contractTables.count,
               try !manifest.string("app_version").isEmpty else { throw BackupError.invalidArchive(reason: "Incomplete manifest") }
         _ = try manifest.date("created_at")
@@ -139,9 +152,9 @@ public enum BackupCodec {
                 throw BackupError.invalidArchive(reason: "Duplicate, unknown or incorrect row count: \(name)")
             }
         }
-        guard counted == BackupSchema.fileNames else { throw BackupError.invalidArchive(reason: "Incomplete row counts") }
+        guard counted == fileNames else { throw BackupError.invalidArchive(reason: "Incomplete row counts") }
         func ordered(_ table: BackupTable) throws -> [BackupRow] {
-            let records = tables[table.name]!
+            let records = tables[table.name] ?? []
             for (position, row) in records.enumerated() {
                 guard try row.int("position") == position else { throw BackupError.invalidArchive(reason: "Invalid row order: \(table.name)") }
             }
@@ -161,6 +174,19 @@ public enum BackupCodec {
             Category(id: try row.uuid("id"), name: try row.string("name"), parentID: try row.optionalUUID("parent_id"),
                      direction: try row.enumeration("direction"), symbol: try row.string("symbol"), isActive: try row.bool("is_active"))
         }
+        let tags = try ordered(BackupSchema.tags).map { EntryTag(id: try $0.uuid("id"), name: try $0.string("name"), isActive: try $0.bool("is_active")) }
+        let projects = try ordered(BackupSchema.projects).map { EntryProject(id: try $0.uuid("id"), name: try $0.string("name"), isArchived: try $0.bool("is_archived")) }
+        func tagLinks(_ table: BackupTable) throws -> [UUID: [UUID]] {
+            var result: [UUID: [UUID]] = [:]
+            for row in try ordered(table) {
+                let entryID = try row.uuid("entry_id"), tagID = try row.uuid("tag_id")
+                guard !result[entryID, default: []].contains(tagID) else { throw BackupError.invalidArchive(reason: "Duplicate tag link") }
+                result[entryID, default: []].append(tagID)
+            }
+            return result
+        }
+        let entryTags = try tagLinks(BackupSchema.entryTags)
+        let draftTags = try tagLinks(BackupSchema.draftTags)
         let entries = try ordered(BackupSchema.entries).map { row in
             LedgerEntry(id: try row.uuid("id"), operationID: try row.uuid("operation_id"), kind: try row.enumeration("kind"),
                         amount: Money(minorUnits: try row.int64("amount_minor"), currency: try row.enumeration("currency")),
@@ -169,7 +195,8 @@ public enum BackupCodec {
                         occurredAt: try row.date("occurred_at"), createdAt: try row.date("created_at"),
                         title: try row.string("title"), note: try row.string("note"), version: try row.int("version"),
                         originalEntryID: try row.optionalUUID("original_entry_id"),
-                        allowsNetRecovery: row.optionalString("allows_net_recovery").map { $0 == "true" })
+                        allowsNetRecovery: row.optionalString("allows_net_recovery").map { $0 == "true" },
+                        tagIDs: entryTags[try row.uuid("id")] ?? [], projectID: try row.optionalUUID("project_id"))
         }
         let adjustments = try ordered(BackupSchema.adjustments).map { row in
             BalanceAdjustment(id: try row.uuid("id"), operationID: try row.uuid("operation_id"), accountID: try row.uuid("account_id"),
@@ -188,12 +215,17 @@ public enum BackupCodec {
                        expenseCategoryID: try row.optionalUUID("expense_category_id"), incomeCategoryID: try row.optionalUUID("income_category_id"),
                        occurredAt: try row.date("occurred_at"), title: try row.string("title"), note: try row.string("note"),
                        originalEntryID: try row.optionalUUID("original_entry_id"),
-                       allowsNetRecovery: row.optionalString("allows_net_recovery").map { $0 == "true" })
+                       allowsNetRecovery: row.optionalString("allows_net_recovery").map { $0 == "true" },
+                       tagIDs: draftTags[try row.uuid("entry_id")] ?? [], projectID: try row.optionalUUID("project_id"))
+        }
+        guard Set(entryTags.keys).isSubset(of: Set(entries.map(\.id))),
+              Set(draftTags.keys).isSubset(of: Set(draft.map { [$0.entryID] } ?? [])) else {
+            throw BackupError.invalidArchive(reason: "Orphan tag link")
         }
         let settings = LedgerSettings(defaultAccountID: try settingRows[0].optionalUUID("default_account_id"),
                                       defaultSubjectID: try settingRows[0].uuid("default_subject_id"))
         let book = LedgerBook(accounts: accounts, entries: entries, adjustments: adjustments, subjects: subjects,
-                              categories: categories, retiredOperationIDs: Set(retired))
+                              categories: categories, retiredOperationIDs: Set(retired), tags: tags, projects: projects)
         let snapshot = LedgerBackupSnapshot(book: book, draft: draft, settings: settings)
         do { try validate(snapshot) }
         catch { throw BackupError.invalidArchive(reason: "Invalid restored snapshot: \(error)") }
@@ -206,6 +238,9 @@ public enum BackupCodec {
         let book = snapshot.book
         do { try LedgerEngine.validate(book) }
         catch { throw BackupError.invalidSnapshot(reason: "Ledger validation failed: \(error)") }
+        if let draft = snapshot.draft, Set(draft.tagIDs).count != draft.tagIDs.count {
+            throw BackupError.invalidSnapshot(reason: "Duplicate draft tag")
+        }
         let dates = book.accounts.map(\.openingDate) + book.entries.flatMap { [$0.occurredAt, $0.createdAt] }
             + book.adjustments.map(\.occurredAt) + (snapshot.draft.map { [$0.occurredAt] } ?? [])
         guard dates.allSatisfy(BackupDates.isSupported) else { throw BackupError.invalidSnapshot(reason: "Invalid or unsupported date") }

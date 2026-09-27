@@ -136,9 +136,12 @@ enum BackupDates {
 }
 
 enum BackupSchema {
-    static let profile = "ledger-core-v3"
-    static let version = "3.0"
-    static let dbVersion = "3"
+    static let profile = "ledger-core-v4"
+    static let version = "4.0"
+    static let dbVersion = "4"
+    static let v3Profile = "ledger-core-v3"
+    static let v3Version = "3.0"
+    static let v3DBVersion = "3"
     static let v2Profile = "ledger-core-v2"
     static let v2Version = "2.0"
     static let v2DBVersion = "2"
@@ -194,7 +197,7 @@ enum BackupSchema {
         + date("occurred_at") + [text("title"), text("note")])
     static let settings = BackupTable(name: "settings.csv", columns: [uuid("default_account_id", nullable: true, reference: "accounts.csv.id"),
         uuid("default_subject_id", reference: "subjects.csv.id")])
-    static let manifest = BackupTable(name: "manifest.csv", columns: [text("profile"), text("backup_format_version"),
+    static let legacyManifest = BackupTable(name: "manifest.csv", columns: [text("profile"), text("backup_format_version"),
         text("db_schema_version"), text("app_version"), bool("complete")] + date("created_at")
         + [.init(name: "file_count", type: "uint", precision: "12")])
     static let dictionary = BackupTable(name: "schema_dictionary.csv", columns: [text("file"), text("column"), position,
@@ -209,11 +212,21 @@ enum BackupSchema {
                   meaning: "Purchase opt-in for total recovery above original cost; null means disabled")
         ]
     }
-    static let entries = BackupTable(name: "entries.csv", columns: recoveryColumns(v2Entries))
-    static let draft = BackupTable(name: "draft.csv", columns: recoveryColumns(v2Draft, soft: true))
-    static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums]
-    static let v2All = [accounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, manifest, dictionary, counts, checksums]
-    static let legacyAll = [legacyAccounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, manifest, dictionary, counts, checksums]
+    static let v3Entries = BackupTable(name: "entries.csv", columns: recoveryColumns(v2Entries))
+    static let entries = BackupTable(name: "entries.csv", columns: v3Entries.columns + [uuid("project_id", nullable: true, reference: "projects.csv.id")])
+    static let v3Draft = BackupTable(name: "draft.csv", columns: recoveryColumns(v2Draft, soft: true))
+    static let draft = BackupTable(name: "draft.csv", columns: v3Draft.columns + [uuid("project_id", nullable: true, reference: "soft:projects.csv.id")])
+    static let tags = BackupTable(name: "tags.csv", columns: [position, uuid("id"), text("name"), bool("is_active")])
+    static let projects = BackupTable(name: "projects.csv", columns: [position, uuid("id"), text("name"), bool("is_archived")])
+    static let entryTags = BackupTable(name: "entry_tags.csv", columns: [position, uuid("entry_id", reference: "entries.csv.id"), uuid("tag_id", reference: "tags.csv.id")])
+    static let draftTags = BackupTable(name: "draft_tags.csv", columns: [position, uuid("entry_id", reference: "draft.csv.entry_id"), uuid("tag_id", reference: "soft:tags.csv.id")])
+    static let manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
+        $0.name == "file_count" ? BackupColumn(name: "file_count", type: "uint", precision: "16") : $0
+    })
+    static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags]
+    static let v3All = [accounts, subjects, categories, v3Entries, adjustments, retired, v3Draft, settings, legacyManifest, dictionary, counts, checksums]
+    static let v2All = [accounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, legacyManifest, dictionary, counts, checksums]
+    static let legacyAll = [legacyAccounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, legacyManifest, dictionary, counts, checksums]
     static var fileNames: Set<String> { Set(all.map(\.name)) }
     static func dictionaryRecords(for tables: [BackupTable]) -> [[String?]] {
         tables.flatMap { table in

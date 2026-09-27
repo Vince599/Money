@@ -7,6 +7,8 @@ struct BackupRestorePreview: Identifiable, Sendable {
     let adjustmentCount: Int
     let categoryCount: Int
     let subjectCount: Int
+    var tagCount: Int = 0
+    var projectCount: Int = 0
     let hasDraft: Bool
 }
 

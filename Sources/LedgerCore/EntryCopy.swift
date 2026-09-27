@@ -41,6 +41,8 @@ extension EntryDraft {
                           expenseCategoryID: entry.kind == .expense ? categoryID : nil,
                           incomeCategoryID: entry.kind == .income ? categoryID : nil,
                           occurredAt: date, title: entry.title, note: entry.note,
-                          originalEntryID: entry.originalEntryID)
+                          originalEntryID: entry.originalEntryID,
+                          tagIDs: entry.tagIDs.filter { id in book.tags.contains { $0.id == id && $0.isActive } },
+                          projectID: book.projects.first { $0.id == entry.projectID && !$0.isArchived }?.id)
     }
 }

@@ -1,12 +1,12 @@
-# LedgerCore CSV backup profile 3
+# LedgerCore CSV backup profile 4
 
 Status: implemented for the current `LedgerBook`, `EntryDraft` and `LedgerSettings` models. Date: 2026-09-27. Current platform verification is recorded in [DEVELOPMENT.md](DEVELOPMENT.md).
 
-`BackupCodec.encode` returns twelve named CSV byte buffers. `BackupCodec.decode` validates the complete set and returns a `LedgerBackupSnapshot`; it does not write to the database. The archive layer packages these files into one ZIP, and the repository commits the decoded book, draft and settings in one transaction.
+`BackupCodec.encode` returns sixteen named CSV byte buffers. `BackupCodec.decode` validates the complete set and returns a `LedgerBackupSnapshot`; it does not write to the database. The archive layer packages these files into one ZIP, and the repository commits the decoded book, draft and settings in one transaction.
 
-New exports identify `profile=ledger-core-v3`, `backup_format_version=3.0` and `db_schema_version=3`. `complete=true` means **all fields in these implemented models**, including account presentation identifiers, refund/recovery links, purchase-level net recovery opt-in, deleted operations' consumed UUID markers, the unfinished draft and defaults. It does not claim support for roadmap entities such as investments, reimbursement, loans, subscriptions, import rules, NAS jobs or daily valuation drafts. Those entities are not yet present in this model. Adding persistent fields requires a new supported contract and tested migration; an unknown profile, format version, schema version, file or column is rejected, never silently discarded.
+New exports identify `profile=ledger-core-v4`, `backup_format_version=4.0` and `db_schema_version=4`. `complete=true` means **all fields in these implemented models**, including tags, projects, ordered entry/draft tag links, account presentation identifiers, refund/recovery links, purchase-level net recovery opt-in, deleted operations' consumed UUID markers, the unfinished draft and defaults. It does not claim support for roadmap entities such as investments, reimbursement, loans, subscriptions, import rules, NAS jobs or daily valuation drafts. Those entities are not yet present in this model. Adding persistent fields requires a new supported contract and tested migration; an unknown profile, format version, schema version, file or column is rejected, never silently discarded.
 
-The decoder also accepts the exact legacy triplets `ledger-core-v1 / 1.0 / db1` and `ledger-core-v2 / 2.0 / db2`. Version 1's `accounts.csv` has no institution, template or icon columns, so restored accounts receive `nil` for those three presentation fields. Both older profiles lack recovery links and opt-in fields; these decode as `nil`, with net recovery disabled. The next export always uses profile 3. Mixed manifests, table headers and field dictionaries are rejected.
+The decoder also accepts the exact legacy triplets `ledger-core-v1 / 1.0 / db1`, `ledger-core-v2 / 2.0 / db2` and `ledger-core-v3 / 3.0 / db3`. Version 1's `accounts.csv` has no institution, template or icon columns, so restored accounts receive `nil` for those three presentation fields. Profiles 1 and 2 lack recovery links and opt-in fields; these decode as `nil`, with net recovery disabled. All three older profiles lack tags, projects and their associations; these restore as empty arrays / nil. Profile 3 keeps its recovery fields. The next export always uses profile 4. Mixed manifests, table headers and field dictionaries are rejected.
 
 ## Files and model coverage
 
@@ -17,15 +17,19 @@ Every file exists, including empty tables containing only their header. Column n
 | `accounts.csv` | Array order; `position,id,name,kind,nature,currency,opening_minor,opening_at_utc,opening_at_bits,included_in_summary,is_active,institution_id,template_id,icon_id`. The final three text fields are nullable stable catalog identifiers; unknown nonempty values are retained losslessly. |
 | `subjects.csv` | Array order; `position,id,name,is_active` |
 | `categories.csv` | Array order; `position,id,name,parent_id,direction,symbol,is_active` |
-| `entries.csv` | Array order; `position,id,operation_id,kind,amount_minor,currency,account_id,destination_account_id,category_id,subject_id,occurred_at_utc,occurred_at_bits,created_at_utc,created_at_bits,title,note,version,original_entry_id,allows_net_recovery` |
+| `entries.csv` | Array order; `position,id,operation_id,kind,amount_minor,currency,account_id,destination_account_id,category_id,subject_id,occurred_at_utc,occurred_at_bits,created_at_utc,created_at_bits,title,note,version,original_entry_id,allows_net_recovery,project_id` |
 | `adjustments.csv` | Array order; `position,id,operation_id,account_id,difference_minor,difference_currency,target_minor,target_currency,occurred_at_utc,occurred_at_bits,note` |
 | `retired_operations.csv` | `operation_id`; sorted on export, restored as a set. Retains consumed command IDs only, without deleted event contents. |
-| `draft.csv` | Zero or one row; `entry_id,operation_id,kind,amount_text,account_id,destination_account_id,subject_id,expense_category_id,income_category_id,occurred_at_utc,occurred_at_bits,title,note,original_entry_id,allows_net_recovery` |
+| `draft.csv` | Zero or one row; `entry_id,operation_id,kind,amount_text,account_id,destination_account_id,subject_id,expense_category_id,income_category_id,occurred_at_utc,occurred_at_bits,title,note,original_entry_id,allows_net_recovery,project_id` |
+| `tags.csv` | Array order; `position,id,name,is_active` |
+| `projects.csv` | Array order; `position,id,name,is_archived` |
+| `entry_tags.csv` | `position,entry_id,tag_id`; export groups by entry array order, preserving each entry tag order. Both references must exist; duplicate pairs are rejected. |
+| `draft_tags.csv` | `position,entry_id,tag_id`; preserves draft tag order. Entry ID must match the single draft; tag IDs are soft references and may be unavailable. Duplicate pairs are rejected. |
 | `settings.csv` | Exactly one row; `default_account_id,default_subject_id` |
 | `manifest.csv` | Exactly one row; `profile,backup_format_version,db_schema_version,app_version,complete,created_at_utc,created_at_bits,file_count` |
-| `schema_dictionary.csv` | One row for every column in all twelve files, including its own columns; `file,column,position,type,required,nullable,unit,precision,allowed_values,foreign_key,meaning` |
+| `schema_dictionary.csv` | One row for every column in all sixteen files, including its own columns; `file,column,position,type,required,nullable,unit,precision,allowed_values,foreign_key,meaning` |
 | `counts.csv` | Exactly one row per file, including itself and checksums; `file,row_count`. Counts exclude the header. |
-| `checksums.csv` | Exactly one row for each of the other eleven files; `file,sha256`. Does not hash itself. |
+| `checksums.csv` | Exactly one row for each of the other fifteen files; `file,sha256`. Does not hash itself. |
 
 `position` starts at zero and is contiguous in physical row order. Array order is preserved even when a category child occurs before its parent. ID lookups validate relationships independently of presentation order. The manifest's `app_version` comes from `CFBundleShortVersionString`, or `unbundled` when running outside an application bundle. It is informational, never a substitute for format/schema versions.
 
@@ -59,7 +63,7 @@ UUIDs are lowercase standard 36-character hyphenated strings. Booleans are exact
 
 Entry `kind` supports `expense|income|transfer|refund|recovery`. A posted refund/recovery must reference one expense through `original_entry_id`, use the original currency and subject, and occur no earlier than the purchase; it has no category or transfer destination. The receiving account may differ. Other kinds require a null original reference. Only an expense may have a non-null `allows_net_recovery`; null/false disables cumulative recovery above its original amount. Enabling this purchase-level option permits a negative net cost, displayed as net recovery, without changing income or budget occupancy. The entire receipt belongs to its one original purchase; no amount is posted twice. Category directions remain `expense|income`.
 
-SQLite schema 3 adds the two nullable entry projections and a deferred self-reference with no cascading deletion. Versions 1 and 2 migrate in the same transaction as opening validation; existing payload bytes remain intact. Derived recovery totals and deletion previews are recomputed, not backed up as authoritative balances. Group deletion retires every removed operation ID; unfinished drafts retain soft references for user repair.
+The previous SQLite schema 3 added the two nullable entry projections and a deferred self-reference with no cascading deletion. Versions 1 and 2 migrate in the same transaction as opening validation; existing payload bytes remain intact. Derived recovery totals and deletion previews are recomputed, not backed up as authoritative balances. Group deletion retires every removed operation ID; unfinished drafts retain soft references for user repair.
 
 Each `Date` is represented by a pair:
 
@@ -85,3 +89,7 @@ The in-memory codec accepts at most 64 MiB of total CSV bytes, 32 MiB for an ind
 `BackupCodecTests` covers full-model round trips, exact Int64 bounds and Date bits, array order, inactive historical accounts, default settings, retired commands, absent/unfinished/unresolved drafts, Unicode combining text, embedded CR/LF/quotes, null-versus-empty, hash coverage, future versions, schema changes, invalid scalars, duplicate identities, broken references and parser limits. `BackupSHA256Tests` validates the standard algorithm vectors. Windows can run the pure core tests. Database and repository restoration integration has passed the macOS store tests and iOS simulator App tests.
 
 On 2026-09-26, the user reported that an earlier build exported a ZIP through the system Files app and restored its balances and entries on an iOS 27 device. This is user-reported evidence for that earlier build, not a physical-device validation of the third batch. Physical-device restoration of the third batch's calculator-expression and copied-entry drafts remains pending; detailed evidence and limitations are recorded in [DEVELOPMENT.md](DEVELOPMENT.md).
+
+## Tags and projects in schema 4
+
+Schema 4 adds the tag/project catalogs, the entry-tag relation table and nullable `project_id`. Existing schema 1/2/3 databases migrate atomically without rewriting payloads; missing arrays in older JSON decode as empty. Opening validation failure rolls back the DDL and version. Inactive tags and archived projects remain valid in historical records and restore, while posting commands reject newly selected unavailable references. Draft references stay soft. The existing 100,000-row limit applies independently to link tables as well; a multi-tag entry consumes more than one link row. See [TAGS_PROJECTS.md](TAGS_PROJECTS.md) for implementation and verification boundaries.

@@ -384,7 +384,12 @@ struct SQLiteLedgerStoreTests {
                 ALTER TABLE accounts_v1 RENAME TO accounts;
                 PRAGMA user_version = 1;
                 """)
-            try db.execute(sql: "DROP INDEX entries_original")
+            try db.execute(sql: "DROP INDEX entries_project")
+                try db.execute(sql: "DROP TABLE entry_tags")
+                try db.execute(sql: "ALTER TABLE entries DROP COLUMN project_id")
+                try db.execute(sql: "DROP TABLE tags")
+                try db.execute(sql: "DROP TABLE projects")
+                try db.execute(sql: "DROP INDEX entries_original")
             try db.execute(sql: "ALTER TABLE entries DROP COLUMN original_entry_id")
             try db.execute(sql: "ALTER TABLE entries DROP COLUMN allows_net_recovery")
             for row in try Row.fetchAll(db, sql: "SELECT id, payload FROM accounts") {

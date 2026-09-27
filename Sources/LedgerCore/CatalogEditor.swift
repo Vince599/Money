@@ -9,6 +9,24 @@ public enum CatalogError: Error, Equatable, Sendable {
 
 /// Changes catalog records in place by stable ID without rewriting any historical event.
 public enum CatalogEditor {
+    public static func saveTag(_ tag: EntryTag, in book: LedgerBook) throws -> LedgerBook {
+        try LedgerEngine.validate(book)
+        var result = book
+        if let index = result.tags.firstIndex(where: { $0.id == tag.id }) { result.tags[index] = tag }
+        else { result.tags.append(tag) }
+        try LedgerEngine.validate(result)
+        return result
+    }
+
+    public static func saveProject(_ project: EntryProject, in book: LedgerBook) throws -> LedgerBook {
+        try LedgerEngine.validate(book)
+        var result = book
+        if let index = result.projects.firstIndex(where: { $0.id == project.id }) { result.projects[index] = project }
+        else { result.projects.append(project) }
+        try LedgerEngine.validate(result)
+        return result
+    }
+
     public static func saveAccount(_ account: Account, in book: LedgerBook) throws -> LedgerBook {
         try LedgerEngine.validate(book)
         var result = book

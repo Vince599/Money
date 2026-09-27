@@ -1,7 +1,12 @@
 import Foundation
 
+public enum TagMatchMode: String, CaseIterable, Sendable { case all, any }
+
 /// Transient list conditions. All populated conditions are combined with AND.
 public struct EntryFilter: Equatable, Sendable {
+    public var tagIDs: Set<UUID>
+    public var tagMatch: TagMatchMode
+    public var projectID: UUID?
     public var keyword: String
     public var kind: EntryKind?
     public var accountID: UUID?
@@ -18,7 +23,9 @@ public struct EntryFilter: Equatable, Sendable {
     public init(keyword: String = "", kind: EntryKind? = nil, accountID: UUID? = nil,
                 categoryID: UUID? = nil, subjectID: UUID? = nil, currency: Currency? = nil,
                 minimumMinor: Int64? = nil, maximumMinor: Int64? = nil,
-                from: Date? = nil, to: Date? = nil) {
+                from: Date? = nil, to: Date? = nil, tagIDs: Set<UUID> = [],
+                tagMatch: TagMatchMode = .all, projectID: UUID? = nil) {
+        self.tagIDs = tagIDs; self.tagMatch = tagMatch; self.projectID = projectID
         self.keyword = keyword; self.kind = kind; self.accountID = accountID
         self.categoryID = categoryID; self.subjectID = subjectID; self.currency = currency
         self.minimumMinor = minimumMinor; self.maximumMinor = maximumMinor
@@ -29,6 +36,7 @@ public struct EntryFilter: Equatable, Sendable {
         // String equality normalizes Unicode, but the literal search below does
         // not. Request identity must distinguish those different query bytes.
         lhs.keyword.utf8.elementsEqual(rhs.keyword.utf8)
+            && lhs.tagIDs == rhs.tagIDs && lhs.tagMatch == rhs.tagMatch && lhs.projectID == rhs.projectID
             && lhs.kind == rhs.kind && lhs.accountID == rhs.accountID
             && lhs.categoryID == rhs.categoryID && lhs.subjectID == rhs.subjectID
             && lhs.currency == rhs.currency && lhs.minimumMinor == rhs.minimumMinor
@@ -92,6 +100,11 @@ public enum EntryQuery {
             categoryIDs = nil
         }
         return book.entries.filter { entry in
+            if let id = filter.projectID, entry.projectID != id { return false }
+            if !filter.tagIDs.isEmpty {
+                let tags = Set(entry.tagIDs)
+                if filter.tagMatch == .all ? !filter.tagIDs.isSubset(of: tags) : filter.tagIDs.isDisjoint(with: tags) { return false }
+            }
             if let kind = filter.kind, entry.kind != kind { return false }
             if let accountID = filter.accountID,
                entry.accountID != accountID && !(entry.kind == .transfer && entry.destinationAccountID == accountID) {

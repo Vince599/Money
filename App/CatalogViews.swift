@@ -9,6 +9,8 @@ struct LedgerSettingsView: View {
             List {
                 Section("记账资料") {
                     NavigationLink("分类管理") { CategoryListView(model: model) }.accessibilityIdentifier("settings.categories")
+                    NavigationLink("标签管理") { EntryLabelListView(model: model, kind: .tag) }.accessibilityIdentifier("settings.tags")
+                    NavigationLink("项目管理") { EntryLabelListView(model: model, kind: .project) }.accessibilityIdentifier("settings.projects")
                     NavigationLink("主体管理") { SubjectListView(model: model) }
                 }
                 Section("数据") {
@@ -16,7 +18,7 @@ struct LedgerSettingsView: View {
                 }
             }
             .navigationTitle("设置").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() }.disabled(model.isBusy) } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() }.disabled(model.isBusy).accessibilityIdentifier("settings.done") } }
         }.interactiveDismissDisabled(model.isBusy)
     }
 }

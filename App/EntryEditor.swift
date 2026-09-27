@@ -16,7 +16,8 @@ struct EntryEditor: View {
                                    amountText: entry.amount.decimalString, accountID: entry.accountID,
                                    destinationAccountID: entry.destinationAccountID, subjectID: entry.subjectID,
                                    occurredAt: entry.occurredAt, title: entry.title, note: entry.note,
-                                   originalEntryID: entry.originalEntryID, allowsNetRecovery: entry.allowsNetRecovery)
+                                   originalEntryID: entry.originalEntryID, allowsNetRecovery: entry.allowsNetRecovery,
+                                   tagIDs: entry.tagIDs, projectID: entry.projectID)
             value.categoryID = entry.categoryID
             _draft = State(initialValue: value)
         } else { _draft = State(initialValue: model.newDraft()) }
@@ -88,6 +89,12 @@ struct EntryEditor: View {
                 }
                 Section {
                     DisclosureGroup {
+                        NavigationLink {
+                            EntryLabelsSelectionView(book: model.book, tagIDs: $draft.tagIDs, projectID: $draft.projectID,
+                                                     retainedTagIDs: Set(editing?.tagIDs ?? []), retainedProjectID: editing?.projectID)
+                        } label: {
+                            LabeledContent("标签／项目", value: EntryLabelsSelectionView.summary(book: model.book, tags: draft.tagIDs, project: draft.projectID))
+                        }.accessibilityIdentifier("entry.labels")
                         TextField("标题（可空）", text: $draft.title).accessibilityIdentifier("entry.title")
                         TextField("备注", text: $draft.note, axis: .vertical).lineLimit(3...8)
                         if draft.kind == .expense && editing != nil {
@@ -221,6 +228,19 @@ struct EntryDetailView: View {
                         if entry.kind == .transfer { LabeledContent("转入", value: model.accountName(entry.destinationAccountID)) }
                         LabeledContent("主体", value: model.subjectName(entry.subjectID))
                         LabeledContent("日期", value: BookDate.dateTime(entry.occurredAt))
+                    }
+                    if !entry.tagIDs.isEmpty || entry.projectID != nil {
+                        Section("标签／项目") {
+                            if let project = model.book.projects.first(where: { $0.id == entry.projectID }) {
+                                LabeledContent("项目", value: project.name + (project.isArchived ? "（已归档）" : ""))
+                            }
+                            ForEach(entry.tagIDs, id: \.self) { id in
+                                if let tag = model.book.tags.first(where: { $0.id == id }) {
+                                    Label(tag.name + (tag.isActive ? "" : "（已停用）"), systemImage: "tag")
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                        }
                     }
                     if !entry.note.isEmpty || model.recoveries[entry.id] != nil {
                         Section("备注信息") {
