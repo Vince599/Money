@@ -27,7 +27,9 @@ struct RecoveryStoreTests {
             let saved = try store.saveEntry(refund)
             #expect(try SQLiteLedgerStore(path: path).loadBook() == saved.book)
             #expect(try store.entryPage(matching: EntryFilter(kind: .refund)).entries == [refund])
-            let snapshot = LedgerBackupSnapshot(book: saved.book, draft: saved.draft, settings: saved.settings)
+            var reordered = saved.book
+            reordered.entries.reverse() // Deferred self-reference must allow child-before-parent restore.
+            let snapshot = LedgerBackupSnapshot(book: reordered, draft: saved.draft, settings: saved.settings)
             let restored = try BackupCodec.decode(BackupArchive.decode(BackupArchive.encode(BackupCodec.encode(snapshot))))
             try store.commit(restored.book, draft: restored.draft, settings: restored.settings)
             let plan = try LedgerEngine.deletionPlan(entryID: original.id, includingRecoveries: true, in: saved.book)
@@ -35,7 +37,9 @@ struct RecoveryStoreTests {
             #expect(deleted.book.entries.isEmpty && deleted.draft == saved.draft)
             #expect(deleted.book.retiredOperationIDs.isSuperset(of: [original.operationID, refund.operationID]))
             #expect(try LedgerEngine.balance(of: original.accountID, in: deleted.book).minorUnits == 200_000)
-            try inspection.read { db in #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty) }
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
+            }
         }
     }
 
@@ -70,7 +74,7 @@ struct RecoveryStoreTests {
             // A corrupt old projection must abort the whole migration, not just the opening read.
             try inspection.write { try $0.execute(sql: "UPDATE entries SET amount_minor = amount_minor + 1") }
             #expect(throws: (any Error).self) { try SQLiteLedgerStore(path: path) }
-            try inspection.read { db in
+            try inspection.read { (db: Database) throws -> Void in
                 #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 2)
                 let names = try String.fetchAll(db, sql: "SELECT name FROM pragma_table_info('entries')")
                 #expect(!names.contains("original_entry_id"))
@@ -78,7 +82,7 @@ struct RecoveryStoreTests {
             try inspection.write { try $0.execute(sql: "UPDATE entries SET amount_minor = amount_minor - 1") }
             let opened = try SQLiteLedgerStore(path: path)
             #expect(try opened.loadBook().entries == [original])
-            try inspection.read { db in
+            try inspection.read { (db: Database) throws -> Void in
                 #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 3)
                 #expect(try Data.fetchOne(db, sql: "SELECT payload FROM entries") == payload)
                 #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)

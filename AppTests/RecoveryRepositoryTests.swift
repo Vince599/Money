@@ -35,7 +35,7 @@ final class RecoveryRepositoryTests: XCTestCase {
         let restored = try BackupCodec.decode(BackupArchive.decode(exported))
         XCTAssertEqual(restored.book, model.book)
         XCTAssertEqual(restored.draft, draft)
-        let plan = try LedgerEngine.deletionPlan(entryID: original.id, includingRecoveries: true, in: model.book)
+        let plan = try await model.deletionPreview(original.id)
         let deleted = await model.delete(plan)
         XCTAssertTrue(deleted)
         XCTAssertTrue(model.recoveries.isEmpty)

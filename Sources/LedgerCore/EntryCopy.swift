@@ -37,7 +37,7 @@ extension EntryDraft {
 
         return EntryDraft(kind: entry.kind, amountText: entry.amount.decimalString,
                           accountID: accountID, destinationAccountID: destinationID,
-                          subjectID: subjectID,
+                          subjectID: entry.kind.isRecovery ? entry.subjectID : subjectID,
                           expenseCategoryID: entry.kind == .expense ? categoryID : nil,
                           incomeCategoryID: entry.kind == .income ? categoryID : nil,
                           occurredAt: date, title: entry.title, note: entry.note,

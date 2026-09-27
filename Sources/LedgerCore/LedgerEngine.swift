@@ -272,7 +272,12 @@ public enum LedgerEngine {
             guard book.accounts.first(where: { $0.id == id })?.isActive == true else { throw LedgerError.inactiveAccount }
         }
         if previous?.subjectID != entry.subjectID {
-            guard book.subjects.first(where: { $0.id == entry.subjectID })?.isActive == true else { throw LedgerError.invalidSubject }
+            let inheritedRecoverySubject = entry.kind.isRecovery && book.entries.contains {
+                $0.id == entry.originalEntryID && $0.kind == .expense && $0.subjectID == entry.subjectID
+            }
+            guard inheritedRecoverySubject || book.subjects.first(where: { $0.id == entry.subjectID })?.isActive == true else {
+                throw LedgerError.invalidSubject
+            }
         }
         if let categoryID = entry.categoryID, previous?.categoryID != categoryID {
             guard let category = book.categories.first(where: { $0.id == categoryID }), category.isActive else {

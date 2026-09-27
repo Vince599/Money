@@ -139,4 +139,19 @@ struct RecoveryTests {
         #expect(copied.originalEntryID == original.id && copied.operationID != book.entries[1].operationID)
         #expect(copied.allowsNetRecovery == nil)
     }
+
+    @Test func recoveryRetainsInactiveHistoricalSubjectAndCannotBecomeACategory() throws {
+        var (book, original, receiving) = try fixture()
+        let subject = Subject(name: "已停用归属", isActive: false)
+        book.subjects.append(subject)
+        original.subjectID = subject.id
+        book.entries = [original]
+        let refund = recovery(original, receiving, kind: .refund)
+        book = try LedgerEngine.record(refund, in: book)
+        let draft = try EntryDraft.copying(refund, in: book)
+        #expect(draft.subjectID == subject.id)
+        #expect(try LedgerEngine.record(draft.entry(in: book), in: book).entries.count == 3)
+        let category = Category(name: "不能新增的退款类别", direction: .refund)
+        #expect(throws: LedgerError.invalidCategory) { try CatalogEditor.saveCategory(category, in: book) }
+    }
 }
