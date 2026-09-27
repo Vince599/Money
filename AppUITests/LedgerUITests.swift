@@ -51,11 +51,7 @@ final class LedgerUITests: XCTestCase {
         tap(element("entry.labels.done"))
         assertText(element("entry.labels"), contains: "Shanghai")
         assertText(element("entry.labels"), contains: "1 个标签")
-        if app.keyboards.firstMatch.exists {
-            tap(app.buttons["entry.keyboard.done"])
-            wait(app.keyboards.firstMatch, for: "exists == false")
-        }
-        tap(element("entry.save"), scrolling: foregroundList)
+        saveEntry()
         wait(app.textFields["entry.amount"], for: "exists == false")
         app.terminate(); app.launch()
         tap(app.tabBars.buttons["账户"])
@@ -150,7 +146,7 @@ final class LedgerUITests: XCTestCase {
         tap(element("entry.category"))
         tap(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ OR label == %@",
             "entry.category.option.00000000-0000-4000-8000-000000000011", "餐饮 / 正餐")).firstMatch)
-        tap(element("entry.save"))
+        saveEntry()
         wait(app.textFields["entry.amount"], for: "exists == false")
         tap(app.tabBars.buttons["流水"])
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.row."))
@@ -159,7 +155,7 @@ final class LedgerUITests: XCTestCase {
         tap(rows.firstMatch)
         tap(element("entry.refund"), scrolling: foregroundList)
         replace(app.textFields["entry.amount"], with: "200.00")
-        tap(element("entry.save"))
+        saveEntry()
         wait(app.textFields["entry.amount"], for: "exists == false")
         // The detail can expand beyond its initial medium height as associations appear.
         tap(element("entry.detail.done"))
@@ -260,7 +256,7 @@ final class LedgerUITests: XCTestCase {
         // Form lazily creates expanded rows; the title may initially sit below the viewport.
         if !app.textFields["entry.title"].waitForExistence(timeout: 2) { app.swipeUp() }
         replace(app.textFields["entry.title"], with: "Lunch")
-        tap(element("entry.save"))
+        saveEntry()
         wait(app.textFields["entry.amount"], for: "exists == false")
         tap(app.tabBars.buttons["流水"])
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.row."))
@@ -272,7 +268,7 @@ final class LedgerUITests: XCTestCase {
         tap(element("entry.copy"), scrolling: details)
         XCTAssertTrue(app.textFields["entry.amount"].waitForExistence(timeout: 15))
         XCTAssertEqual(app.textFields["entry.amount"].value as? String, "20.10")
-        tap(element("entry.save"))
+        saveEntry()
         wait(app.textFields["entry.amount"], for: "exists == false")
         tap(element("entry.detail.done"))
         wait(rows, count: 2)
@@ -330,7 +326,7 @@ final class LedgerUITests: XCTestCase {
         tap(element("entry.category"))
         tap(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ OR label == %@",
             "entry.category.option.00000000-0000-4000-8000-000000000011", "餐饮 / 正餐")).firstMatch)
-        tap(element("entry.save"))
+        saveEntry()
         wait(app.textFields["entry.amount"], for: "exists == false")
         tap(app.tabBars.buttons["流水"])
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.row."))
@@ -361,6 +357,14 @@ final class LedgerUITests: XCTestCase {
     }
 
     private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: id).firstMatch }
+    private func saveEntry() {
+        if app.keyboards.firstMatch.exists {
+            tap(app.buttons["entry.keyboard.done"])
+            wait(app.keyboards.firstMatch, for: "exists == false")
+        }
+        // App-wide swipes may land on the keyboard or a presenting list.
+        tap(element("entry.save"), scrolling: foregroundList)
+    }
     private var foregroundList: XCUIElement {
         // Modal lists follow their presenting list in the captured AX hierarchy.
         // Do not require a lazily created offscreen action to locate its scroll container.
