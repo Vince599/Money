@@ -82,6 +82,33 @@ struct CatalogEditorTests {
         #expect(original.accounts[0].name == "银行卡")
     }
 
+    @Test func appearanceOnlyEditsPreserveIdentityHistoryAndBalance() throws {
+        let (account, recorded) = try fixture()
+        var original = try LedgerEngine.adjustBalance(accountID: account.id, to: Money(minorUnits: 850),
+                                                      operationID: UUID(), at: day, note: "原有更正", in: recorded)
+        original.retiredOperationIDs.insert(UUID())
+        original.accounts[0].name = "用户自己的名字"
+        original.accounts[0].includedInSummary = false
+        original.accounts[0].isActive = false
+        var appearance = original.accounts[0]
+        appearance.institutionID = "future.institution"
+        appearance.templateID = "future.template"
+        appearance.iconID = "future.icon"
+
+        let changed = try CatalogEditor.saveAccount(appearance, in: original)
+        #expect(changed.accounts == [appearance])
+        #expect(try LedgerEngine.balance(of: account.id, in: changed).minorUnits == 850)
+        var withoutAppearanceChange = changed
+        withoutAppearanceChange.accounts[0] = original.accounts[0]
+        #expect(withoutAppearanceChange == original)
+        var restoredAccount = changed.accounts[0]
+        restoredAccount.institutionID = nil
+        restoredAccount.templateID = nil
+        restoredAccount.iconID = nil
+        #expect(restoredAccount == original.accounts[0])
+        #expect(try CatalogEditor.saveAccount(restoredAccount, in: changed) == original)
+    }
+
     @Test func inactiveAccountPreservesHistoryAndCanBeReenabled() throws {
         let (account, original) = try fixture()
         var changed = account

@@ -46,7 +46,30 @@ struct AccountTemplateTests {
         #expect(second.openingDate == day.addingTimeInterval(-86_400))
         #expect(second.kind == .bank && second.nature == .asset && second.currency == .cny)
         #expect(second.isActive)
+        #expect(second.institutionID == "icbc")
+        #expect(second.templateID == "cn.icbc.debit")
+        #expect(second.iconID == template.iconID)
+        #expect(first.institutionID == second.institutionID && first.templateID == second.templateID)
+        #expect(first.iconID == second.iconID)
+
+        let generic = try #require(AccountTemplateCatalog.template(id: "cn.generic.bank"))
+        let unbranded = generic.makeAccount(openingDate: day)
+        #expect(unbranded.institutionID == nil)
+        #expect(unbranded.templateID == "cn.generic.bank")
+        #expect(unbranded.iconID == generic.iconID)
         try LedgerEngine.validate(LedgerBook(accounts: [first, second]))
+    }
+
+    @Test func legacyAccountJSONWithoutPresentationFieldsDecodesAsUnbranded() throws {
+        let original = Account(name: "不会按名称推断的工商银行卡", kind: .bank, openingMinor: 123_45,
+                               openingDate: day, institutionID: "future.institution",
+                               templateID: "future.template", iconID: "future.icon")
+        var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+        for key in ["institutionID", "templateID", "iconID"] { object.removeValue(forKey: key) }
+        let restored = try JSONDecoder().decode(Account.self, from: JSONSerialization.data(withJSONObject: object))
+        #expect(restored.id == original.id && restored.name == original.name)
+        #expect(restored.kind == original.kind && restored.openingMinor == original.openingMinor)
+        #expect(restored.institutionID == nil && restored.templateID == nil && restored.iconID == nil)
     }
 
     @Test func phoneBalanceStaysOutsideSummaryAndCreditCardUsesLiabilityArithmetic() throws {

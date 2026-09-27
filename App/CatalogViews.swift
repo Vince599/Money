@@ -33,7 +33,21 @@ struct EditAccountView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("账户名称", text: $account.name)
+                    NavigationLink {
+                        AccountTemplatePickerView(selectedTemplateID: account.templateID, account: account) { template in
+                            account.institutionID = template?.institutionID
+                            account.templateID = template?.id
+                            account.iconID = template?.iconID
+                        }
+                        .disabled(model.isBusy)
+                    } label: {
+                        HStack(spacing: 12) {
+                            AccountIconView(iconID: account.iconID, kind: account.kind)
+                            LabeledContent("机构与图标", value: appearanceName)
+                        }
+                    }
+                    .accessibilityIdentifier("account.edit.template")
+                    TextField("账户名称", text: $account.name).accessibilityIdentifier("account.edit.name")
                     Toggle("计入资产负债汇总", isOn: $account.includedInSummary)
                     Toggle("启用账户", isOn: $account.isActive)
                 } footer: {
@@ -48,12 +62,18 @@ struct EditAccountView: View {
                     var value = account
                     value.name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
                     Task { if await model.saveAccount(value) { dismiss() } else { message = model.errorMessage } }
-                }
+                }.accessibilityIdentifier("account.edit.save")
             }
             .navigationTitle("编辑账户").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
             .disabled(model.isBusy).interactiveDismissDisabled(model.isBusy)
         }
+    }
+    private var appearanceName: String {
+        if let id = account.templateID, let template = AccountTemplateCatalog.template(id: id) { return template.name }
+        if let id = account.institutionID, let institution = AccountTemplateCatalog.institution(id: id) { return institution.name }
+        if let id = account.iconID, let icon = AccountTemplateCatalog.icon(id: id) { return icon.accessibilityName }
+        return "通用图标"
     }
 }
 

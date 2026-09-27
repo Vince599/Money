@@ -289,16 +289,16 @@ struct IncrementalEntryTests {
         }
     }
 
-    @Test func legacyWholeBookSchemaOneSnapshotOpensAndKeepsTheExistingBackupContract() throws {
+    @Test func wholeBookSchemaTwoSnapshotSupportsIncrementalSavesAndBackup() throws {
         try withFixture { store, inspection, fixture, path in
-            // withFixture writes via the retained whole-book commit API and existing schema-1 tables.
-            // This proves old-path interoperability, not an unprovided external upgrade artifact.
+            // This covers the retained whole-book API on the current schema.
+            // Genuine schema-1 migration is covered by SQLiteLedgerStoreTests.
             var legacy = fixture.book
             legacy.categories.reverse()
             try store.commit(legacy, draft: fixture.draft, settings: fixture.settings)
             let reopened = try SQLiteLedgerStore(path: path)
             try inspection.read { (db: Database) throws -> Void in
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 1)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 2)
                 #expect(try Int.fetchOne(db, sql: "PRAGMA application_id") == 0x4C444752)
             }
             let entry = newEntry(in: fixture)
@@ -314,7 +314,7 @@ struct IncrementalEntryTests {
             #expect(try BackupCodec.decode(BackupCodec.encode(backup)) == backup)
             try expectReopened(path, book: saved.book, draft: nextDraft, settings: fixture.settings)
             try inspection.read { (db: Database) throws -> Void in
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 1)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 2)
                 #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
             }
         }

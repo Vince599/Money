@@ -6,7 +6,7 @@
 
 目前已实现普通收支、同币种转账、余额更正、编辑删除、自动草稿，以及账户／分类／主体维护。第三批加入精确金额计算器、复制为新流水、标题备注搜索及组合筛选。当前全部核心数据支持 CSV ZIP 备份，并已接入恢复预览、安全副本和原子恢复页面。已生成基础版本未签名 IPA，仍需签名后才能真机安装；贷款、投资、来源账单导入等按设计继续实施。准确范围与验证结果见 [开发记录](docs/DEVELOPMENT.md)。
 
-国内账户模板已准备 31 个机构图标、8 个通用回退和 54 个模板，覆盖微信、支付宝、QQ 钱包、24 家银行及四家运营商。后续新增／编辑账户开发请先读[国内资产图标与模板接入说明](docs/ACCOUNT_TEMPLATES.md)，素材可在[离线预览](assets/account-templates/preview.html)中查看。当前已提供 Swift 目录和 Xcode 资源，页面接入与机构／图标字段持久化尚待实现。
+国内账户模板包含 31 个机构图标、8 个通用回退和 54 个模板，覆盖微信、支付宝、QQ 钱包、24 家银行及四家运营商。新增／编辑账户已接入搜索、兼容筛选和共享图标，选择结果保存到 SQLite schema 2，并进入 CSV profile 2 完整备份；旧 schema 1 数据库和 profile 1 备份可迁移读取。规则与当前验证边界见[国内资产图标与模板接入说明](docs/ACCOUNT_TEMPLATES.md)，素材可在[离线预览](assets/account-templates/preview.html)中查看。
 
 ## 本机验证
 
@@ -18,7 +18,7 @@ Windows PowerShell，在项目根目录运行：
 ./scripts/test-core.ps1
 ```
 
-2026-09-27 实测 Swift 6.4，133 项核心测试通过，覆盖账务、目录维护、计算器、复制、查询、CSV、ZIP、备份往返、账户模板、快捷指令请求和首页摘要。Windows 脚本在隔离目录原样镜像纯 Swift 核心及测试，保留根 Apple 依赖锁；SQLite/GRDB、SwiftUI、模拟器和 IPA 构建使用 Apple 工具链。生成的 IPA 可在 Windows 通过用户本地签名后安装。
+2026-09-27 实测 Swift 6.4，当前工作副本 137 项核心测试通过，覆盖账务、目录维护、计算器、复制、查询、CSV、ZIP、新旧备份往返、账户模板、快捷指令请求和首页摘要。Windows 脚本在隔离目录原样镜像纯 Swift 核心及测试，保留根 Apple 依赖锁；SQLite/GRDB、SwiftUI、模拟器和 IPA 构建使用 Apple 工具链。账户模板页面与 schema 2 的 Apple 验证以随后记录的具体运行结果为准。生成的 IPA 可在 Windows 通过用户本地签名后安装。
 
 性能测量准备、合成数据的 Windows 领域基线和 App 内计时边界见[性能基线说明](docs/PERFORMANCE_BASELINE.md)。普通新建／编辑已改为同事务增量写入；完整快照改为一次读事务，磁盘启动直接使用首次存储快照，避免重复全量解码。首页改为后台统一派生资产、本月消费和最近五条，草稿输入不重算，并防止跨月及延迟刷新显示旧状态。防重、草稿和回滚规则保留，整本读取／校验仍需后续优化。App 插桩已通过 Apple 编译，Instruments trace 与真机性能仍待测量。
 
@@ -42,7 +42,7 @@ Windows 真机安装统一从 **`D:\Data\Ledger-Install\Ledger-latest.ipa`** 取
 | `Sources/LedgerCore/Backup*.swift` | 当前全部核心数据的 CSV 契约、校验和 ZIP 容器，详见 [格式说明](docs/CSV_FORMAT.md) |
 | `Sources/LedgerStore` | GRDB SQLite、关联校验、原子保存 |
 | `App` | 原生页面、状态模型、串行存储入口 |
-| `assets/account-templates` / `App/Assets.xcassets/AccountBrands` | 国内机构图标、账户模板清单、出处、离线预览及生成的 Xcode 资源；[后续接入约定](docs/ACCOUNT_TEMPLATES.md) |
+| `assets/account-templates` / `App/Assets.xcassets/AccountBrands` | 国内机构图标、账户模板清单、出处、离线预览及生成的 Xcode 资源；[接入与验收说明](docs/ACCOUNT_TEMPLATES.md) |
 | `Tests` / `AppTests` / `AppUITests` | 核心、数据库、App 存储集成和页面操作测试 |
 | `project.yml` / `config` / `scripts` | 工程生成、工具版本与构建验证 |
 | `docs` | 开发记录、构建说明及原生体验与工程质量标准 |

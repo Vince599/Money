@@ -3,6 +3,7 @@ import LedgerCore
 
 struct AccountsView: View {
     @Bindable var model: LedgerAppModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var add = false
     @State private var settings = false
     @State private var selected: Account?
@@ -13,16 +14,23 @@ struct AccountsView: View {
                                        description: Text("添加账户后即可记账；期初余额不会计为收入。"))
             }
             ForEach(model.book.accounts) { account in
+                let balance = (model.balance(account)?.decimalString ?? "暂不可用") + " " + account.currency.rawValue
                 Button { selected = account } label: {
-                    HStack {
+                    HStack(spacing: 12) {
+                        AccountIconView(iconID: account.iconID, kind: account.kind)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(account.name).foregroundStyle(.primary)
                             Text((account.includedInSummary ? "计入总资产" : "不计入总资产") + (model.settings.defaultAccountID == account.id ? " · 默认账户" : ""))
                                 .font(.caption).foregroundStyle(.secondary)
+                            if dynamicTypeSize.isAccessibilitySize {
+                                Text(balance).monospacedDigit().foregroundStyle(.primary)
+                            }
                         }
-                        Spacer()
-                        Text((model.balance(account)?.decimalString ?? "暂不可用") + " " + account.currency.rawValue)
-                            .monospacedDigit().foregroundStyle(.primary)
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Spacer(minLength: 8)
+                            Text(balance).monospacedDigit().foregroundStyle(.primary)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
                     }
                 }.buttonStyle(.plain)
                     .accessibilityIdentifier("account.row." + account.id.uuidString.lowercased())
@@ -57,27 +65,42 @@ struct AddAccountView: View {
     @State private var makeDefault: Bool
     @State private var message: String?
     @State private var accountID = UUID()
+    @State private var templateID: String?
+    @State private var nameWasEdited = false
+    @State private var includedWasEdited = false
     @Environment(\.dismiss) private var dismiss
     init(model: LedgerAppModel) { self.model = model; _makeDefault = State(initialValue: model.settings.defaultAccountID == nil) }
     private var nature: AccountNature { [.creditCard, .loan].contains(kind) ? .liability : .asset }
+    private var selectedTemplate: AccountTemplate? { templateID.flatMap { AccountTemplateCatalog.template(id: $0) } }
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("账户名称", text: $name).accessibilityIdentifier("account.name")
-                    Picker("类型", selection: $kind) {
+                    NavigationLink {
+                        AccountTemplatePickerView(selectedTemplateID: templateID, onSelect: selectTemplate)
+                            .disabled(model.isBusy)
+                    } label: {
+                        HStack(spacing: 12) {
+                            AccountIconView(iconID: selectedTemplate?.iconID, kind: kind)
+                            LabeledContent("账户模板", value: selectedTemplate?.name ?? "自定义账户")
+                        }
+                    }
+                    .accessibilityIdentifier("account.template")
+                    TextField("账户名称", text: nameInput).accessibilityIdentifier("account.name")
+                    Picker("类型", selection: kindInput) {
                         Text("钱包").tag(AccountKind.wallet); Text("银行卡").tag(AccountKind.bank)
                         Text("现金").tag(AccountKind.cash); Text("储值（例如话费）").tag(AccountKind.storedValue)
                         Text("信用卡").tag(AccountKind.creditCard)
-                    }
-                    Picker("币种", selection: $currency) { ForEach(Currency.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
+                    }.accessibilityIdentifier("account.kind")
+                    Picker("币种", selection: currencyInput) { ForEach(Currency.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
+                        .accessibilityIdentifier("account.currency")
                     LabeledContent("期初性质", value: nature == .liability ? "尚欠金额" : "账户余额")
                     TextField("期初金额", text: $opening).keyboardType(.numbersAndPunctuation).monospacedDigit()
                         .accessibilityIdentifier("account.opening")
                     DatePicker("期初日期", selection: $openingDate, in: ...Date(), displayedComponents: .date)
                 } footer: { Text("期初不计收入或消费。以后补录的历史实账仍会正常影响余额。") }
                 Section {
-                    Toggle("计入资产负债汇总", isOn: $included)
+                    Toggle("计入资产负债汇总", isOn: includedInput).accessibilityIdentifier("account.included")
                     Toggle("设为默认记账账户", isOn: $makeDefault).accessibilityIdentifier("account.makeDefault")
                 }
                 if let message { Text(message).foregroundStyle(.red) }
@@ -85,16 +108,59 @@ struct AddAccountView: View {
             }
             .navigationTitle("添加账户").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(model.isBusy) } }
-            .onChange(of: kind) { _, value in included = value != .storedValue }
             .disabled(model.isBusy).interactiveDismissDisabled(model.isBusy)
         }
+    }
+    private var nameInput: Binding<String> {
+        Binding(get: { name }, set: { value in
+            guard value != name else { return }
+            name = value; nameWasEdited = true
+        })
+    }
+    private var includedInput: Binding<Bool> {
+        Binding(get: { included }, set: { value in
+            guard value != included else { return }
+            included = value; includedWasEdited = true
+        })
+    }
+    private var kindInput: Binding<AccountKind> {
+        Binding(get: { kind }, set: { value in
+            guard value != kind else { return }
+            kind = value
+            if !includedWasEdited { included = value != .storedValue }
+            clearIncompatibleTemplate()
+        })
+    }
+    private var currencyInput: Binding<Currency> {
+        Binding(get: { currency }, set: { value in
+            guard value != currency else { return }
+            currency = value
+            clearIncompatibleTemplate()
+        })
+    }
+    private func clearIncompatibleTemplate() {
+        guard let selectedTemplate else { return }
+        if selectedTemplate.kind != kind || selectedTemplate.nature != nature || selectedTemplate.currency != currency {
+            templateID = nil
+        }
+    }
+    private func selectTemplate(_ template: AccountTemplate?) {
+        templateID = template?.id
+        guard let template else { return }
+        kind = template.kind
+        currency = template.currency
+        if !nameWasEdited { name = template.name }
+        if !includedWasEdited { included = template.includedInSummary }
     }
     private func save() {
         do {
             let value = try Money.parse(opening, currency: currency)
-            let account = Account(id: accountID, name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            var account = Account(id: accountID, name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                                   kind: kind, nature: nature, currency: currency, openingMinor: value.minorUnits,
                                   openingDate: openingDate, includedInSummary: included)
+            account.institutionID = selectedTemplate?.institutionID
+            account.templateID = selectedTemplate?.id
+            account.iconID = selectedTemplate?.iconID
             Task {
                 if await model.addAccount(account, makeDefault: makeDefault) { dismiss() }
                 else { message = model.errorMessage }

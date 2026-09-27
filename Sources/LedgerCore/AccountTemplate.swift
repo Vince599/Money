@@ -46,12 +46,13 @@ public struct AccountTemplate: Identifiable, Equatable, Sendable {
     public let note: String
 
     /// Produces an unsaved account with its own UUID, even when reusing the same template.
-    /// The caller keeps the chosen template/icon ID separately until presentation persistence exists.
+    /// Stable presentation IDs are saved independently of the account's custom name.
     public func makeAccount(name: String? = nil, openingMinor: Int64 = 0,
                             openingDate: Date = Date()) -> Account {
         Account(name: name ?? self.name, kind: kind, nature: nature, currency: currency,
                 openingMinor: openingMinor, openingDate: openingDate,
-                includedInSummary: includedInSummary)
+                includedInSummary: includedInSummary,
+                institutionID: institutionID, templateID: id, iconID: iconID)
     }
 
     /// Editing must preserve kind, nature, currency, opening amount/date and account identity.

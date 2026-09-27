@@ -4,6 +4,42 @@ import XCTest
 final class LedgerUITests: XCTestCase {
     private let app = XCUIApplication()
 
+    func testAccountTemplateDefaultsAndSavedAppearanceSurviveRelaunch() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]
+        app.launch()
+        tap(app.tabBars.buttons["账户"])
+        tap(element("accounts.add"))
+        tap(element("account.template"))
+        replace(app.searchFields.firstMatch, with: "10086")
+        tap(element("account.template.option.cn.china-mobile.balance"))
+        XCTAssertEqual(app.textFields["account.name"].value as? String, "中国移动话费")
+        XCTAssertEqual(element("account.included").value as? String, "0")
+        replace(app.textFields["account.name"], with: "自定义话费账户")
+        tap(element("account.included"))
+        XCTAssertEqual(element("account.included").value as? String, "1")
+        tap(element("account.template"))
+        replace(app.searchFields.firstMatch, with: "10010")
+        tap(element("account.template.option.cn.china-unicom.balance"))
+        XCTAssertEqual(app.textFields["account.name"].value as? String, "自定义话费账户")
+        XCTAssertEqual(element("account.included").value as? String, "1")
+        replace(app.textFields["account.opening"], with: "50.00")
+        tap(element("account.save"))
+        wait(app.textFields["account.name"], for: "exists == false")
+        let account = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "account.row.")).firstMatch
+        assertText(account, contains: "自定义话费账户")
+        assertText(account, contains: "计入总资产")
+        let accountID = account.identifier
+
+        app.terminate()
+        app.launch()
+        tap(app.tabBars.buttons["账户"])
+        tap(element(accountID))
+        tap(app.buttons["编辑账户"])
+        assertText(element("account.edit.template"), contains: "中国联通话费")
+        screenshot("06-account-template-after-relaunch")
+    }
+
     func testCalculatorCopyAndSearchFilters() throws {
         continueAfterFailure = false
         app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]

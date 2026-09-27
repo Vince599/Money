@@ -33,7 +33,7 @@ public struct SQLiteLedgerSnapshot: Sendable {
 /// Callers must coordinate read-modify-save operations; serialization of writes
 /// alone does not make two independently edited book snapshots merge safely.
 public final class SQLiteLedgerStore: Sendable {
-    public static let schemaVersion = 1
+    public static let schemaVersion = 2
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
 
@@ -58,7 +58,7 @@ public final class SQLiteLedgerStore: Sendable {
         let database = try DatabaseQueue(path: path, configuration: configuration)
         let snapshot = try database.write { db in
             let version = try Int.fetchOne(db, sql: "PRAGMA user_version") ?? 0
-            guard version == 0 || version == Self.schemaVersion else {
+            guard version == 0 || version == 1 || version == Self.schemaVersion else {
                 throw LedgerStoreError.unsupportedSchemaVersion(version)
             }
             if version == 0 {
@@ -76,6 +76,18 @@ public final class SQLiteLedgerStore: Sendable {
                 try Self.writeBook(seed, in: db)
                 try Self.writeSettings(LedgerSettings(), in: db)
                 try db.execute(sql: "PRAGMA application_id = \(Self.applicationID)")
+                try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
+            } else if version == 1 {
+                guard try Int.fetchOne(db, sql: "PRAGMA application_id") == Self.applicationID else {
+                    throw LedgerStoreError.unrecognizedDatabase
+                }
+                let columns = try Row.fetchAll(db, sql: "PRAGMA table_info(accounts)")
+                let columnNames = Set(try columns.map { row -> String in try row.decode(forColumn: "name") })
+                for column in ["institution_id", "template_id", "icon_id"] where !columnNames.contains(column) {
+                    try db.execute(sql: "ALTER TABLE accounts ADD COLUMN \(column) TEXT")
+                }
+                // Keep every payload byte intact. Missing optional IDs decode as nil,
+                // matching the new NULL projections; validation below shares this transaction.
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
             return try Self.readSnapshot(in: db)
@@ -417,7 +429,10 @@ public final class SQLiteLedgerStore: Sendable {
          "kind": account.kind.rawValue.databaseValue, "nature": account.nature.rawValue.databaseValue,
          "currency": account.currency.rawValue.databaseValue, "opening_minor": account.openingMinor.databaseValue,
          "opening_date": account.openingDate.timeIntervalSinceReferenceDate.databaseValue,
-         "included_in_summary": account.includedInSummary.databaseValue, "is_active": account.isActive.databaseValue]
+         "included_in_summary": account.includedInSummary.databaseValue, "is_active": account.isActive.databaseValue,
+         "institution_id": account.institutionID?.databaseValue ?? .null,
+         "template_id": account.templateID?.databaseValue ?? .null,
+         "icon_id": account.iconID?.databaseValue ?? .null]
     }
 
     private static func columns(for subject: LedgerCore.Subject) -> [String: DatabaseValue] {
@@ -462,6 +477,7 @@ public final class SQLiteLedgerStore: Sendable {
             opening_date REAL NOT NULL,
             included_in_summary INTEGER NOT NULL CHECK (included_in_summary IN (0, 1)),
             is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
+            institution_id TEXT, template_id TEXT, icon_id TEXT,
             payload BLOB NOT NULL CHECK (typeof(payload) = 'blob')
         );
         CREATE TABLE subjects (

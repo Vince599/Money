@@ -20,12 +20,17 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
     public var openingDate: Date
     public var includedInSummary: Bool
     public var isActive: Bool
+    public var institutionID: String?
+    public var templateID: String?
+    public var iconID: String?
     public init(id: UUID = UUID(), name: String, kind: AccountKind = .bank, nature: AccountNature = .asset,
                 currency: Currency = .cny, openingMinor: Int64 = 0, openingDate: Date = Date(),
-                includedInSummary: Bool = true, isActive: Bool = true) {
+                includedInSummary: Bool = true, isActive: Bool = true,
+                institutionID: String? = nil, templateID: String? = nil, iconID: String? = nil) {
         self.id = id; self.name = name; self.kind = kind; self.nature = nature; self.currency = currency
         self.openingMinor = openingMinor; self.openingDate = openingDate
         self.includedInSummary = includedInSummary; self.isActive = isActive
+        self.institutionID = institutionID; self.templateID = templateID; self.iconID = iconID
     }
 }
 

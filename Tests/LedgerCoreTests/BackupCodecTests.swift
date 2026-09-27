@@ -7,7 +7,8 @@ struct BackupCodecTests {
     private let timestamp = Date(timeIntervalSinceReferenceDate: 812_345_678.1234567)
 
     private func snapshot() -> LedgerBackupSnapshot {
-        let a = Account(name: "  银行,\"A\"\r\n\\N ", openingMinor: 1_000_000, openingDate: timestamp)
+        let a = Account(name: "  银行,\"A\"\r\n\\N ", openingMinor: 1_000_000, openingDate: timestamp,
+                        institutionID: "bank.icbc", templateID: "bank.icbc.debit", iconID: "icon.bank.icbc")
         let b = Account(name: "信用卡", kind: .creditCard, nature: .liability, openingMinor: 500, openingDate: timestamp,
                         includedInSummary: false, isActive: false)
         let max = Account(name: "Max USD", kind: .brokerage, currency: .usd, openingMinor: .max, openingDate: timestamp)
@@ -50,6 +51,26 @@ struct BackupCodecTests {
         rehash(&files)
     }
 
+    private func legacyFiles(from snapshot: LedgerBackupSnapshot) throws -> [String: Data] {
+        var files = try BackupCodec.encode(snapshot, createdAt: timestamp)
+        let rows = try BackupSchema.accounts.read(files[BackupSchema.accounts.name]!).map { row in
+            BackupSchema.legacyAccounts.columns.map { row.values[$0.name] }
+        }
+        files[BackupSchema.legacyAccounts.name] = BackupCSV.encode([BackupSchema.legacyAccounts.header] + rows)
+        try edit(&files, table: BackupSchema.manifest, column: "profile", value: BackupSchema.legacyProfile)
+        try edit(&files, table: BackupSchema.manifest, column: "backup_format_version", value: BackupSchema.legacyVersion)
+        try edit(&files, table: BackupSchema.manifest, column: "db_schema_version", value: BackupSchema.legacyDBVersion)
+        files[BackupSchema.dictionary.name] = BackupSchema.legacyDictionaryData
+        var countRows = try BackupSchema.counts.read(files[BackupSchema.counts.name]!).map { row in
+            BackupSchema.counts.columns.map { row.values[$0.name] }
+        }
+        let dictionaryIndex = try #require(countRows.firstIndex { $0[0] == BackupSchema.dictionary.name })
+        countRows[dictionaryIndex][1] = String(BackupSchema.legacyDictionaryRecords.count)
+        files[BackupSchema.counts.name] = BackupCSV.encode([BackupSchema.counts.header] + countRows)
+        rehash(&files)
+        return files
+    }
+
     @Test func allImplementedFieldsRoundTripAndAreDeterministic() throws {
         let original = snapshot()
         let files = try BackupCodec.encode(original, createdAt: timestamp)
@@ -68,6 +89,45 @@ struct BackupCodecTests {
         #expect(restored.book.accounts[3].openingMinor == Int64.min)
         #expect(restored.book.entries[0].occurredAt.timeIntervalSinceReferenceDate.bitPattern == timestamp.timeIntervalSinceReferenceDate.bitPattern)
         #expect(restored.book.categories.map(\.id) == original.book.categories.map(\.id))
+        #expect(restored.book.accounts[1].institutionID == "bank.icbc")
+        #expect(restored.book.accounts[1].templateID == "bank.icbc.debit")
+        #expect(restored.book.accounts[1].iconID == "icon.bank.icbc")
+    }
+
+    @Test func legacyVersionOneBackupRestoresWithNilPresentationMetadata() throws {
+        #expect(BackupSHA256.hex(BackupSchema.legacyDictionaryData)
+            == "28baf3dba73ce0824f666176c8a88f7169520cf7686404314a999b8d37ba16ea")
+        #expect(String(decoding: BackupCSV.encode([BackupSchema.legacyAccounts.header]), as: UTF8.self)
+            == "position,id,name,kind,nature,currency,opening_minor,opening_at_utc,opening_at_bits,included_in_summary,is_active\n")
+        let original = snapshot()
+        let restored = try BackupCodec.decode(legacyFiles(from: original))
+        var expected = original
+        for index in expected.book.accounts.indices {
+            expected.book.accounts[index].institutionID = nil
+            expected.book.accounts[index].templateID = nil
+            expected.book.accounts[index].iconID = nil
+        }
+        #expect(restored == expected)
+    }
+
+    @Test func rejectsManifestTableAndDictionaryFromMixedBackupContracts() throws {
+        var currentTablesWithLegacyManifest = try BackupCodec.encode(snapshot(), createdAt: timestamp)
+        try edit(&currentTablesWithLegacyManifest, table: BackupSchema.manifest,
+                 column: "profile", value: BackupSchema.legacyProfile)
+        try edit(&currentTablesWithLegacyManifest, table: BackupSchema.manifest,
+                 column: "backup_format_version", value: BackupSchema.legacyVersion)
+        try edit(&currentTablesWithLegacyManifest, table: BackupSchema.manifest,
+                 column: "db_schema_version", value: BackupSchema.legacyDBVersion)
+        #expect(throws: BackupError.self) { try BackupCodec.decode(currentTablesWithLegacyManifest) }
+
+        var legacyTablesWithCurrentManifest = try legacyFiles(from: snapshot())
+        try edit(&legacyTablesWithCurrentManifest, table: BackupSchema.manifest,
+                 column: "profile", value: BackupSchema.profile)
+        try edit(&legacyTablesWithCurrentManifest, table: BackupSchema.manifest,
+                 column: "backup_format_version", value: BackupSchema.version)
+        try edit(&legacyTablesWithCurrentManifest, table: BackupSchema.manifest,
+                 column: "db_schema_version", value: BackupSchema.dbVersion)
+        #expect(throws: BackupError.self) { try BackupCodec.decode(legacyTablesWithCurrentManifest) }
     }
 
     @Test func noDraftAndEmptyDraftRemainDistinctWithNoAccountsOrTransactions() throws {
@@ -122,7 +182,7 @@ struct BackupCodecTests {
         #expect(throws: BackupError.self) { try BackupCodec.decode(files) }
     }
 
-    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "2.0"), ("backup_format_version", "1.1"), ("db_schema_version", "2")])
+    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "3.0"), ("backup_format_version", "2.1"), ("db_schema_version", "3")])
     func rejectsUnsupportedVersionsDistinctly(_ field: String, _ value: String) throws {
         var files = try BackupCodec.encode(blank())
         try edit(&files, table: BackupSchema.manifest, column: field, value: value)

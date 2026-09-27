@@ -22,7 +22,7 @@ public enum BackupCodec {
         rows[BackupSchema.accounts.name] = try book.accounts.enumerated().map { index, account in
             [String(index), id(account.id), account.name, account.kind.rawValue, account.nature.rawValue,
              account.currency.rawValue, String(account.openingMinor)] + (try BackupDates.values(account.openingDate))
-                + [String(account.includedInSummary), String(account.isActive)]
+                + [String(account.includedInSummary), String(account.isActive), account.institutionID, account.templateID, account.iconID]
         }
         rows[BackupSchema.subjects.name] = book.subjects.enumerated().map { index, subject in
             [String(index), id(subject.id), subject.name, String(subject.isActive)]
@@ -101,21 +101,33 @@ public enum BackupCodec {
         }
         let manifests = try BackupSchema.manifest.read(files[BackupSchema.manifest.name]!)
         guard manifests.count == 1 else { throw BackupError.invalidArchive(reason: "Expected one manifest") }
-        let manifest = manifests[0], profile = try manifest.string("profile"), version = try manifest.string("backup_format_version")
-        guard profile == BackupSchema.profile, version == BackupSchema.version else {
-            throw BackupError.unsupportedFormat(profile: profile, version: version)
+        let manifest = manifests[0]
+        let profile = try manifest.string("profile")
+        let version = try manifest.string("backup_format_version")
+        let dbVersion = try manifest.string("db_schema_version")
+        let contractTables: [BackupTable]
+        let accountTable: BackupTable
+        switch (profile, version, dbVersion) {
+        case (BackupSchema.profile, BackupSchema.version, BackupSchema.dbVersion):
+            contractTables = BackupSchema.all
+            accountTable = BackupSchema.accounts
+        case (BackupSchema.legacyProfile, BackupSchema.legacyVersion, BackupSchema.legacyDBVersion):
+            contractTables = BackupSchema.legacyAll
+            accountTable = BackupSchema.legacyAccounts
+        default:
+            let reportedVersion = (profile == BackupSchema.profile && version == BackupSchema.version)
+                || (profile == BackupSchema.legacyProfile && version == BackupSchema.legacyVersion)
+                ? version + ";db=" + dbVersion : version
+            throw BackupError.unsupportedFormat(profile: profile, version: reportedVersion)
         }
-        guard try manifest.string("db_schema_version") == BackupSchema.dbVersion else {
-            throw BackupError.unsupportedFormat(profile: profile, version: version + ";db=" + (try manifest.string("db_schema_version")))
-        }
-        guard try manifest.bool("complete"), try manifest.int("file_count") == BackupSchema.all.count,
+        guard try manifest.bool("complete"), try manifest.int("file_count") == contractTables.count,
               try !manifest.string("app_version").isEmpty else { throw BackupError.invalidArchive(reason: "Incomplete manifest") }
         _ = try manifest.date("created_at")
-        guard files[BackupSchema.dictionary.name] == BackupSchema.dictionaryData else {
+        guard files[BackupSchema.dictionary.name] == BackupSchema.dictionaryData(for: contractTables) else {
             throw BackupError.invalidArchive(reason: "Schema dictionary differs from the supported contract")
         }
         var tables: [String: [BackupRow]] = [:]
-        for table in BackupSchema.all { tables[table.name] = try table.read(files[table.name]!) }
+        for table in contractTables { tables[table.name] = try table.read(files[table.name]!) }
         var counted = Set<String>()
         for row in tables[BackupSchema.counts.name]! {
             let name = try row.string("file")
@@ -131,10 +143,12 @@ public enum BackupCodec {
             }
             return records
         }
-        let accounts = try ordered(BackupSchema.accounts).map { row in
+        let accounts = try ordered(accountTable).map { row in
             Account(id: try row.uuid("id"), name: try row.string("name"), kind: try row.enumeration("kind"), nature: try row.enumeration("nature"),
                     currency: try row.enumeration("currency"), openingMinor: try row.int64("opening_minor"), openingDate: try row.date("opening_at"),
-                    includedInSummary: try row.bool("included_in_summary"), isActive: try row.bool("is_active"))
+                    includedInSummary: try row.bool("included_in_summary"), isActive: try row.bool("is_active"),
+                    institutionID: row.optionalString("institution_id"), templateID: row.optionalString("template_id"),
+                    iconID: row.optionalString("icon_id"))
         }
         let subjects = try ordered(BackupSchema.subjects).map { row in
             Subject(id: try row.uuid("id"), name: try row.string("name"), isActive: try row.bool("is_active"))

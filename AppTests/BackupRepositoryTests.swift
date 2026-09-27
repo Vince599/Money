@@ -9,7 +9,8 @@ final class BackupRepositoryTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let path = directory.appendingPathComponent("ledger.sqlite").path
         let repo = try LedgerRepository(path: path)
-        let account = Account(name: "银行卡", openingMinor: 10_000_00)
+        let account = Account(name: "银行卡", openingMinor: 10_000_00,
+                              institutionID: "icbc", templateID: "cn.icbc.debit", iconID: "brand.icbc")
         _ = try await repo.addAccount(account, makeDefault: true)
         let input = EntryDraft(amountText: "28.50", accountID: account.id, expenseCategoryID: SeedData.mealsID,
                                note: "备注,引号\"与换行\n\\N")
@@ -22,6 +23,9 @@ final class BackupRepositoryTests: XCTestCase {
         let archive = try await repo.exportBackup()
 
         var renamed = account; renamed.name = "恢复前名称"; renamed.includedInSummary = false
+        renamed.institutionID = "future.institution"
+        renamed.templateID = "future.template"
+        renamed.iconID = "future.icon"
         _ = try await repo.saveAccount(renamed)
         _ = try await repo.deleteEntry(entry.id)
         _ = try await repo.setDefaultAccount(nil)
@@ -34,6 +38,7 @@ final class BackupRepositoryTests: XCTestCase {
 
         let restored = try await repo.restore(previewID: preview.id, revision: 10)
         XCTAssertEqual(restored.book, expected.book)
+        XCTAssertEqual(restored.book.accounts.first?.templateID, "cn.icbc.debit")
         XCTAssertEqual(restored.settings, expected.settings)
         XCTAssertEqual(restored.draft, unfinished)
         let copies = try await repo.safetyBackups()
@@ -41,6 +46,8 @@ final class BackupRepositoryTests: XCTestCase {
         let copy = try XCTUnwrap(copies.first)
         let saved = try BackupCodec.decode(BackupArchive.decode(Data(contentsOf: copy.url)))
         XCTAssertEqual(saved.book, beforeRestore.book)
+        XCTAssertEqual(saved.book.accounts.first?.templateID, "future.template")
+        XCTAssertEqual(saved.book.accounts.first?.iconID, "future.icon")
         XCTAssertEqual(saved.settings, beforeRestore.settings)
         XCTAssertNil(saved.draft)
 
@@ -49,6 +56,7 @@ final class BackupRepositoryTests: XCTestCase {
         let reopened = try LedgerRepository(path: path)
         let persisted = try await reopened.snapshot()
         XCTAssertEqual(persisted.book, expected.book)
+        XCTAssertEqual(persisted.book.accounts.first?.iconID, "brand.icbc")
         XCTAssertEqual(persisted.settings, expected.settings)
         XCTAssertEqual(persisted.draft, unfinished)
         do {

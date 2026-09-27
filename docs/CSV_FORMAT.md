@@ -1,10 +1,12 @@
-# LedgerCore CSV backup profile 1
+# LedgerCore CSV backup profile 2
 
 Status: implemented for the current `LedgerBook`, `EntryDraft` and `LedgerSettings` models. Date: 2026-09-26.
 
 `BackupCodec.encode` returns twelve named CSV byte buffers. `BackupCodec.decode` validates the complete set and returns a `LedgerBackupSnapshot`; it does not write to the database. The archive layer packages these files into one ZIP, and the repository commits the decoded book, draft and settings in one transaction.
 
-The manifest identifies `profile=ledger-core-v1`, `backup_format_version=1.0` and `db_schema_version=1`. `complete=true` means **all fields in these implemented models**, including deleted operations' consumed UUID markers, the unfinished draft and defaults. It does not claim support for roadmap entities such as investments, refunds, reimbursement, loans, subscriptions, import rules, NAS jobs or daily valuation drafts. Those entities are not yet present in this model. Adding persistent fields requires a new supported contract and tested migration; an unknown profile, format version, schema version, file or column is rejected, never silently discarded.
+New exports identify `profile=ledger-core-v2`, `backup_format_version=2.0` and `db_schema_version=2`. `complete=true` means **all fields in these implemented models**, including account presentation identifiers, deleted operations' consumed UUID markers, the unfinished draft and defaults. It does not claim support for roadmap entities such as investments, refunds, reimbursement, loans, subscriptions, import rules, NAS jobs or daily valuation drafts. Those entities are not yet present in this model. Adding persistent fields requires a new supported contract and tested migration; an unknown profile, format version, schema version, file or column is rejected, never silently discarded.
+
+The decoder also accepts the exact legacy triplet `ledger-core-v1 / 1.0 / db1`. Its older `accounts.csv` has no institution, template or icon columns, so restored accounts receive `nil` for those three presentation fields. The next export always uses profile 2. Mixed contracts, such as a v1 manifest with a v2 table header or field dictionary, are rejected.
 
 ## Files and model coverage
 
@@ -12,7 +14,7 @@ Every file exists, including empty tables containing only their header. Column n
 
 | File | Rows and columns |
 |---|---|
-| `accounts.csv` | Array order; `position,id,name,kind,nature,currency,opening_minor,opening_at_utc,opening_at_bits,included_in_summary,is_active` |
+| `accounts.csv` | Array order; `position,id,name,kind,nature,currency,opening_minor,opening_at_utc,opening_at_bits,included_in_summary,is_active,institution_id,template_id,icon_id`. The final three text fields are nullable stable catalog identifiers; unknown nonempty values are retained losslessly. |
 | `subjects.csv` | Array order; `position,id,name,is_active` |
 | `categories.csv` | Array order; `position,id,name,parent_id,direction,symbol,is_active` |
 | `entries.csv` | Array order; `position,id,operation_id,kind,amount_minor,currency,account_id,destination_account_id,category_id,subject_id,occurred_at_utc,occurred_at_bits,created_at_utc,created_at_bits,title,note,version` |
@@ -27,7 +29,7 @@ Every file exists, including empty tables containing only their header. Column n
 
 `position` starts at zero and is contiguous in physical row order. Array order is preserved even when a category child occurs before its parent. ID lookups validate relationships independently of presentation order. The manifest's `app_version` comes from `CFBundleShortVersionString`, or `unbundled` when running outside an application bundle. It is informational, never a substitute for format/schema versions.
 
-The schema dictionary is generated from the same definitions used by the reader. The decoder requires its exact supported bytes; a supplied dictionary cannot loosen validation. Every column is required in the header; `nullable` separately controls whether its values may be null. Empty `unit`, `precision`, `allowed_values`, `foreign_key` or `meaning` cells in the dictionary mean that attribute is not applicable. They are empty text, not missing columns.
+The schema dictionary is generated from the same versioned definitions used by the reader. The decoder requires the exact bytes for the manifest's supported contract; a supplied dictionary cannot loosen validation. Every column is required in the header; `nullable` separately controls whether its values may be null. Empty `unit`, `precision`, `allowed_values`, `foreign_key` or `meaning` cells in the dictionary mean that attribute is not applicable. They are empty text, not missing columns.
 
 ## Byte and field encoding
 
@@ -64,7 +66,7 @@ The reader reconstructs the exact date from the bits and verifies that its reada
 
 ## Validation and restoration
 
-The decoder validates the filename set and size limits, then checks SHA-256 over the **original uncompressed bytes** of every protected file, before decoding those files. Headers, escaping and the final LF are part of the digest. It next verifies versions, schema, row counts, canonical scalar values, sequence positions and singleton counts, builds the model, and calls `LedgerEngine.validate`. Duplicate IDs, reused operation IDs, operation IDs present in both retired and live events, broken posted-event/category references, invalid money or overflowing balances fail restoration.
+The decoder validates the filename set and size limits, then checks SHA-256 over the **original uncompressed bytes** of every protected file, before decoding those files. Headers, escaping and the final LF are part of the digest. It next selects one of the exact supported manifest triplets, verifies that contract's table headers and schema dictionary, then validates row counts, canonical scalar values, sequence positions and singleton counts, builds the model, and calls `LedgerEngine.validate`. Duplicate IDs, reused operation IDs, operation IDs present in both retired and live events, broken posted-event/category references, invalid money or overflowing balances fail restoration.
 
 Settings must reference an existing active default subject and, when non-null, an existing active default account. An unfinished draft remains an unfinished draft: empty/invalid amount text and missing or inactive selections are retained for repair when reopened. Draft references are marked `soft:` in the dictionary. This is consistent with the store's draft contract and does not relax posted-event or settings references. Draft IDs/enums still have strict syntax; its date must be finite and within range. Both category selections are saved, even when the current draft type is transfer. A zero-row draft table means no draft; a one-row empty draft remains distinct.
 

@@ -69,6 +69,7 @@ struct BackupRow {
         guard let value = values[name] else { throw BackupError.invalidArchive(reason: "Missing value: \(file).\(name)") }
         return value
     }
+    func optionalString(_ name: String) -> String? { values[name] }
     func uuid(_ name: String) throws -> UUID {
         guard let value = UUID(uuidString: try string(name)) else { throw BackupError.invalidArchive(reason: "Invalid UUID: \(file).\(name)") }
         return value
@@ -135,11 +136,16 @@ enum BackupDates {
 }
 
 enum BackupSchema {
-    static let profile = "ledger-core-v1"
-    static let version = "1.0"
-    static let dbVersion = "1"
+    static let profile = "ledger-core-v2"
+    static let version = "2.0"
+    static let dbVersion = "2"
+    static let legacyProfile = "ledger-core-v1"
+    static let legacyVersion = "1.0"
+    static let legacyDBVersion = "1"
 
-    private static func text(_ name: String, _ meaning: String = "") -> BackupColumn { .init(name: name, type: "text", meaning: meaning) }
+    private static func text(_ name: String, _ meaning: String = "", nullable: Bool = false) -> BackupColumn {
+        .init(name: name, type: "text", nullable: nullable, meaning: meaning)
+    }
     private static func uuid(_ name: String, nullable: Bool = false, reference: String = "") -> BackupColumn {
         .init(name: name, type: "uuid", nullable: nullable, precision: "lowercase-hyphenated-36", reference: reference)
     }
@@ -155,10 +161,15 @@ enum BackupSchema {
          .init(name: prefix + "_bits", type: "date_bits", unit: "seconds-since-2001-01-01T00:00:00Z", precision: "IEEE754-binary64; 16 lowercase hex digits; finite",
                meaning: "Exact Foundation Date reference-seconds bit pattern; authoritative together with matching UTC column")]
     }
-    static let accounts = BackupTable(name: "accounts.csv", columns: [position, uuid("id"), text("name"),
+    static let legacyAccounts = BackupTable(name: "accounts.csv", columns: [position, uuid("id"), text("name"),
         choice("kind", "bank|wallet|cash|storedValue|creditCard|brokerage|loan"), choice("nature", "asset|liability"),
         choice("currency", "CNY|HKD|USD"), integer("opening_minor", unit: "currency minor units; 1/100")]
         + date("opening_at") + [bool("included_in_summary"), bool("is_active")])
+    static let accounts = BackupTable(name: "accounts.csv", columns: legacyAccounts.columns + [
+        text("institution_id", "Stable account institution catalog identifier", nullable: true),
+        text("template_id", "Stable account template catalog identifier", nullable: true),
+        text("icon_id", "Stable account icon catalog identifier", nullable: true)
+    ])
     static let subjects = BackupTable(name: "subjects.csv", columns: [position, uuid("id"), text("name"), bool("is_active")])
     static let categories = BackupTable(name: "categories.csv", columns: [position, uuid("id"), text("name"),
         uuid("parent_id", nullable: true, reference: "categories.csv.id"), choice("direction", "expense|income"), text("symbol"), bool("is_active")])
@@ -189,14 +200,21 @@ enum BackupSchema {
     static let checksums = BackupTable(name: "checksums.csv", columns: [text("file"), .init(name: "sha256", type: "sha256", precision: "64 lowercase hex digits; raw uncompressed bytes")])
 
     static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums]
+    static let legacyAll = [legacyAccounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums]
     static var fileNames: Set<String> { Set(all.map(\.name)) }
-    static var dictionaryRecords: [[String?]] {
-        all.flatMap { table in
+    static func dictionaryRecords(for tables: [BackupTable]) -> [[String?]] {
+        tables.flatMap { table in
             table.columns.enumerated().map { index, column in
                 [table.name, column.name, String(index), column.type, "true", String(column.nullable),
                  column.unit, column.precision, column.values, column.reference, column.meaning]
             }
         }
     }
-    static var dictionaryData: Data { BackupCSV.encode([dictionary.header] + dictionaryRecords) }
+    static var dictionaryRecords: [[String?]] { dictionaryRecords(for: all) }
+    static var legacyDictionaryRecords: [[String?]] { dictionaryRecords(for: legacyAll) }
+    static func dictionaryData(for tables: [BackupTable]) -> Data {
+        BackupCSV.encode([dictionary.header] + dictionaryRecords(for: tables))
+    }
+    static var dictionaryData: Data { dictionaryData(for: all) }
+    static var legacyDictionaryData: Data { dictionaryData(for: legacyAll) }
 }

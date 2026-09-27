@@ -21,11 +21,14 @@ struct SnapshotTests {
         }
     }
 
-    @Test func schemaOneWholeBookAPIReopensWithoutRewritingAnyTable() throws {
+    @Test func schemaTwoWholeBookAPIReopensWithoutRewritingAnyTable() throws {
         try withDatabase { path in
-            // Use the retained schema-1 whole-book API, including editable order,
-            // adjustments and retired operations. This is not an external golden DB.
+            // Current-schema reopening must not rewrite editable order, adjustments,
+            // retired operations or presentation metadata. Migration has separate tests.
             var book = try fixture()
+            book.accounts[0].institutionID = "future.institution"
+            book.accounts[0].templateID = "future.template"
+            book.accounts[0].iconID = "future.icon"
             book.subjects[0].name = "自定义主体"
             book.categories.reverse()
             let draft = EntryDraft(amountText: "28.", accountID: book.accounts[0].id, note: "保留草稿")
@@ -41,7 +44,7 @@ struct SnapshotTests {
             let legacy = try SQLiteLedgerStore(path: path)
             expect(try legacy.loadSnapshot(), book: book, draft: draft, settings: settings)
             try inspection.read { (db: Database) throws -> Void in
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 1)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 2)
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM adjustments") == 1)
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM operation_registry WHERE record_kind = 'retired'") == 1)
             }

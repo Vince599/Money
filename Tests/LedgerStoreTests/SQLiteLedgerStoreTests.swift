@@ -42,8 +42,10 @@ struct SQLiteLedgerStoreTests {
     @Test func exactIntegerAmountsDatesAndUnicodeSurviveReopening() throws {
         try withDatabase { path in
             let date = Date(timeIntervalSinceReferenceDate: 812_345_678.123456)
-            let maximum = Account(name: "最大余额", openingMinor: .max, openingDate: date)
-            let minimum = Account(name: "最小余额", openingMinor: .min, openingDate: date)
+            let maximum = Account(name: "最大余额", openingMinor: .max, openingDate: date,
+                                  institutionID: "icbc", templateID: "cn.icbc.debit", iconID: "brand.icbc")
+            let minimum = Account(name: "最小余额", openingMinor: .min, openingDate: date,
+                                  institutionID: "future.institution", templateID: "future.template", iconID: "future.icon")
             let largeMinor: Int64 = 9_007_199_254_740_993 // Cannot be represented exactly by Double.
             let entry = LedgerEntry(
                 kind: .expense, amount: Money(minorUnits: largeMinor), accountID: maximum.id,
@@ -65,6 +67,10 @@ struct SQLiteLedgerStoreTests {
                 #expect(try String.fetchOne(db, sql: "SELECT typeof(amount_minor) FROM entries") == "integer")
                 #expect(try Int64.fetchOne(db, sql: "SELECT MIN(opening_minor) FROM accounts") == Int64.min)
                 #expect(try Int64.fetchOne(db, sql: "SELECT MAX(opening_minor) FROM accounts") == Int64.max)
+                #expect(try String.fetchOne(db, sql: "SELECT institution_id FROM accounts WHERE id = ?",
+                                            arguments: [maximum.id.uuidString]) == "icbc")
+                #expect(try String.fetchOne(db, sql: "SELECT icon_id FROM accounts WHERE id = ?",
+                                            arguments: [minimum.id.uuidString]) == "future.icon")
             }
         }
     }
@@ -226,6 +232,90 @@ struct SQLiteLedgerStoreTests {
         }
     }
 
+    @Test(arguments: ["institution_id", "template_id", "icon_id"])
+    func mismatchedAccountPresentationProjectionIsRejected(column: String) throws {
+        try withDatabase { path in
+            let store = try SQLiteLedgerStore(path: path)
+            var book = try fixture()
+            book.accounts[0].institutionID = "future.institution"
+            book.accounts[0].templateID = "future.template"
+            book.accounts[0].iconID = "future.icon"
+            try store.saveBook(book)
+            let inspection = try DatabaseQueue(path: path)
+            try inspection.write { db in
+                try db.execute(sql: "UPDATE accounts SET \(column) = NULL")
+            }
+            #expect(throws: LedgerStoreError.corruptData("accounts")) { try store.loadSnapshot() }
+            #expect(throws: LedgerStoreError.corruptData("accounts")) { try SQLiteLedgerStore.open(path: path) }
+        }
+    }
+
+    @Test func schemaOneWithoutPresentationColumnsMigratesWithoutChangingExistingState() throws {
+        try withDatabase { path in
+            let expected = try createSchemaOneFixture(path: path)
+            let inspection = try DatabaseQueue(path: path)
+            let originalPayloads = try inspection.read { db in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 1)
+                #expect(try accountColumnNames(in: db).isDisjoint(["institution_id", "template_id", "icon_id"]))
+                return try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position")
+            }
+
+            let opened = try SQLiteLedgerStore.open(path: path)
+            #expect(opened.snapshot.book == expected.book)
+            #expect(opened.snapshot.draft == expected.draft)
+            #expect(opened.snapshot.settings == expected.settings)
+            #expect(opened.snapshot.book.accounts.allSatisfy {
+                $0.institutionID == nil && $0.templateID == nil && $0.iconID == nil
+            })
+            #expect(try LedgerEngine.balance(of: expected.book.accounts[0].id, in: opened.snapshot.book).minorUnits == 97_200)
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 2)
+                #expect(try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position") == originalPayloads)
+                #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM accounts WHERE institution_id IS NOT NULL OR template_id IS NOT NULL OR icon_id IS NOT NULL") == 0)
+                #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
+            }
+
+            // A second open must not need another migration or invent a brand from the name.
+            let reopened = try SQLiteLedgerStore(path: path).loadSnapshot()
+            #expect(reopened.book == expected.book && reopened.draft == expected.draft)
+            #expect(reopened.settings == expected.settings)
+        }
+    }
+
+    @Test func failedSchemaOneMigrationRollsBackColumnsVersionAndAllStoredState() throws {
+        try withDatabase { path in
+            let expected = try createSchemaOneFixture(path: path)
+            let inspection = try DatabaseQueue(path: path)
+            let original = try inspection.read { db in
+                (accounts: try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position"),
+                 entries: try Data.fetchAll(db, sql: "SELECT payload FROM entries ORDER BY position"),
+                 draft: try #require(Data.fetchOne(db, sql: "SELECT payload FROM entry_draft")),
+                 settings: try #require(Data.fetchOne(db, sql: "SELECT payload FROM ledger_settings")))
+            }
+            let invalidDraft = Data("not JSON".utf8)
+            try inspection.write { db in
+                try db.execute(sql: "UPDATE entry_draft SET payload = ?", arguments: [invalidDraft])
+            }
+
+            #expect(throws: LedgerStoreError.corruptData("entry_draft")) { try SQLiteLedgerStore.open(path: path) }
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 1)
+                #expect(try accountColumnNames(in: db).isDisjoint(["institution_id", "template_id", "icon_id"]))
+                #expect(try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position") == original.accounts)
+                #expect(try Data.fetchAll(db, sql: "SELECT payload FROM entries ORDER BY position") == original.entries)
+                #expect(try Data.fetchOne(db, sql: "SELECT payload FROM entry_draft") == invalidDraft)
+                #expect(try Data.fetchOne(db, sql: "SELECT payload FROM ledger_settings") == original.settings)
+            }
+            // Repairing the injected fault leaves the same legacy database able to migrate.
+            try inspection.write { db in
+                try db.execute(sql: "UPDATE entry_draft SET payload = ?", arguments: [original.draft])
+            }
+            let recovered = try SQLiteLedgerStore.open(path: path).snapshot
+            #expect(recovered.book == expected.book && recovered.draft == expected.draft)
+            #expect(recovered.settings == expected.settings)
+        }
+    }
+
     @Test func brokenForeignKeysAreNotLoadedAsValidBook() throws {
         try withDatabase { path in
             let store = try SQLiteLedgerStore(path: path)
@@ -261,6 +351,55 @@ struct SQLiteLedgerStoreTests {
                 #expect(try String.fetchOne(db, sql: "SELECT value FROM unrelated") == "keep")
             }
         }
+    }
+
+    private func createSchemaOneFixture(path: String) throws -> LedgerBackupSnapshot {
+        var book = try fixture()
+        book.retiredOperationIDs.insert(UUID())
+        let draft = EntryDraft(amountText: "12+(", accountID: book.accounts[0].id, note: "旧草稿不能丢失")
+        let settings = LedgerSettings(defaultAccountID: book.accounts[0].id)
+        try SQLiteLedgerStore(path: path).commit(book, draft: draft, settings: settings)
+
+        var configuration = Configuration()
+        configuration.foreignKeysEnabled = false
+        let legacy = try DatabaseQueue(path: path, configuration: configuration)
+        try legacy.write { db in
+            // Rebuild with the actual schema-1 columns, rather than relabeling a schema-2 DB.
+            // Other tables have no schema-2 changes and retain their existing data and FKs.
+            try db.execute(sql: """
+                CREATE TABLE accounts_v1 (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
+                    name TEXT NOT NULL, kind TEXT NOT NULL, nature TEXT NOT NULL, currency TEXT NOT NULL,
+                    opening_minor INTEGER NOT NULL CHECK (typeof(opening_minor) = 'integer'),
+                    opening_date REAL NOT NULL,
+                    included_in_summary INTEGER NOT NULL CHECK (included_in_summary IN (0, 1)),
+                    is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
+                    payload BLOB NOT NULL CHECK (typeof(payload) = 'blob')
+                );
+                INSERT INTO accounts_v1 SELECT id, position, name, kind, nature, currency,
+                    opening_minor, opening_date, included_in_summary, is_active, payload FROM accounts;
+                DROP TABLE accounts;
+                ALTER TABLE accounts_v1 RENAME TO accounts;
+                PRAGMA user_version = 1;
+                """)
+            for row in try Row.fetchAll(db, sql: "SELECT id, payload FROM accounts") {
+                let id: String = try row.decode(forColumn: "id")
+                let payload: Data = try row.decode(forColumn: "payload")
+                var object = try #require(JSONSerialization.jsonObject(with: payload) as? [String: Any])
+                for key in ["institutionID", "templateID", "iconID"] { object.removeValue(forKey: key) }
+                let oldPayload = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+                try db.execute(sql: "UPDATE accounts SET payload = ? WHERE id = ?", arguments: [oldPayload, id])
+            }
+            #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
+        }
+        return LedgerBackupSnapshot(book: book, draft: draft, settings: settings)
+    }
+
+    private func accountColumnNames(in db: Database) throws -> Set<String> {
+        Set(try Row.fetchAll(db, sql: "PRAGMA table_info(accounts)").map { row -> String in
+            try row.decode(forColumn: "name")
+        })
     }
 
     private func fixture() throws -> LedgerBook {
