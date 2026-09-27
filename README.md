@@ -20,7 +20,7 @@ Windows PowerShell，在项目根目录运行：
 ./scripts/test-core.ps1
 ```
 
-2026-09-27 实测 Swift 6.4，当前工作副本 147 项核心测试通过，覆盖账务、目录维护、计算器、复制、查询、CSV、ZIP、新旧备份往返、账户模板、快捷指令、首页摘要及退款／回收关联与删除。Windows 脚本在隔离目录原样镜像纯 Swift 核心及测试，保留根 Apple 依赖锁；SQLite/GRDB、SwiftUI、模拟器和 IPA 构建使用 Apple 工具链。当前退款批次的 Apple 验证状态见[开发记录](docs/DEVELOPMENT.md)。
+2026-09-27 实测 Swift 6.4，当前工作副本 151 项核心测试通过，覆盖账务、目录维护、分类图标、计算器、复制、查询、CSV、ZIP、新旧备份往返、账户模板、快捷指令、首页摘要及退款／回收关联与删除。Windows 脚本在隔离目录原样镜像纯 Swift 核心及测试，保留根 Apple 依赖锁；SQLite/GRDB、SwiftUI、模拟器和 IPA 构建使用 Apple 工具链。当前批次的 Apple 验证状态见[开发记录](docs/DEVELOPMENT.md)。
 
 性能测量准备、合成数据的 Windows 领域基线和 App 内计时边界见[性能基线说明](docs/PERFORMANCE_BASELINE.md)。普通新建／编辑已改为同事务增量写入；完整快照改为一次读事务，磁盘启动直接使用首次存储快照，避免重复全量解码。首页改为后台统一派生资产、本月消费和最近五条，草稿输入不重算，并防止跨月及延迟刷新显示旧状态。流水页新增后台 SQL 条件查询、每页 50 笔续读、200 ms 搜索防抖与过期请求隔离，按页分组，避免 SwiftUI body 遍历整本记录；当前仍保留整本模型，关键字搜索和总数统计仍可能扫描匹配范围。防重、草稿和回滚规则保留，启动和写入的整本读取／校验仍需后续优化。App 插桩已通过 Apple 编译，Instruments trace 与真机性能仍待测量。
 
@@ -56,3 +56,5 @@ bash scripts/build-ios.sh
 流水后台 SQL 分页与搜索稳定性已通过 [Apple 运行 #25](https://github.com/Vince599/Money/actions/runs/36291987191)：181 项包测试、46 项 AppTests 和 3 项 UITests，共 230 项；本次为内部构建验证，未更新固定安装目录。
 
 最新退款／回收批次已通过 [Apple 运行 #29](https://github.com/Vince599/Money/actions/runs/36295019551)：194 项包测试（147 Core＋47 Store）、48 项 AppTests 和 4 项 UITests，共 **246 项**。覆盖原额与净花费、关联调整、明确确认的整组删除、schema 3 迁移及 profile 1／2／3 备份兼容。arm64 Release 构建成功，仍为内部验证；真机、最终视觉和其余业务模块的范围见[开发记录](docs/DEVELOPMENT.md)。
+
+随后分类图标批次已加入 84 个图标、10 个主题、搜索、预览和恢复默认。[运行 #30](https://github.com/Vince599/Money/actions/runs/36297022152)通过包测试、AppTests 和新增图标页面，但发现原生分类菜单兼容问题；修复已推送，运行 #31 因 GitHub 付款／额度限制未启动。当前完整 Apple 复测仍待完成，不能将上一批成功结论套用到新代码。详细范围见[分类图标说明](docs/CATEGORY_ICONS.md)。

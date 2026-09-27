@@ -33,6 +33,8 @@
 
 ### Xcode 27 环境核查与探测
 
+2026-09-27 分类图标批次开工时再核对 [Apple 兼容表](https://developer.apple.com/xcode/system-requirements/)及 [macos-26 arm64 清单](https://raw.githubusercontent.com/actions/runner-images/main/images/macos/macos-26-arm64-Readme.md)：Apple 仍列出稳定 Xcode 27；当前 runner 清单的最新预装稳定版本为 Xcode 26.6（17F113），镜像 `20260907.0351.1`。本批继续固定回归基线，未切换 SDK；公开清单核对不当作目标工具链的实际执行证据。
+
 2026-09-26 再次核对：Apple 支持表列出的稳定 Xcode 27 要求宿主 macOS 26.6 或更新版本，配套 iOS 27 SDK 与 Swift 6.4。当前 [macos-26 arm64 官方清单](https://raw.githubusercontent.com/actions/runner-images/main/images/macos/macos-26-arm64-Readme.md)返回 macOS 26.6.2、镜像 `20260907.0351.1`，已安装 Xcode 表最高稳定版仍为 26.6；宿主满足要求不代表已安装 Xcode 27。[xcode-27 runner 公告](https://github.com/actions/runner-images/issues/14404)明确为预览环境，其示例仍包含 beta 版本，不能据此固定稳定工具 build。
 
 在可用 Mac／runner 上先运行只读探测：
@@ -117,7 +119,7 @@ Windows 真机安装统一使用工作区以外的 **`D:\Data\Ledger-Install\Led
 ## 验证记录
 
 - 体验与版本政策：2026-09-26 新增[体验质量标准](EXPERIENCE_QUALITY.md)，要求最新稳定原生技术和分阶段体验验收；Xcode 27 升级、Q01—Q09 真机性能及完整 Widget 品质均尚未验证。模拟器截图和基础安装成功不能代替这些证据。
-- Windows 核心测试：2026-09-27 当前 Swift 6.4 实测 147 项／14 个套件通过；历史第三批基线为 106 项／10 个套件。
+- Windows 核心测试：2026-09-27 当前 Swift 6.4 实测 151 项／15 个套件通过；历史第三批基线为 106 项／10 个套件。
 - 2026-09-26，[云端运行 #3](https://github.com/Vince599/Money/actions/runs/36212521636)（提交 `073742da04b90498938dccf703d2693a0e50caeb`）：macOS 包测试 84 项／8 个 suite 通过，iOS 模拟器 AppTests 7 项通过，Release `iphoneos` arm64 构建成功并生成未签名 IPA。实际编译器为 Apple Swift 6.3.3，产物为 `ledger-ios-3`（artifact ID `10896510760`）。
 - 2026-09-26，[云端运行 #4](https://github.com/Vince599/Money/actions/runs/36212928265)（提交 `c5ba22d45f000a611cb2dd57293b2537ae6c1366`）：在前述 84 项包测试、7 项 App 测试之外，通过 1 项 UI 操作测试；新增账户与支出、重启后数据保留、备份入口均验证通过，导出截图并生成同版未签名 IPA。UI 测试未操作系统文件选择器或执行页面恢复。
 - 运行 #4 的 [完整产物](https://github.com/Vince599/Money/actions/runs/36212928265/artifacts/10896293141)为 `ledger-ios-4`；IPA 为 3,059,852 字节，SHA-256 `fdd7f69b98079e46ae1598a7fe193e0a16a5d1aee3aabfcb6da5480b0de78132`，已下载核对一致。3 张截图来自 iPhone 17 Pro Max／iOS 26.5 模拟器，分辨率 1320×2868，内容为重启后首页、账户页及备份入口。
@@ -171,3 +173,15 @@ Windows 已下载并核对 [ledger-ios-25 构建产物](https://github.com/Vince
 Windows 已下载并核对 [ledger-ios-29 内部产物](https://github.com/Vince599/Money/actions/runs/36295019551/artifacts/10923478989)：ZIP 为 **161,469,921 字节**，SHA-256 `6b2265e1ca155100c188329f36310eb15a3a690291e61ee0cb3d16f3771f9b33` 与 GitHub 摘要一致；构建元数据的源码提交、运行编号、arm64 和成功状态均匹配。只提取测试摘要、构建记录及截图，未提取或发布 IPA；核对记录保存在忽略目录 `build/validation/run-29-internal/review/review.json`。
 
 已逐张查看九张 1320×2868 截图，包括原有六个页面和新增退款流水、净花费、整组删除影响。原购买保持 1,000，退款 200，净花费 800；删除预览列出两笔及账户 1,200→2,000，相关金额未截断。删除列表原购买行因禁用跳转而呈浅灰，需在视觉专项中改为可读的静态行；其余字号、对齐、深浅色、大字号及真机体验也不因本次截图检查而视为验收完成。按用户安排未运行发布脚本，固定目录仍保留运行 #19。
+
+### 分类图标验证过程（内部构建）
+
+用户在本批明确暂停预算开发，已同步开发约定、路线图及 Widget 范围；预算规则保留为延期设计，日常个人消费仍继续计算。分类图标代码复用既有 `symbol` 字段，未升级 schema 或备份格式；实现范围见 [CATEGORY_ICONS.md](CATEGORY_ICONS.md)。
+
+[运行 #30](https://github.com/Vince599/Money/actions/runs/36297022152)验证 `7fce7329b051e5a51aab428181d0b0b081c2e393`：198 项包测试／20 套件（151 Core＋47 Store）和 51 项 AppTests 全部通过；5 项 UITests 中账户模板及新增图标编辑路径通过，另三项失败。日志的可访问性树中，原生分类菜单只暴露“请选择分类”，自定义图标视图对应的条目没有可操作元素，导致测试无法选择普通消费分类。这是产品菜单兼容问题，未通过放宽测试或换点击位置绕过；提交 `eb64361048154da6c7d5e71200f0fa1bf568f1e1` 改回标准 `Label(title, systemImage:)` 并继续使用共享回退函数，本地语法解析通过。该轮没有成功 Release 构建，也未交付 IPA。
+
+已下载并核对 [运行 #30 内部产物](https://github.com/Vince599/Money/actions/runs/36297022152/artifacts/10924571331)：ZIP 为 245,985,247 字节，SHA-256 `96d182bf04752a317a544e6161e91a339233ea6a4c5e1ab3b5514b1ca7ddc0c9` 与 GitHub 摘要一致，提交匹配。只提取测试摘要和截图；四张 1320×2868 截图均已查看，新增图标搜索／预览、重启后的已保存图标显示完整；另有账户模板和计算器截图。没有取得修正后删除预览的截图，不能据此确认该视觉修正已验收。产物和核对记录在忽略目录 `build/validation/run-30-internal/`。
+
+[运行 #31](https://github.com/Vince599/Money/actions/runs/36297737190)尝试验证菜单修复提交 `eb64361048154da6c7d5e71200f0fa1bf568f1e1`，但 GitHub 在分配 runner 前终止；job `108559600346` 的 `runner_name` 为空、步骤为空。检查注释为：“The job was not started because recent account payments have failed or your spending limit needs to be increased.” 因此本轮没有运行任何构建或测试、没有产物；不能说修复后的完整 Apple 回归已通过，也不能判断具体是付款失败还是额度限制。
+
+后续需账号持有人检查 GitHub Billing & plans 的付款／支出限制，恢复可运行条件后对当前分支完整重跑；本批未调整付费设置或尝试提高额度，不重复启动同样会被拦住的运行。本地开发可继续，Apple 完整回归与截图确认保留为未完成项；未调用 `publish-ipa.ps1`，固定安装目录不变。
