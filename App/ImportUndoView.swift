@@ -24,6 +24,7 @@ struct ImportUndoView: View {
                             if plan.accounts.isEmpty { Text("本次只解除来源，账户余额保持不变。") }
                             ForEach(plan.accounts) { impact in
                                 LabeledContent(model.accountName(impact.id), value: impact.before.decimalString + " → " + impact.after.decimalString + " " + impact.after.currency.rawValue)
+                                    .accessibilityIdentifier("import.undo.effect." + impact.id.uuidString.lowercased())
                             }
                         }
                         if !plan.entries.isEmpty {

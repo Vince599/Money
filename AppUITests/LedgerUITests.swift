@@ -4,6 +4,110 @@ import XCTest
 final class LedgerUITests: XCTestCase {
     private let app = XCUIApplication()
 
+    func testImportPartialCommitFilterPersistenceAndUndo() throws {
+        continueAfterFailure = false
+        // Setup is a synthetic CSV parsed by the production repository in a UUID-scoped database.
+        // This test starts at draft review; it does not claim to exercise the system file picker.
+        app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString, "-ledger-ui-test-import-draft"]
+        app.launch()
+        tap(app.tabBars.buttons["账户"])
+        tap(element("accounts.add"))
+        replace(app.textFields["account.name"], with: "Import Wallet")
+        replace(app.textFields["account.opening"], with: "100.00")
+        tap(element("account.save"))
+        wait(app.textFields["account.name"], for: "exists == false")
+        let account = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "account.row.")).firstMatch
+        assertText(account, contains: "100.00 CNY")
+        let accountID = account.identifier
+        let accountUUID = String(accountID.dropFirst("account.row.".count)).lowercased()
+        openImportBatch()
+        assertText(element("import.summary"), contains: "待处理 2")
+        let lunch = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "import.row.", "Imported Lunch")).firstMatch
+        tap(lunch, scrolling: foregroundList)
+        tap(element("import.row.account"))
+        tap(app.buttons["Import Wallet"])
+        tap(element("import.row.category"))
+        tap(app.buttons["餐饮 / 正餐"])
+        tap(element("import.row.save"), scrolling: foregroundList)
+        wait(element("import.row.save"), for: "exists == false")
+        revealImportTop()
+        tap(element("import.selectReady"))
+        // Changing the filter must clear selection, even if the same ready row still matches.
+        replace(app.textFields["import.filter.keyword"], with: "Imported")
+        app.textFields["import.filter.keyword"].typeText("\n")
+        wait(app.keyboards.firstMatch, for: "exists == false")
+        let selection = element("import.selectionSummary")
+        tap(element("import.filter.state"))
+        tap(app.buttons["待处理"])
+        wait(selection, for: "label CONTAINS '匹配 1 / 2 行' AND label CONTAINS '已选 0 行'")
+        tap(element("import.filter.clear"))
+        revealImportTop()
+        tap(element("import.selectReady"))
+        tap(element("import.preview"), scrolling: foregroundList)
+        assertText(element("import.effect.after." + accountUUID), contains: "79.90 CNY")
+        screenshot("13-import-partial-preview")
+        tap(element("import.confirm.cancel"))
+        wait(element("import.confirm"), for: "exists == false")
+        revealImportTop()
+        assertText(element("import.summary"), contains: "已导入 0")
+        assertText(element("import.summary"), contains: "待处理 2")
+        tap(element("import.preview"), scrolling: foregroundList)
+        tap(element("import.confirm"), scrolling: foregroundList)
+        wait(element("import.confirm"), for: "exists == false")
+
+        app.terminate(); app.launch()
+        tap(app.tabBars.buttons["账户"])
+        assertText(element(accountID), contains: "79.90 CNY")
+        tap(app.tabBars.buttons["流水"])
+        let entries = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.row."))
+        wait(entries, count: 1)
+        assertText(entries.firstMatch, contains: "Imported Lunch")
+        assertText(entries.firstMatch, contains: "−20.10 CNY")
+        openImportBatch()
+        assertText(element("import.summary"), contains: "已导入 1")
+        assertText(element("import.summary"), contains: "待处理 1")
+        screenshot("14-import-partial-after-relaunch")
+        tap(element("import.undo"), scrolling: foregroundList)
+        assertText(element("import.undo.effect." + accountUUID), contains: "79.90 → 100.00 CNY")
+        screenshot("15-import-undo-impact")
+        tap(element("import.undo.execute"), scrolling: foregroundList)
+        tap(app.buttons["确认撤销本批"])
+        wait(element("import.undo.execute"), for: "exists == false")
+
+        app.terminate(); app.launch()
+        tap(app.tabBars.buttons["账户"])
+        assertText(element(accountID), contains: "100.00 CNY")
+        tap(app.tabBars.buttons["流水"])
+        wait(app.staticTexts["还没有流水"], for: "exists == true")
+        wait(entries, count: 0)
+        openImportBatch()
+        assertText(element("import.summary"), contains: "已撤销 1")
+        assertText(element("import.summary"), contains: "原未处理 1")
+        XCTAssertFalse(element("import.selectReady").exists)
+        XCTAssertFalse(element("import.preview").exists)
+        screenshot("16-import-reverted-history")
+    }
+
+    private func openImportBatch() {
+        tap(app.tabBars.buttons["账户"])
+        tap(element("accounts.settings"))
+        tap(element("settings.import"))
+        let batches = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "import.batch."))
+        wait(batches, count: 1)
+        tap(batches.firstMatch, scrolling: foregroundList)
+        wait(element("import.summary"), for: "exists == true")
+    }
+
+    private func revealImportTop() {
+        let target = element("import.selectReady")
+        let list = foregroundList
+        for _ in 0..<6 {
+            if target.exists && target.isHittable { break }
+            list.swipeDown()
+        }
+        wait(target, for: "exists == true AND enabled == true AND hittable == true")
+    }
+
     func testTagsAndProjectPersistAndFilterAfterProjectArchive() throws {
         continueAfterFailure = false
         app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]

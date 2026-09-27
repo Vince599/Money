@@ -141,11 +141,12 @@ struct ImportBatchView: View {
                     Text(batch.namespace)
                     Text(batchSummary(batch))
                         .font(.subheadline).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("import.summary")
                     if batch.revertedAt == nil {
                         Button("本批账户匹配／新建") { showMapping = true }.accessibilityIdentifier("import.accounts")
                         Button("选择当前已显示的可导入行") {
                             selected = Set(visible.filter { reviews[$0.id] == .ready }.prefix(200).map(\.id))
-                        }.disabled(!reviewsAreCurrent)
+                        }.disabled(!reviewsAreCurrent).accessibilityIdentifier("import.selectReady")
                         Button("清除选择") { selected = [] }
                         Button("选择当前已显示的待处理行（最多 200 行）") {
                             selected = ImportQuery.selectableIDs(in: batch, matching: filter, limit: visibleCount)
@@ -166,6 +167,7 @@ struct ImportBatchView: View {
                 }
                 ImportFilterControls(filter: $filter)
                 Text("匹配 \(matchingRows.count) / \(batch.rows.count) 行 · 已选 \(selected.count) 行").font(.footnote).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("import.selectionSummary")
                 if matchingRows.isEmpty && reviewsAreCurrent { Text("没有符合条件的记录，可清除筛选后重试。") }
                 ForEach(visible) { row in
                     HStack {
@@ -262,6 +264,7 @@ struct ImportConfirmationView: View {
                     Section(effect.name + (effect.isNew ? "（草稿新账户）" : "")) {
                         LabeledContent(effect.isNew ? "设置的期初" : "当前余额", value: effect.before.decimalString + " " + effect.before.currency.rawValue)
                         LabeledContent("导入后余额", value: effect.after.decimalString + " " + effect.after.currency.rawValue)
+                            .accessibilityIdentifier("import.effect.after." + effect.id.uuidString.lowercased())
                     }
                 }
                 Text("历史支出也会扣减账户余额。若与实际余额不符，之后可手动更正；消费仍归原发生日期。未选中行保留在草稿。")
@@ -272,7 +275,7 @@ struct ImportConfirmationView: View {
                 }.accessibilityIdentifier("import.confirm")
             }
             .navigationTitle("确认本次导入").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.accessibilityIdentifier("import.confirm.cancel") } }
             .disabled(model.isBusy).interactiveDismissDisabled(model.isBusy)
         }
     }
@@ -309,7 +312,7 @@ struct ImportRowEditor: View {
                     Picker("付款／收款账户", selection: $row.accountID) {
                         Text("暂缓选择").tag(Optional<UUID>.none)
                         ForEach(accounts) { Text($0.name).tag(Optional($0.id)) }
-                    }
+                    }.accessibilityIdentifier("import.row.account")
                     if row.raw[2] == "transfer" {
                         Picker("转入账户", selection: $row.destinationAccountID) {
                             Text("暂缓选择").tag(Optional<UUID>.none)
@@ -324,7 +327,7 @@ struct ImportRowEditor: View {
                             }) { category in
                                 Text((model.book.categories.first { $0.id == category.parentID }?.name ?? "") + " / " + category.name).tag(Optional(category.id))
                             }
-                        }
+                        }.accessibilityIdentifier("import.row.category")
                     }
                     Picker("主体", selection: $row.subjectID) {
                         ForEach(model.book.subjects.filter(\.isActive)) { Text($0.name).tag($0.id) }

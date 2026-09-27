@@ -16,10 +16,13 @@ extension ImportRowState {
 struct ImportFilterControls: View {
     @Binding var filter: ImportFilter
     var namespaces: [String]? = nil
+    @FocusState private var keywordFocused: Bool
     var body: some View {
         Section {
             TextField("搜索交易号、标题或备注", text: $filter.keyword)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .focused($keywordFocused).submitLabel(.search)
+                .onSubmit { keywordFocused = false }
                 .accessibilityIdentifier("import.filter.keyword")
             if let namespaces {
                 Picker("来源", selection: $filter.namespace) {

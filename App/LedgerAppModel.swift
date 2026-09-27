@@ -48,7 +48,7 @@ final class LedgerAppModel {
         var outcome = LedgerPerformance.Outcome.threw
         defer { LedgerPerformance.end(interval, outcome: outcome) }
         do {
-            let initial: LedgerSnapshot
+            var initial: LedgerSnapshot
             if let repository {
                 initial = try await repository.snapshot()
             } else {
@@ -61,6 +61,22 @@ final class LedgerAppModel {
                 let opened = try await Task.detached { try LedgerRepository.open(path: path) }.value
                 repository = opened.repository
                 initial = opened.snapshot
+                #if DEBUG
+                if Self.uiTestStoreID != nil,
+                   CommandLine.arguments.contains("-ledger-ui-test-import-draft"),
+                   initial.book.importBatches.isEmpty {
+                    // A fixed synthetic file enters through the real import repository.
+                    // Only isolated UI-test databases can reach this setup; relaunch keeps the batch.
+                    let file = directory.appendingPathComponent("UI-import.csv")
+                    let csv = """
+                    source_id,occurred_at,type,amount,currency,account,destination_account,category,title,note,status
+                    ui-lunch,2026-01-15T12:30:00+08:00,expense,20.10,CNY,Test source,,餐饮/正餐,Imported Lunch,Synthetic fixture,success
+                    ui-taxi,2026-01-16T12:30:00+08:00,expense,5.00,CNY,Test source,,交通/出租车,Later Taxi,Leave pending,success
+                    """
+                    try Data(csv.utf8).write(to: file, options: .atomic)
+                    initial = try await opened.repository.importCSV(from: file, namespace: "UI synthetic source")
+                }
+                #endif
             }
             apply(initial)
             isLoaded = true
@@ -72,15 +88,20 @@ final class LedgerAppModel {
         #if DEBUG
         // UI tests use a fresh, UUID-scoped real database and keep it on relaunch.
         // This branch is absent from the Release app and never resets a user's book.
-        let arguments = CommandLine.arguments
-        if let index = arguments.firstIndex(of: "-ledger-ui-test-store"), arguments.indices.contains(index + 1),
-           let id = UUID(uuidString: arguments[index + 1]) {
+        if let id = uiTestStoreID {
             return base.appendingPathComponent("LedgerUITests", isDirectory: true)
                 .appendingPathComponent(id.uuidString.lowercased(), isDirectory: true)
         }
         #endif
         return base.appendingPathComponent("Ledger", isDirectory: true)
     }
+    #if DEBUG
+    private static var uiTestStoreID: UUID? {
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: "-ledger-ui-test-store"), arguments.indices.contains(index + 1) else { return nil }
+        return UUID(uuidString: arguments[index + 1])
+    }
+    #endif
     func newDraft() -> EntryDraft {
         draft ?? EntryDraft(accountID: settings.defaultAccountID, subjectID: settings.defaultSubjectID)
     }
