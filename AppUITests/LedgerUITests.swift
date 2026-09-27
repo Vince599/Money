@@ -199,6 +199,8 @@ final class LedgerUITests: XCTestCase {
         tap(element("accounts.add"))
         tap(element("account.template"))
         replace(app.searchFields.firstMatch, with: "10086")
+        app.searchFields.firstMatch.typeText("\n")
+        wait(app.keyboards.firstMatch, for: "exists == false")
         tap(element("account.template.option.cn.china-mobile.balance"))
         XCTAssertEqual(app.textFields["account.name"].value as? String, "中国移动话费")
         let included = app.switches["account.included"]
@@ -209,6 +211,8 @@ final class LedgerUITests: XCTestCase {
         replace(app.textFields["account.name"], with: "自定义话费账户")
         tap(element("account.template"))
         replace(app.searchFields.firstMatch, with: "10010")
+        app.searchFields.firstMatch.typeText("\n")
+        wait(app.keyboards.firstMatch, for: "exists == false")
         tap(element("account.template.option.cn.china-unicom.balance"))
         XCTAssertEqual(app.textFields["account.name"].value as? String, "自定义话费账户")
         XCTAssertEqual(included.value as? String, "1")
@@ -394,7 +398,8 @@ final class LedgerUITests: XCTestCase {
     }
     private func wait(_ target: XCUIElement, for predicate: String) {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: predicate), object: target)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed, app.debugDescription)
+        // Cloud simulator AX snapshots can themselves take over 15 seconds under load.
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 30), .completed, app.debugDescription)
     }
     private func wait(_ query: XCUIElementQuery, count: Int) {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in query.count == count }, object: nil)
@@ -409,15 +414,22 @@ final class LedgerUITests: XCTestCase {
             }
         }
         XCTAssertTrue(target.waitForExistence(timeout: 15), app.debugDescription)
-        for _ in 0..<5 where !target.isHittable { app.swipeUp() }
+        for _ in 0..<5 {
+            if target.isHittable { break }
+            app.swipeUp()
+        }
         wait(target, for: "enabled == true AND hittable == true")
         target.tap()
     }
     private func replace(_ field: XCUIElement, with text: String) {
         tap(field)
-        let previous = field.value as? String ?? ""
-        // Tap beyond these short values to place the caret at the end before deleting each character.
-        field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        let displayed = field.value as? String ?? ""
+        let previous = displayed == field.placeholderValue ? "" : displayed
+        // Empty inputs already have the insertion point. A second coordinate tap can
+        // hit the keyboard toolbar while the form moves to accommodate the keyboard.
+        if !previous.isEmpty {
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        }
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: previous.count) + text)
         let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             field.value as? String == text
