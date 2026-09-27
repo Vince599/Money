@@ -155,6 +155,10 @@ public enum ImportRuleEngine {
         try LedgerEngine.validate(book)
         guard let batch = book.importBatches.first(where: { $0.id == batchID }), batch.revertedAt == nil,
               let row = batch.rows.first(where: { $0.id == rowID }), row.state == .pending else { throw ImportError.unavailableRow }
+        return reviewValidated(row: row, batch: batch, in: book)
+    }
+    // Call only after validating the book and selected pending rows.
+    static func reviewValidated(row: ImportRow, batch: ImportBatch, in book: LedgerBook) -> ImportRuleReview {
         let rules = book.importRules.filter { $0.isEnabled && matches($0, row: row, batch: batch) }.sorted {
             $0.priority == $1.priority ? $0.id.uuidString < $1.id.uuidString : $0.priority < $1.priority
         }
@@ -183,21 +187,26 @@ public enum ImportRuleEngine {
             let top = Set(values.filter { $0.1.priority == first.1.priority }.map { $0.0 })
             return ImportRuleSuggestion(id: field, currentID: field.value(in: row), choices: choices, preferredID: top.count == 1 ? first.0 : nil)
         }
-        return ImportRuleReview(batchID: batchID, rowID: rowID, matchedRules: rules, suggestions: suggestions, warnings: warnings, expectedBook: book)
+        return ImportRuleReview(batchID: batch.id, rowID: row.id, matchedRules: rules, suggestions: suggestions, warnings: warnings, expectedBook: book)
     }
     public static func prepare(_ review: ImportRuleReview, selections: [ImportRuleTargetField: UUID]) throws -> ImportRuleApplyPlan {
         guard !selections.isEmpty else { throw ImportError.invalidFile("请明确选择要应用的字段；未选择的字段保持原值。") }
         var batch = review.expectedBook.importBatches.first { $0.id == review.batchID }!
         let index = batch.rows.firstIndex { $0.id == review.rowID }!
+        batch.rows[index] = try applying(selections, to: batch.rows[index], review: review)
+        return ImportRuleApplyPlan(batch: batch, rowID: review.rowID, expectedBook: review.expectedBook)
+    }
+    static func applying(_ selections: [ImportRuleTargetField: UUID], to original: ImportRow, review: ImportRuleReview) throws -> ImportRow {
+        var row = original
         for (field, target) in selections {
             guard review.suggestions.contains(where: { $0.id == field && $0.choices.contains { $0.id == target } }) else { throw ImportError.invalidState }
             switch field {
-            case .account: batch.rows[index].accountID = target
-            case .category: batch.rows[index].categoryID = target
-            case .subject: batch.rows[index].subjectID = target
+            case .account: row.accountID = target
+            case .category: row.categoryID = target
+            case .subject: row.subjectID = target
             }
         }
-        return ImportRuleApplyPlan(batch: batch, rowID: review.rowID, expectedBook: review.expectedBook)
+        return row
     }
     public static func apply(_ plan: ImportRuleApplyPlan, in book: LedgerBook) throws -> LedgerBook {
         guard book == plan.expectedBook else { throw ImportError.stalePreview }

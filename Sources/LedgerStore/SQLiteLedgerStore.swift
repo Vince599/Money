@@ -424,6 +424,17 @@ public final class SQLiteLedgerStore: Sendable {
         }
     }
 
+    public func applyImportBatchRules(_ plan: ImportRuleBatchPlan) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try ImportRuleEngine.applyBatch(plan, in: current.book)
+            try Self.writeBook(updated, in: db)
+            let saved = try Self.readSnapshot(in: db)
+            guard saved.book == updated, saved.draft == current.draft, saved.settings == current.settings else { throw LedgerStoreError.corruptData("import_batch_rules") }
+            return saved
+        }
+    }
+
     public func undoImport(_ plan: ImportUndoPlan) throws -> SQLiteLedgerSnapshot {
         try database.write { db in
             let current = try Self.readSnapshot(in: db)

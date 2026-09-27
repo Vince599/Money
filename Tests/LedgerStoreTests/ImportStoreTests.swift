@@ -6,6 +6,50 @@ import Testing
 
 @Suite("Import persistence and transactions")
 struct ImportStoreTests {
+    @Test func batchRuleFailureRollsBackAllRowsAndRetryPreservesLatestManualDraft() throws {
+        try withStore { store, inspection, path in
+            var batch = try stagedBatch()
+            var raw = batch.rows[0].raw; raw[0] = "second"
+            batch.rows.append(ImportRow(raw: raw))
+            let staged = try store.saveImport(batch)
+            let rule = ImportRule(name: "分类", conditions: [.init(field: .kind, comparison: .equals, value: "expense")], actions: [.init(field: .category, targetID: SeedData.otherExpenseID)])
+            let configured = try store.saveImportRule(rule)
+            let review = try ImportRuleEngine.reviewBatch(batchID: batch.id, rowIDs: Set(batch.rows.map(\.id)), in: configured.book)
+            let picks = Dictionary(uniqueKeysWithValues: batch.rows.map { ($0.id, [ImportRuleTargetField.category: SeedData.otherExpenseID]) })
+            let plan = try ImportRuleEngine.prepareBatch(review, selections: picks)
+            let draft = EntryDraft(amountText: "30+(")
+            try store.saveDraft(draft)
+            try inspection.write { try $0.execute(sql: "CREATE TRIGGER reject_batch_rules BEFORE INSERT ON import_batches BEGIN SELECT RAISE(ABORT, 'injected'); END") }
+            #expect(throws: (any Error).self) { try store.applyImportBatchRules(plan) }
+            #expect(try store.loadSnapshot().book == configured.book)
+            #expect(try store.loadSnapshot().draft == draft)
+            try inspection.write { try $0.execute(sql: "DROP TRIGGER reject_batch_rules") }
+            let saved = try store.applyImportBatchRules(plan)
+            #expect(saved.book.importBatches[0].rows.allSatisfy { $0.categoryID == SeedData.otherExpenseID })
+            #expect(saved.book.importBatches[0].version == staged.book.importBatches[0].version + 1)
+            #expect(saved.book.entries.isEmpty && saved.draft == draft)
+            #expect(try SQLiteLedgerStore(path: path).loadBook() == saved.book)
+        }
+    }
+
+    @Test func batchRuleCommitRejectsCatalogChangeFromAnotherConnection() throws {
+        try withStore { store, _, path in
+            let batch = try stagedBatch()
+            _ = try store.saveImport(batch)
+            let rule = ImportRule(name: "分类", conditions: [.init(field: .kind, comparison: .equals, value: "expense")], actions: [.init(field: .category, targetID: SeedData.otherExpenseID)])
+            let configured = try store.saveImportRule(rule)
+            let review = try ImportRuleEngine.reviewBatch(batchID: batch.id, rowIDs: [batch.rows[0].id], in: configured.book)
+            let plan = try ImportRuleEngine.prepareBatch(review, selections: [batch.rows[0].id: [.category: SeedData.otherExpenseID]])
+            let other = try SQLiteLedgerStore(path: path)
+            var changed = configured.book
+            changed.importRules[0].isEnabled = false; changed.importRules[0].version += 1
+            try other.commit(changed, draft: EntryDraft(amountText: "99"))
+            #expect(throws: ImportError.stalePreview) { try store.applyImportBatchRules(plan) }
+            #expect(try store.loadSnapshot().book == changed)
+            #expect(try store.loadSnapshot().draft?.amountText == "99")
+        }
+    }
+
     @Test func ruleSaveAndApplicationAreAtomicRetainLatestDraftAndReopen() throws {
         try withStore { store, inspection, path in
             let account = Account(name: "正式账户", openingMinor: 10_000)

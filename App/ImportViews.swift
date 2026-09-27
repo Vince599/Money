@@ -89,6 +89,7 @@ struct ImportBatchView: View {
     @State private var showClassification = false
     @State private var showLabels = false
     @State private var showUndo = false
+    @State private var showBatchRules = false
     @State private var preview: ImportCommitPreview?
     @State private var message: String?
     private var batch: ImportBatch? { model.book.importBatches.first { $0.id == batchID } }
@@ -107,6 +108,12 @@ struct ImportBatchView: View {
                             selected = Set(visible.filter { reviews[$0.id] == .ready }.prefix(200).map(\.id))
                         }.disabled(reviewLoading)
                         Button("清除选择") { selected = [] }
+                        Button("选择当前已显示的待处理行（最多 200 行）") {
+                            selected = Set(visible.filter { $0.state == .pending }.prefix(200).map(\.id))
+                        }
+                        Button("核对所选行的规则建议") { showBatchRules = true }
+                            .disabled(selected.isEmpty || selected.count > 200)
+                            .accessibilityIdentifier("import.batchRules")
                         Button("修改所选行的标签／项目") { showLabels = true }
                             .disabled(selected.isEmpty || selected.count > 200)
                             .accessibilityIdentifier("import.labels")
@@ -165,6 +172,7 @@ struct ImportBatchView: View {
             ImportReviewView(model: model, batchID: batchID, initialRowID: row.id)
         }
         .sheet(isPresented: $showUndo) { ImportUndoView(model: model, batchID: batchID) }
+        .sheet(isPresented: $showBatchRules) { ImportBatchRulesView(model: model, batchID: batchID, rowIDs: selected) }
         .sheet(isPresented: $showMapping) { if let batch { ImportAccountMappingView(model: model, batch: batch) } }
         .sheet(isPresented: $showLabels) { if let batch { ImportLabelsView(model: model, batch: batch, rowIDs: selected) } }
         .sheet(isPresented: $showClassification) { if let batch { ImportClassificationView(model: model, batch: batch, rowIDs: selected) } }

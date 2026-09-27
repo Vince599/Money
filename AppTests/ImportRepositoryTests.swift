@@ -5,6 +5,40 @@ import LedgerCore
 
 @MainActor
 final class ImportRepositoryTests: XCTestCase {
+    func testBatchRulePreviewRejectsNewerRulesAndCommitsAllRowsWithDraftAndBackup() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try LedgerRepository(path: directory.appendingPathComponent("ledger.sqlite").path)
+        var batch = try ImportCSV.parse(ImportCSV.template, name: "batch", namespace: "bank")
+        var raw = batch.rows[0].raw; raw[0] = "second"
+        batch.rows.append(ImportRow(raw: raw))
+        _ = try await repo.saveImport(batch)
+        var rule = ImportRule(name: "餐饮", conditions: [.init(field: .kind, comparison: .equals, value: "expense")], actions: [.init(field: .category, targetID: SeedData.mealsID)])
+        _ = try await repo.saveImportRule(rule)
+        let review = try await repo.reviewImportBatchRules(batchID: batch.id, rowIDs: Set(batch.rows.map(\.id)))
+        let picks = ImportRuleEngine.unambiguousEmptySelections(review)
+        let oldPlan = try await repo.prepareImportBatchRules(review, selections: picks)
+        rule.name = "新名称"; _ = try await repo.saveImportRule(rule, expectedVersion: 1)
+        do { _ = try await repo.prepareImportBatchRules(review, selections: picks); XCTFail("Old review must fail") }
+        catch { XCTAssertEqual(error as? ImportError, .stalePreview) }
+        do { _ = try await repo.applyImportBatchRules(oldPlan); XCTFail("Old plan must fail") }
+        catch { XCTAssertEqual(error as? ImportError, .stalePreview) }
+        let fresh = try await repo.reviewImportBatchRules(batchID: batch.id, rowIDs: Set(batch.rows.map(\.id)))
+        let plan = try await repo.prepareImportBatchRules(fresh, selections: ImportRuleEngine.unambiguousEmptySelections(fresh))
+        let draft = EntryDraft(amountText: "12+(")
+        try await repo.saveDraft(draft, revision: 5)
+        let saved = try await repo.applyImportBatchRules(plan)
+        XCTAssertTrue(saved.book.importBatches[0].rows.allSatisfy { $0.categoryID == SeedData.mealsID })
+        XCTAssertEqual(saved.book.importBatches[0].version, 2)
+        XCTAssertEqual(saved.draft, draft); XCTAssertEqual(saved.draftRevision, 5)
+        XCTAssertTrue(saved.book.entries.isEmpty)
+        let backup = try await repo.exportBackup()
+        let restore = try await repo.prepareRestore(backup)
+        let restored = try await repo.restore(previewID: restore.id, revision: 6)
+        XCTAssertEqual(restored.book, saved.book); XCTAssertEqual(restored.draft, draft)
+    }
+
     func testRuleVersionInvalidatesSuggestionAndBackupPreservesRulesAndManualDraft() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

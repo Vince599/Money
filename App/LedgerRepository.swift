@@ -242,6 +242,17 @@ actor LedgerRepository {
     func reviewImportUndo(batchID: UUID) throws -> ImportUndoReview {
         try ImportEngine.reviewUndo(batchID: batchID, in: readSnapshot().book)
     }
+    func reviewImportBatchRules(batchID: UUID, rowIDs: Set<UUID>) throws -> ImportRuleBatchReview {
+        try ImportRuleEngine.reviewBatch(batchID: batchID, rowIDs: rowIDs, in: readSnapshot().book)
+    }
+    func prepareImportBatchRules(_ review: ImportRuleBatchReview, selections: [UUID: [ImportRuleTargetField: UUID]]) throws -> ImportRuleBatchPlan {
+        guard try readSnapshot().book == review.expectedBook else { throw ImportError.stalePreview }
+        return try ImportRuleEngine.prepareBatch(review, selections: selections)
+    }
+    func applyImportBatchRules(_ plan: ImportRuleBatchPlan) throws -> LedgerSnapshot {
+        let value = try store.applyImportBatchRules(plan)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
     func undoImport(_ plan: ImportUndoPlan) throws -> LedgerSnapshot {
         let value = try store.undoImport(plan)
         return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
