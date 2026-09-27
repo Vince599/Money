@@ -8,7 +8,7 @@ struct LedgerSettingsView: View {
         NavigationStack {
             List {
                 Section("记账资料") {
-                    NavigationLink("分类管理") { CategoryListView(model: model) }
+                    NavigationLink("分类管理") { CategoryListView(model: model) }.accessibilityIdentifier("settings.categories")
                     NavigationLink("主体管理") { SubjectListView(model: model) }
                 }
                 Section("数据") {
@@ -90,8 +90,10 @@ struct CategoryListView: View {
             ForEach(model.book.categories.filter { $0.parentID == nil && $0.direction == direction }) { parent in
                 Section {
                     Button { selected = parent } label: { categoryLabel(parent) }
+                        .accessibilityIdentifier("category.row." + parent.id.uuidString.lowercased())
                     ForEach(model.book.categories.filter { $0.parentID == parent.id }) { child in
                         Button { selected = child } label: { categoryLabel(child).padding(.leading, 20) }
+                            .accessibilityIdentifier("category.row." + child.id.uuidString.lowercased())
                     }
                 }
             }
@@ -103,7 +105,8 @@ struct CategoryListView: View {
     }
     private func categoryLabel(_ category: LedgerCore.Category) -> some View {
         HStack {
-            Label(category.name, systemImage: category.symbol).foregroundStyle(.primary)
+            Label { Text(category.name) } icon: { CategorySymbolView(symbol: category.symbol) }
+                .foregroundStyle(.primary)
             Spacer()
             if !category.isActive { Text("已停用").font(.caption).foregroundStyle(.secondary) }
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
@@ -117,8 +120,6 @@ struct CategoryEditorView: View {
     private let isNew: Bool
     @State private var message: String?
     @Environment(\.dismiss) private var dismiss
-    private let icons = ["tag", "fork.knife", "car", "house", "bag", "desktopcomputer", "phone",
-                         "heart", "book", "figure.walk", "gift", "cloud", "wrench", "shield", "percent", "banknote"]
     init(model: LedgerAppModel, category: LedgerCore.Category? = nil, direction: EntryKind = .expense) {
         self.model = model; isNew = category == nil
         _category = State(initialValue: category ?? LedgerCore.Category(name: "", direction: direction))
@@ -127,7 +128,7 @@ struct CategoryEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("分类名称", text: $category.name)
+                    TextField("分类名称", text: $category.name).accessibilityIdentifier("category.edit.name")
                     if isNew {
                         Picker("方向", selection: $category.direction) {
                             Text("支出").tag(EntryKind.expense); Text("收入").tag(EntryKind.income)
@@ -141,10 +142,17 @@ struct CategoryEditorView: View {
                     } else {
                         LabeledContent("层级", value: category.parentID == nil ? "一级分类" : "二级分类")
                     }
-                    Picker("图标", selection: $category.symbol) {
-                        if !icons.contains(category.symbol) { Label("当前图标", systemImage: category.symbol).tag(category.symbol) }
-                        ForEach(icons, id: \.self) { Label(iconName($0), systemImage: $0).tag($0) }
-                    }
+                    NavigationLink {
+                        CategorySymbolPicker(symbol: category.symbol, categoryName: category.name) { category.symbol = $0 }
+                    } label: {
+                        HStack {
+                            CategorySymbolView(symbol: category.symbol)
+                            LabeledContent("图标", value: CategorySymbolPresentation.name(category.symbol))
+                        }
+                    }.accessibilityIdentifier("category.edit.icon")
+                    Button("恢复默认图标") { category.symbol = CategorySymbolCatalog.defaultSymbol(for: category.id) }
+                        .disabled(category.symbol == CategorySymbolCatalog.defaultSymbol(for: category.id))
+                        .accessibilityIdentifier("category.edit.resetIcon")
                     Toggle("启用分类", isOn: $category.isActive)
                 } footer: {
                     Text("普通收支选择二级分类。停用一级分类后，其下分类不再供新记账选择，历史记录保留。")
@@ -154,19 +162,13 @@ struct CategoryEditorView: View {
                     var value = category
                     value.name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
                     Task { if await model.saveCategory(value) { dismiss() } else { message = model.errorMessage } }
-                }
+                }.accessibilityIdentifier("category.edit.save")
             }
             .navigationTitle(isNew ? "添加分类" : "编辑分类").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.accessibilityIdentifier("category.edit.cancel") } }
             .onChange(of: category.direction) { _, _ in if isNew { category.parentID = nil } }
             .disabled(model.isBusy).interactiveDismissDisabled(model.isBusy)
         }
-    }
-    private func iconName(_ symbol: String) -> String {
-        ["tag": "标签", "fork.knife": "餐饮", "car": "汽车", "house": "居住", "bag": "购物",
-         "desktopcomputer": "电脑", "phone": "电话", "heart": "爱心", "book": "书本",
-         "figure.walk": "步行", "gift": "礼物", "cloud": "云朵", "wrench": "工具",
-         "shield": "保障", "percent": "百分比", "banknote": "现金"][symbol] ?? "图标"
     }
 }
 

@@ -4,6 +4,52 @@ import XCTest
 final class LedgerUITests: XCTestCase {
     private let app = XCUIApplication()
 
+    func testCategoryIconSearchCancelSaveRelaunchAndRestoreDefault() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]
+        app.launch()
+        openMealCategory()
+        let icon = element("category.edit.icon")
+        assertText(icon, contains: "餐具")
+        tap(icon)
+        replace(app.textFields["category.icon.search"], with: "coffee")
+        tap(element("category.icon.option.cup.and.saucer"))
+        assertText(element("category.icon.preview"), contains: "咖啡杯")
+        screenshot("10-category-icon-search-preview")
+        tap(element("category.icon.cancel"))
+        assertText(icon, contains: "餐具")
+        tap(icon)
+        replace(app.textFields["category.icon.search"], with: "coffee")
+        tap(element("category.icon.option.cup.and.saucer"))
+        tap(element("category.icon.use"))
+        assertText(icon, contains: "咖啡杯")
+        tap(element("category.edit.save"))
+        wait(app.textFields["category.edit.name"], for: "exists == false")
+
+        app.terminate(); app.launch()
+        openMealCategory()
+        assertText(element("category.edit.icon"), contains: "咖啡杯")
+        screenshot("11-category-icon-after-relaunch")
+        tap(element("category.edit.resetIcon"))
+        assertText(element("category.edit.icon"), contains: "餐具")
+        // Cancelling the editor discards even an explicit restore-default action.
+        tap(element("category.edit.cancel"))
+        tap(element("category.row.00000000-0000-4000-8000-000000000011"))
+        assertText(element("category.edit.icon"), contains: "咖啡杯")
+        tap(element("category.edit.resetIcon"))
+        tap(element("category.edit.save"))
+        wait(app.textFields["category.edit.name"], for: "exists == false")
+        tap(element("category.row.00000000-0000-4000-8000-000000000011"))
+        assertText(element("category.edit.icon"), contains: "餐具")
+    }
+
+    private func openMealCategory() {
+        tap(app.tabBars.buttons["账户"])
+        tap(element("accounts.settings"))
+        tap(element("settings.categories"))
+        tap(element("category.row.00000000-0000-4000-8000-000000000011"))
+    }
+
     func testRefundShowsOriginalAndNetCostThenRequiresExplicitGroupDeletion() throws {
         continueAfterFailure = false
         app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]

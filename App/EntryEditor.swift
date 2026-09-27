@@ -52,7 +52,8 @@ struct EntryEditor: View {
                         Picker("分类", selection: $draft.categoryID) {
                             Text("请选择分类").tag(Optional<UUID>.none)
                             ForEach(selectableCategories) { category in
-                                Label(categoryTitle(category), systemImage: category.symbol).tag(Optional(category.id))
+                                Label { Text(categoryTitle(category)) } icon: { CategorySymbolView(symbol: category.symbol) }
+                                    .tag(Optional(category.id))
                                     .accessibilityIdentifier("entry.category.option." + category.id.uuidString.lowercased())
                             }
                         }.accessibilityIdentifier("entry.category")
@@ -68,7 +69,7 @@ struct EntryEditor: View {
                             }
                         }.accessibilityIdentifier("entry.original")
                     } footer: {
-                        Text("仅关联已有支出；款项进入所选收款账户，单列为回收，不算普通收入，也不释放预算。记账前购买的二手出售，可自行选择普通收入。")
+                        Text("仅关联已有支出；款项进入所选收款账户，单列为回收，不算普通收入，原消费金额保持不变。记账前购买的二手出售，可自行选择普通收入。")
                     }
                 }
                 Section {
@@ -227,7 +228,7 @@ struct EntryDetailView: View {
                                 LabeledContent(recovery.netCost.minorUnits < 0 ? "净回收" : "净花费",
                                                value: recovery.netCost.decimalString.replacingOccurrences(of: "-", with: "") + " " + entry.amount.currency.rawValue)
                                     .font(.headline).accessibilityIdentifier("entry.netCost")
-                                Text("原购买仍按原额计入消费和预算，回收不释放额度。")
+                                Text("原购买仍按原额计入消费；回收单独记录，净花费仅供参考。")
                                     .font(.footnote).foregroundStyle(.secondary)
                             }
                             if !entry.note.isEmpty { Text(entry.note) }

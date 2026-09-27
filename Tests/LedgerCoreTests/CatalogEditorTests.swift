@@ -27,8 +27,8 @@ struct CatalogEditorTests {
         #expect(categories.filter { $0.direction == .income && $0.parentID == nil }.count == 5)
         #expect(categories.filter { $0.direction == .income && $0.parentID != nil }.count == 10)
         let rootNames = categories.filter { $0.parentID == nil }.map(\.name)
-        #expect(rootNames == ["餐饮", "交通", "居住", "日常购物", "数码设备", "通信", "医疗健康",
-                              "教育学习", "休闲运动", "人情往来", "订阅与数字服务", "生活服务", "保险",
+        #expect(rootNames == ["餐饮", "交通", "居住", "购物", "数码设备", "通信", "医疗健康",
+                              "教育学习", "休闲运动", "人情往来", "数字服务", "生活服务", "保险",
                               "财务费用", "其他支出", "工作收入", "经营收入", "资金收益", "赠与补助", "其他收入"])
         #expect(categories.filter { $0.parentID == SeedData.foodID }.map(\.name) == ["正餐", "外卖", "饮品", "零食", "食材", "水果"])
         #expect(categories.filter { $0.parentID == SeedData.transportID }.map(\.name) ==

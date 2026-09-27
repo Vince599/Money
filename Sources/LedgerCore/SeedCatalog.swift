@@ -36,7 +36,7 @@ enum SeedCatalog {
             Item(0x1104, "燃油充电", "fuelpump"),
             Item(0x1105, "停车", "parkingsign.circle"),
             Item(0x1106, "路桥费", "road.lanes"),
-            Item(0x1107, "车辆养护", "car.fill")
+            Item(0x1107, "车辆养护", "wrench.and.screwdriver")
         ]),
         group(Item(0x1200, "居住", "house"), direction: .expense, children: [
             Item(0x1201, "房租", "key"),
@@ -46,7 +46,7 @@ enum SeedCatalog {
             Item(0x1205, "家居家具", "sofa"),
             Item(0x1206, "装修维修", "hammer")
         ]),
-        group(Item(0x1300, "日常购物", "bag"), direction: .expense, children: [
+        group(Item(0x1300, "购物", "bag"), direction: .expense, children: [
             Item(0x1301, "日用品", "basket"),
             Item(0x1302, "服饰鞋包", "tshirt"),
             Item(0x1303, "美妆护理", "sparkles"),
@@ -93,7 +93,7 @@ enum SeedCatalog {
             Item(0x1902, "礼金红包", "envelope"),
             Item(0x1903, "公益捐赠", "heart")
         ]),
-        group(Item(0x1a00, "订阅与数字服务", "arrow.triangle.2.circlepath"), direction: .expense, children: [
+        group(Item(0x1a00, "数字服务", "app"), direction: .expense, children: [
             Item(0x1a01, "软件与 AI", "app"),
             Item(0x1a02, "云服务与存储", "cloud"),
             Item(0x1a03, "影音会员", "play.rectangle"),

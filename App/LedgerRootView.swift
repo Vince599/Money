@@ -145,7 +145,7 @@ struct EntryRow: View {
     var entry: LedgerEntry
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol).foregroundStyle(entry.kind == .income ? .green : .orange).frame(width: 28)
+            CategorySymbolView(symbol: symbol).foregroundStyle(entry.kind == .income ? .green : .orange)
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.displayTitle(entry)).foregroundStyle(.primary).lineLimit(1)
                 Text(metadata).font(.caption).foregroundStyle(.secondary).lineLimit(2)

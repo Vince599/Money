@@ -21,21 +21,16 @@ struct EntryDeletionView: View {
                              ? "原购买关联了退款或回收。可点开关联记录，手动改为另一笔购买的回收或普通收入，再回来删除；也可明确选择整组删除。"
                              : "删除将撤销这笔流水对账户的影响，无回收站。")
                         if plan.entries.first?.kind.isRecovery == true {
-                            Text("原购买保留，累计回收减少、净花费增加；消费与预算占用不变。")
+                            Text("原购买保留，累计回收减少、净花费增加；原消费金额不变。")
                         }
                         if let original = plan.entries.first, original.kind == .expense {
-                            Text("删除原购买后，原发生期的个人消费及相应预算占用减少 " + original.amount.decimalString + " " + original.amount.currency.rawValue + "。")
+                            Text("删除原购买后，原发生期的个人消费减少 " + original.amount.decimalString + " " + original.amount.currency.rawValue + "。")
                         }
                     }
                     Section("将删除的记录") {
                         ForEach(plan.entries) { entry in
-                            Button { linkedEntry = entry } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(entry.kind.displayName + " · " + model.displayTitle(entry)).foregroundStyle(.primary)
-                                    Text(entry.amount.decimalString + " " + entry.amount.currency.rawValue + " · " + BookDate.day(entry.occurredAt))
-                                        .font(.subheadline).foregroundStyle(.secondary)
-                                }
-                            }.disabled(entry.id == entryID)
+                            if entry.id == entryID { entryLabel(entry) }
+                            else { Button { linkedEntry = entry } label: { entryLabel(entry) } }
                         }
                     }
                     Section(plan.entries.count > 1 ? "整组删除后的账户变化" : "账户变化") {
@@ -72,6 +67,13 @@ struct EntryDeletionView: View {
                 }
             }
             .interactiveDismissDisabled(model.isBusy)
+        }
+    }
+    private func entryLabel(_ entry: LedgerEntry) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(entry.kind.displayName + " · " + model.displayTitle(entry)).foregroundStyle(.primary)
+            Text(entry.amount.decimalString + " " + entry.amount.currency.rawValue + " · " + BookDate.day(entry.occurredAt))
+                .font(.subheadline).foregroundStyle(.secondary)
         }
     }
     private func reload() async {
