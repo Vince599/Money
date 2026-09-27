@@ -145,6 +145,32 @@ final class HistoryPageModelTests: XCTestCase {
         XCTAssertEqual(page.totalCount, 4)
     }
 
+    func testCancelledReplacementKeepsRowsButMustReloadUnfinishedFilter() async throws {
+        let context = try Context()
+        defer { context.cleanup() }
+        let history = HistoryPageModel()
+        let read: HistoryPageModel.ReadPage = { filter, cursor in
+            try await context.repo.historyPage(matching: filter, after: cursor, limit: 2)
+        }
+        await history.reload(context.request, debounce: false, read: read)
+        let ids = history.groups.flatMap(\.entries).map(\.id)
+        var search = context.request
+        search.filter.keyword = "absent"
+        let gate = Gate()
+        let pending = Task { await history.reload(search, debounce: false, read: gate.read) }
+        await gate.waitForRequest(1)
+        XCTAssertEqual(history.groups.flatMap(\.entries).map(\.id), ids)
+        pending.cancel()
+        let empty = try await context.repo.historyPage(matching: search.filter)
+        gate.release(1, .success(empty))
+        await pending.value
+        await history.loadMore { _, _ in XCTFail("Cannot page rows from an unfinished filter"); return empty }
+        await history.reload(search, debounce: false, read: read)
+        XCTAssertTrue(history.hasLoaded)
+        XCTAssertEqual(history.totalCount, 0)
+        XCTAssertTrue(history.groups.isEmpty)
+    }
+
     private struct Context {
         let directory: URL
         let repo: LedgerRepository

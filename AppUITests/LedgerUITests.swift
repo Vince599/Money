@@ -225,7 +225,10 @@ final class LedgerUITests: XCTestCase {
         // Tap beyond these short values to place the caret at the end before deleting each character.
         field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: previous.count) + text)
-        XCTAssertEqual(field.value as? String, text)
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            field.value as? String == text
+        }, object: field)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 15), .completed, field.debugDescription)
     }
     private func assertText(_ target: XCUIElement, contains text: String) {
         XCTAssertTrue(target.waitForExistence(timeout: 15))

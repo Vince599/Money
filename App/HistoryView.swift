@@ -30,7 +30,10 @@ struct HistoryView: View {
                         }
                     }
                 } else {
-                    Section { Text("共 \(history.totalCount) 笔").font(.subheadline).foregroundStyle(.secondary) }
+                    Section {
+                        Text(history.isLoading ? "正在更新流水…" : "共 \(history.totalCount) 笔")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
                     ForEach(history.groups, id: \.day) { group in
                         Section {
                             ForEach(group.entries) { entry in

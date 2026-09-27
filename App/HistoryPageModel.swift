@@ -42,20 +42,32 @@ final class HistoryPageModel {
     private(set) var hasLoaded = false
     private(set) var errorMessage: String?
     private var request: HistoryRequest?
+    private var completedRequest: HistoryRequest?
     private var generation: UInt64 = 0
 
     typealias ReadPage = @MainActor (EntryFilter, EntryPageCursor?) async throws -> HistoryPage
 
     func reload(_ value: HistoryRequest, force: Bool = false, debounce: Bool = true,
                 read: ReadPage) async {
-        guard force || request != value || !hasLoaded else { return }
+        guard force || request != value || completedRequest != value || !hasLoaded else { return }
         let delaySearch = debounce && request?.filter.keyword != value.filter.keyword
             && !value.filter.keyword.isEmpty
+        let dataChanged = request?.revision != value.revision || !value.isLoaded
         generation += 1
         let current = generation
         request = value
-        groups = []; totalCount = 0; nextCursor = nil
-        hasLoaded = false; errorMessage = nil; isLoading = value.isLoaded
+        errorMessage = nil
+        if !force, completedRequest == value, hasLoaded {
+            isLoading = false
+            return
+        }
+        // Keep the list/search field stable while the user types. Replacing the
+        // book must still remove rows belonging to the old snapshot immediately.
+        if dataChanged {
+            groups = []; totalCount = 0; nextCursor = nil
+            hasLoaded = false; completedRequest = nil
+        }
+        isLoading = value.isLoaded
         guard value.isLoaded else { return }
         defer { if generation == current { isLoading = false } }
         do {
@@ -64,16 +76,18 @@ final class HistoryPageModel {
             let page = try await read(value.filter, nil)
             guard generation == current, !Task.isCancelled else { return }
             groups = page.groups; totalCount = page.totalCount; nextCursor = page.nextCursor
-            hasLoaded = true
+            hasLoaded = true; completedRequest = value
         } catch {
             guard generation == current, !Task.isCancelled, !(error is CancellationError) else { return }
+            groups = []; totalCount = 0; nextCursor = nil
+            hasLoaded = false; completedRequest = nil
             errorMessage = error is EntryQueryError
                 ? "请检查日期、币种和金额范围。" : "流水读取失败，请重试。"
         }
     }
 
     func loadMore(read: ReadPage) async {
-        guard !isLoading, let request, let cursor = nextCursor else { return }
+        guard !isLoading, let request, request == completedRequest, let cursor = nextCursor else { return }
         let current = generation
         isLoading = true; errorMessage = nil
         defer { if generation == current { isLoading = false } }
