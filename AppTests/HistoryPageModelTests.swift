@@ -169,6 +169,7 @@ final class HistoryPageModelTests: XCTestCase {
         func cleanup() { try? FileManager.default.removeItem(at: directory) }
     }
 
+    @MainActor
     private final class Gate {
         var requests = 0
         var pending: [Int: CheckedContinuation<HistoryPage, any Error>] = [:]
