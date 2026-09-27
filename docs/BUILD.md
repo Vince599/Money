@@ -210,3 +210,13 @@ Windows 已下载并核对 [ledger-ios-29 内部产物](https://github.com/Vince
 已下载并核验 [ledger-ios-39 内部产物](https://github.com/Vince599/Money/actions/runs/36330351402/artifacts/10936265284)：ZIP 为 **193,762,874 字节**，SHA-256 `9e208d39aa000b59ded66bfc087ffca4ff9b738b0e893f4d345118f3994d1c8e` 与 GitHub 摘要一致；源码提交、运行编号、成功状态和 arm64 均匹配。模拟器测试摘要为 **68 通过、0 失败、0 跳过**。另在 ZIP 内核对未签名 IPA：7,441,448 字节，SHA-256 `f85b1063bfffe9fd57d3043ddd702641847cc172a3977b8ad48f3ae4c78b6541` 与随包校验文件一致，Bundle ID 为 `app.vince.ledger`，平台 iPhoneOS，主程序为 arm64，资源目录存在且没有 provisioning profile。IPA 未提取或发布；核对记录在忽略目录 `build/validation/run-39-internal/review/review.json`。
 
 已逐张查看全部十二张 1320×2868 截图，覆盖首页、账户列表与模板编辑、计算器、搜索、备份入口、分类图标搜索与保存、退款流水／净花费／删除影响，以及标签项目归档后的历史筛选。当前合成样本的关键文本、金额和操作入口可读，未见遮挡或截断；原购买删除预览改为静态可读行的修正已确认。此次不包含深色、大字号、其他屏幕尺寸或 iOS 27 真机视觉验收；通用导入页面专项与设备性能仍待验证。未运行发布脚本，固定安装目录不变。
+
+## 2026-09-28：导入页面回归
+
+提交 `008c2ae4778bfff3051669b912e89ed4a7ee43d9` 新增导入草稿核对、筛选清除选择、取消预览、部分入账、两次重启和整批撤销的 UI 路径。Debug 下仅在 UUID 隔离测试目录通过真实 CSV 导入 Repository 创建两行合成草稿；Release 不包含此准备入口，且测试不覆盖系统文件选择器。导入关键词提交搜索后收起键盘；业务规则、数据库和 CSV 版本未变。54 个 Apple 侧 Swift 文件本地语法解析通过。
+
+运行 [#40](https://github.com/Vince599/Money/actions/runs/36333214080)成功：**307 项包测试／31 套件（239 Core＋68 Store）、62 项 AppTests、7 项 UITests，共 376 项通过**，arm64 Release 构建成功。新增导入 UI 用例实际完成全部断言，其他六条路径继续通过；日志位于 `build/validation/run-40-job.log`。工具链仍为 Xcode 26.6／Apple Swift 6.3.3，模拟器 iPhone 17 Pro Max／iOS 26.5；保留既有非阻断警告，不代表 iOS 27 真机、最终视觉或大批次性能验收完成。
+
+已下载并核验 [ledger-ios-40 产物](https://github.com/Vince599/Money/actions/runs/36333214080/artifacts/10936324202)：ZIP 为 **241,188,884 字节**，SHA-256 `d3b1bbd6b3c86848ce43e98ec4dc538b00e4b1c57ab1fd0c23c922c81ab3fafe` 与 GitHub 摘要一致。构建提交及运行编号匹配，模拟器摘要为 **69 通过、0 失败、0 跳过**。ZIP 内 IPA 为 7,448,389 字节，SHA-256 `aaae8efc7758b7ba016018a5ffa2e1cafc6449e253fa92c4673daede2c27f7da` 与随包校验文件一致；确认 iPhoneOS／arm64、Bundle ID、资源目录及无签名配置，Release 主程序未包含新增合成导入入口与样本标记。核对记录为 `build/validation/run-40-internal/review/review.json`；未提取或发布 IPA，固定安装目录不变。
+
+本轮逐张查看新增四张 1320×2868 导入截图：预览显示只新增一笔、100.00→79.90；重启后批次显示已导入 1／待处理 1；撤销预览显示仅一笔和 79.90→100.00；再次重启后保留已撤销午餐及原待处理出租车，提交入口移除。关键金额和状态文字可读，未见重叠截断。批次页顶部操作区占据较多首屏空间，操作层级精简保留为体验优化项；其余十二张旧路径截图本轮不重复列为视觉验收，深色／大字号／VoiceOver／真机边界仍保留。
