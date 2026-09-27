@@ -189,14 +189,18 @@ struct HomeSummaryTests {
 
     @Test func boundedRecentSelectionMatchesThePreviousStableSortAcrossALargerBook() throws {
         let account = Account(name: "最近流水")
-        let entries = (0..<500).map { index in
-            entry(1, account: account, kind: index.isMultiple(of: 2) ? .expense : .income,
-                  occurred: TimeInterval((index * 37) % 31), created: TimeInterval((index * 13) % 7))
+        let entries: [LedgerEntry] = (0..<500).map { (index: Int) -> LedgerEntry in
+            let kind: EntryKind = index.isMultiple(of: 2) ? .expense : .income
+            let occurred = TimeInterval((index * 37) % 31)
+            let created = TimeInterval((index * 13) % 7)
+            return entry(1, account: account, kind: kind, occurred: occurred, created: created)
         }
         for input in [entries, Array(entries.reversed())] {
-            let expected = input.sorted {
-                $0.occurredAt == $1.occurredAt ? $0.createdAt > $1.createdAt : $0.occurredAt > $1.occurredAt
-            }.prefix(5)
+            let sorted: [LedgerEntry] = input.sorted { (left: LedgerEntry, right: LedgerEntry) -> Bool in
+                if left.occurredAt == right.occurredAt { return left.createdAt > right.createdAt }
+                return left.occurredAt > right.occurredAt
+            }
+            let expected = sorted.prefix(5)
             #expect(try summary(LedgerBook(accounts: [account], entries: input)).recentEntries == Array(expected))
         }
     }

@@ -107,6 +107,8 @@ struct LedgerRootView: View {
             await model.refreshHomeIfNeeded()
             guard !Task.isCancelled else { return }
             let now = Date()
+            // The read itself may have crossed midnight into a different month.
+            homeDisplayDate = now
             let delay: TimeInterval
             if model.home?.isCurrent(at: now) == true, let month = BookDate.month(containing: now) {
                 delay = max(1, month.end.timeIntervalSince(now))
