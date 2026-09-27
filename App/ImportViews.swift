@@ -136,7 +136,7 @@ struct ImportBatchView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(row.title.isEmpty ? row.sourceID : row.title).foregroundStyle(.primary)
                                 Text("\(row.raw[3]) \(row.raw[4]) · \(row.raw[1])").font(.caption).foregroundStyle(.secondary)
-                                Text(row.state == .pending ? (reviews[row.id]?.explanation ?? "正在核对…") : (row.state == .imported ? "已导入" : row.state == .reverted ? "已撤销" : "已跳过"))
+                                Text(row.state == .pending ? (reviews[row.id]?.explanation ?? "正在核对…") : (row.state == .imported ? "已导入" : row.state == .merged ? "已合并来源" : row.state == .unlinked ? "已解除来源" : row.state == .reverted ? "已撤销" : "已跳过"))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }.buttonStyle(.plain).accessibilityIdentifier("import.row." + row.id.uuidString.lowercased())
@@ -150,7 +150,7 @@ struct ImportBatchView: View {
                         Button("预览跳过所选 \(selected.count) 行") { prepare(skip: true) }
                     } footer: { Text("每次最多 200 行。跳过也需确认，原始数据和处理结果会保留。未处理行可下次继续；历史流水正常影响当前余额。") }
                         .disabled(selected.isEmpty || reviewLoading)
-                    if batch.rows.contains(where: { $0.state == .imported }) {
+                    if batch.rows.contains(where: { $0.state == .imported || $0.state == .merged }) {
                         Button("查看撤销本批导入的影响", role: .destructive) { showUndo = true }
                             .accessibilityIdentifier("import.undo")
                     }
@@ -182,7 +182,7 @@ struct ImportBatchView: View {
         if batch.revertedAt != nil {
             return "已撤销 \(batch.rows.filter { $0.state == .reverted }.count) · 原未处理 \(batch.rows.filter { $0.state == .pending }.count) · 原跳过 \(batch.rows.filter { $0.state == .skipped }.count)"
         }
-        return "已导入 \(batch.rows.filter { $0.state == .imported }.count) · 已跳过 \(batch.rows.filter { $0.state == .skipped }.count) · 待处理 \(batch.rows.filter { $0.state == .pending }.count)"
+        return "已导入 \(batch.rows.filter { $0.state == .imported }.count) · 合并来源 \(batch.rows.filter { $0.state == .merged }.count) · 已跳过 \(batch.rows.filter { $0.state == .skipped }.count) · 已解除 \(batch.rows.filter { $0.state == .unlinked }.count) · 待处理 \(batch.rows.filter { $0.state == .pending }.count)"
     }
     private func prepare(skip: Bool) {
         Task {
@@ -238,6 +238,8 @@ struct ImportRowEditor: View {
     @State private var inspectedRequest = ""
     @State private var showRules = false
     @State private var showRemember = false
+    @State private var showMerge = false
+    @State private var showUnlink = false
     @Environment(\.dismiss) private var dismiss
     private var request: String {
         [row.accountID?.uuidString ?? "", row.destinationAccountID?.uuidString ?? "", row.categoryID?.uuidString ?? "",
@@ -284,9 +286,16 @@ struct ImportRowEditor: View {
                 if row.state == .pending && batch.revertedAt == nil {
                     Section("导入规则") {
                         Button("保存本行并查看规则建议") { saveForRules() }
+                        Button("保存本行并核对合并来源") { saveForRules(merge: true) }
                         Button("将这次选择保存为规则") { showRemember = true }
                         Text("长期规则与本次映射分开保存；建议需核对后逐字段采用。")
                             .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                if row.state == .merged {
+                    Section("已合并来源") {
+                        Text("本行只关联已有流水，没有新增收支。解除后保留已有流水及全部后续编辑。")
+                        Button("预览解除此来源") { showUnlink = true }
                     }
                 }
                 Section("核对") {
@@ -342,6 +351,8 @@ struct ImportRowEditor: View {
             .sheet(isPresented: $showRules, onDismiss: refreshSavedRow) {
                 ImportRuleReviewView(model: model, batchID: batch.id, rowID: row.id)
             }
+            .sheet(isPresented: $showUnlink, onDismiss: refreshSavedRow) { ImportUnlinkView(model: model, batchID: batch.id, rowID: row.id) }
+            .sheet(isPresented: $showMerge, onDismiss: refreshSavedRow) { ImportMergeView(model: model, batchID: batch.id, rowID: row.id) }
             .sheet(isPresented: $showRemember) {
                 ImportRuleEditor(model: model, rule: ImportRule(), rememberedRow: row, namespace: batch.namespace)
             }
@@ -362,14 +373,15 @@ struct ImportRowEditor: View {
               let savedRow = saved.rows.first(where: { $0.id == row.id }) else { return }
         batch = saved; row = savedRow
     }
-    private func saveForRules() {
+    private func saveForRules(merge: Bool = false) {
         guard !model.isBusy else { return }
         var updated = batch
         guard let index = updated.rows.firstIndex(where: { $0.id == row.id }) else { return }
         updated.rows[index] = row
         Task {
             if await model.saveImport(updated, expectedVersion: batch.version) {
-                refreshSavedRow(); message = nil; showRules = true
+                refreshSavedRow(); message = nil
+                if merge { showMerge = true } else { showRules = true }
             } else { message = model.errorMessage }
         }
     }

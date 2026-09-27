@@ -168,7 +168,7 @@ struct ImportRuleTests {
         book.importRules[0].actions[0].targetID = UUID()
         let snapshot = LedgerBackupSnapshot(book: book, draft: EntryDraft(amountText: "12+("), settings: LedgerSettings())
         let files = try BackupCodec.encode(snapshot)
-        #expect(files.count == 23 && BackupSchema.dbVersion == "9")
+        #expect(files.count == 23 && BackupSchema.dbVersion == "10")
         #expect(try BackupCodec.decode(files) == snapshot)
         for table in [BackupSchema.importRuleConditions, BackupSchema.importRuleActions] {
             var damaged = files
@@ -187,6 +187,8 @@ struct ImportRuleTests {
         var manifest = try BackupSchema.manifest.read(files["manifest.csv"]!)[0].values
         manifest["profile"] = "ledger-core-v7"; manifest["backup_format_version"] = "7.0"; manifest["db_schema_version"] = "7"; manifest["file_count"] = "20"
         files["manifest.csv"] = BackupCSV.encode([BackupSchema.v7Manifest.header, BackupSchema.v7Manifest.columns.map { manifest[$0.name] }])
+        let legacyRows = try BackupSchema.importRows.read(files["import_rows.csv"]!).map { row in BackupSchema.v9ImportRows.columns.map { row.values[$0.name] } }
+        files["import_rows.csv"] = BackupCSV.encode([BackupSchema.v9ImportRows.header] + legacyRows)
         files["schema_dictionary.csv"] = BackupSchema.dictionaryData(for: BackupSchema.v7All)
         try rehash(&files)
         #expect(try BackupCodec.decode(files) == snapshot)

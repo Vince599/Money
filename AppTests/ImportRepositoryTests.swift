@@ -5,6 +5,34 @@ import LedgerCore
 
 @MainActor
 final class ImportRepositoryTests: XCTestCase {
+    func testSourceMergeUnlinkAndBackupKeepCashManualContentAndDraftRevision() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try LedgerRepository(path: directory.appendingPathComponent("ledger.sqlite").path)
+        let account = Account(name: "账户", openingMinor: 10_000)
+        _ = try await repo.addAccount(account, makeDefault: false)
+        var batch = try ImportCSV.parse(ImportCSV.template, name: "source", namespace: "bank")
+        batch.rows[0].accountID = account.id; batch.rows[0].categoryID = SeedData.mealsID
+        let entry = LedgerEntry(kind: .expense, amount: try Money.parse(batch.rows[0].raw[3]), accountID: account.id,
+                                categoryID: SeedData.mealsID, occurredAt: try XCTUnwrap(ImportCSV.date(batch.rows[0].raw[1])), note: "保留手写")
+        _ = try await repo.saveEntry(entry, expectedVersion: nil, nextDraft: nil, revision: 1)
+        _ = try await repo.saveImport(batch)
+        let review = try await repo.reviewImportMerge(batchID: batch.id, rowID: batch.rows[0].id, entryID: entry.id)
+        let draft = EntryDraft(amountText: "12+(")
+        try await repo.saveDraft(draft, revision: 7)
+        let merged = try await repo.mergeImport(ImportEngine.prepareMerge(review, keepExisting: Set(review.differences)))
+        XCTAssertEqual(merged.book.entries, [entry]); XCTAssertEqual(merged.draft, draft); XCTAssertEqual(merged.draftRevision, 7)
+        let bytes = try await repo.exportBackup()
+        let preview = try await repo.prepareRestore(bytes)
+        let restored = try await repo.restore(previewID: preview.id, revision: 8)
+        XCTAssertEqual(restored.book, merged.book)
+        let unlink = try await repo.prepareImportUnlink(batchID: batch.id, rowID: batch.rows[0].id)
+        let released = try await repo.unlinkImport(unlink)
+        XCTAssertEqual(released.book.entries, [entry]); XCTAssertEqual(released.draft, draft)
+        XCTAssertEqual(released.book.importBatches[0].rows[0].state, .unlinked)
+    }
+
     func testExtendedRuleMappingAndBackupPreserveOrderedTagsProjectAndTransferTarget() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

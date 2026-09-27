@@ -52,7 +52,7 @@ public struct SQLiteLedgerSnapshot: Sendable {
 /// Callers must coordinate read-modify-save operations; serialization of writes
 /// alone does not make two independently edited book snapshots merge safely.
 public final class SQLiteLedgerStore: Sendable {
-    public static let schemaVersion = 9
+    public static let schemaVersion = 10
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
     private let historyStoreID = UUID()
@@ -155,8 +155,8 @@ public final class SQLiteLedgerStore: Sendable {
                 try db.execute(sql: Self.ruleSchema)
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
-            if version == 8 {
-                // Expanded action enums use the existing payload. Keep old bytes intact.
+            if version == 8 || version == 9 {
+                // Expanded rule actions and source associations use existing payloads. Keep old bytes intact.
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
             let snapshot = try Self.readSnapshot(in: db)
@@ -417,6 +417,27 @@ public final class SQLiteLedgerStore: Sendable {
             return saved
         }
     }
+    public func mergeImport(_ plan: ImportMergePlan) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try ImportEngine.merge(plan, in: current.book)
+            if updated != current.book { try Self.writeBook(updated, in: db) }
+            let saved = try Self.readSnapshot(in: db)
+            guard saved.book == updated, saved.draft == current.draft, saved.settings == current.settings else { throw LedgerStoreError.corruptData("import_merge") }
+            return saved
+        }
+    }
+    public func unlinkImport(_ plan: ImportUnlinkPlan) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try ImportEngine.unlink(plan, in: current.book)
+            if updated != current.book { try Self.writeBook(updated, in: db) }
+            let saved = try Self.readSnapshot(in: db)
+            guard saved.book == updated, saved.draft == current.draft, saved.settings == current.settings else { throw LedgerStoreError.corruptData("import_unlink") }
+            return saved
+        }
+    }
+
     public func applyImportRule(_ plan: ImportRuleApplyPlan) throws -> SQLiteLedgerSnapshot {
         try database.write { db in
             let current = try Self.readSnapshot(in: db)

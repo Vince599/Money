@@ -94,7 +94,7 @@ struct ImportRuleActionTests {
         book.importRules[0].actions[1].targetID = UUID()
         let snapshot = LedgerBackupSnapshot(book: book, draft: EntryDraft(amountText: "12+("), settings: LedgerSettings())
         let files = try BackupCodec.encode(snapshot)
-        #expect(files.count == 23 && BackupSchema.profile == "ledger-core-v9")
+        #expect(files.count == 23 && BackupSchema.profile == "ledger-core-v10")
         #expect(try BackupCodec.decode(files) == snapshot)
     }
 
@@ -106,16 +106,23 @@ struct ImportRuleActionTests {
         var manifest = try BackupSchema.manifest.read(files["manifest.csv"]!)[0].values
         manifest["profile"] = "ledger-core-v8"; manifest["backup_format_version"] = "8.0"; manifest["db_schema_version"] = "8"
         files["manifest.csv"] = BackupCSV.encode([BackupSchema.manifest.header, BackupSchema.manifest.columns.map { manifest[$0.name] }])
+        let legacyRows = try BackupSchema.importRows.read(files["import_rows.csv"]!).map { row in BackupSchema.v9ImportRows.columns.map { row.values[$0.name] } }
+        files["import_rows.csv"] = BackupCSV.encode([BackupSchema.v9ImportRows.header] + legacyRows)
         files["schema_dictionary.csv"] = BackupSchema.dictionaryData(for: BackupSchema.v8All)
-        rehash(&files)
+        try rehash(&files)
         #expect(try BackupCodec.decode(files) == snapshot)
         var rows = try BackupCSV.decode(files["import_rule_actions.csv"]!, file: "import_rule_actions.csv")
         rows[1][2] = "tag"
         files["import_rule_actions.csv"] = BackupCSV.encode(rows)
-        rehash(&files)
+        try rehash(&files)
         #expect(throws: BackupError.self) { try BackupCodec.decode(files) }
     }
-    private func rehash(_ files: inout [String: Data]) {
+    private func rehash(_ files: inout [String: Data]) throws {
+        let count = files.count
+        let counts: [[String?]] = try files.keys.sorted().map { name in
+            [name, String(name == "counts.csv" ? count : name == "checksums.csv" ? count - 1 : try BackupCSV.decode(files[name]!, file: name).count - 1)]
+        }
+        files["counts.csv"] = BackupCSV.encode([BackupSchema.counts.header] + counts)
         files["checksums.csv"] = BackupCSV.encode([BackupSchema.checksums.header] + files.keys.filter { $0 != "checksums.csv" }.sorted().map { [$0, BackupSHA256.hex(files[$0]!)] })
     }
 }

@@ -67,6 +67,9 @@ extension LedgerEngine {
         guard children.isEmpty || includingRecoveries else { throw LedgerError.linkedEntriesExist }
         let entries = [entry] + children
         let ids = Set(entries.map(\.id))
+        guard !book.importBatches.contains(where: { batch in batch.rows.contains { $0.state == .merged && $0.mergedEntryID.map(ids.contains) == true } }) else {
+            throw ImportError.invalidFile("这些流水存在合并来源，请先单独解除来源或撤销相应来源批次，再重新核对删除。")
+        }
         var after = book
         after.entries.removeAll { ids.contains($0.id) }
         after.retiredOperationIDs.formUnion(entries.map(\.operationID))

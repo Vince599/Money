@@ -9,6 +9,7 @@ public struct ImportUndoBlocker: Identifiable, Sendable {
 public struct ImportUndoPlan: Sendable {
     public let batchID: UUID
     public let entries: [LedgerEntry]
+    public let mergedRows: [ImportRow]
     public let accounts: [DeletionAccountImpact]
     public let revertedAt: Date
     public let expectedBook: LedgerBook
@@ -26,13 +27,17 @@ extension ImportEngine {
         guard BackupDates.isSupported(date), let batch = book.importBatches.first(where: { $0.id == batchID }) else { throw ImportError.invalidState }
         guard batch.revertedAt == nil else { throw ImportError.invalidFile("本批已撤销，不能再次撤销。") }
         let rows = batch.rows.filter { $0.state == .imported }
-        guard !rows.isEmpty else { throw ImportError.invalidFile("本批没有已入账流水，无需撤销。") }
+        let mergedRows = batch.rows.filter { $0.state == .merged }
+        guard !rows.isEmpty || !mergedRows.isEmpty else { throw ImportError.invalidFile("本批没有已入账流水，无需撤销。") }
         var blockers: [ImportUndoBlocker] = [], entries: [LedgerEntry] = []
         let byID = Dictionary(uniqueKeysWithValues: book.entries.map { ($0.id, $0) })
         let children = Dictionary(grouping: book.entries.filter { $0.originalEntryID != nil }, by: { $0.originalEntryID! })
         for row in rows {
             guard let current = byID[row.id] else {
                 blockers.append(ImportUndoBlocker(rowID: row.id, entryID: nil, reason: "原流水已被删除或缺失，不能按整批原状撤销。")); continue
+            }
+            if book.importBatches.contains(where: { other in other.id != batchID && other.rows.contains { $0.state == .merged && $0.mergedEntryID == row.id } }) {
+                blockers.append(ImportUndoBlocker(rowID: row.id, entryID: row.id, reason: "存在其他批次合并的来源，请先单独解除来源或撤销相应来源批次。"))
             }
             if let original = try? originalEntry(row, batch: batch), current == original {
                 entries.append(current)
@@ -50,7 +55,7 @@ extension ImportEngine {
             DeletionAccountImpact(id: $0.id, before: try LedgerEngine.balance(of: $0.id, in: book),
                                   after: try LedgerEngine.balance(of: $0.id, in: after))
         }
-        return ImportUndoReview(plan: ImportUndoPlan(batchID: batchID, entries: entries, accounts: impacts, revertedAt: date, expectedBook: book), blockers: [])
+        return ImportUndoReview(plan: ImportUndoPlan(batchID: batchID, entries: entries, mergedRows: mergedRows, accounts: impacts, revertedAt: date, expectedBook: book), blockers: [])
     }
 
     public static func undo(_ plan: ImportUndoPlan, in book: LedgerBook) throws -> LedgerBook {
@@ -65,11 +70,11 @@ extension ImportEngine {
         var result = book
         guard let index = result.importBatches.firstIndex(where: { $0.id == batchID }),
               result.importBatches[index].revertedAt == nil, result.importBatches[index].version < Int.max,
-              !entries.isEmpty else { throw ImportError.invalidState }
+              !entries.isEmpty || result.importBatches[index].rows.contains(where: { $0.state == .merged }) else { throw ImportError.invalidState }
         let ids = Set(entries.map(\.id))
         result.entries.removeAll { ids.contains($0.id) }
         result.retiredOperationIDs.formUnion(entries.map(\.operationID))
-        for rowIndex in result.importBatches[index].rows.indices where ids.contains(result.importBatches[index].rows[rowIndex].id) {
+        for rowIndex in result.importBatches[index].rows.indices where ids.contains(result.importBatches[index].rows[rowIndex].id) || result.importBatches[index].rows[rowIndex].state == .merged {
             result.importBatches[index].rows[rowIndex].state = .reverted
         }
         result.importBatches[index].revertedAt = date

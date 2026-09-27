@@ -125,6 +125,8 @@ struct ImportUndoTests {
         var manifest = try BackupSchema.manifest.read(files["manifest.csv"]!)[0].values
         manifest["profile"] = "ledger-core-v6"; manifest["backup_format_version"] = "6.0"; manifest["db_schema_version"] = "6"; manifest["file_count"] = "20"
         files["manifest.csv"] = BackupCSV.encode([BackupSchema.manifest.header, BackupSchema.manifest.columns.map { manifest[$0.name] }])
+        let legacyRows = try BackupSchema.importRows.read(files["import_rows.csv"]!).map { row in BackupSchema.v6ImportRows.columns.map { row.values[$0.name] } }
+        files["import_rows.csv"] = BackupCSV.encode([BackupSchema.v6ImportRows.header] + legacyRows)
         files["schema_dictionary.csv"] = BackupSchema.dictionaryData(for: BackupSchema.v6All)
         try rehash(&files)
         let restored = try BackupCodec.decode(files)

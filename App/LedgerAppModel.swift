@@ -248,6 +248,24 @@ final class LedgerAppModel {
     func saveImportRule(_ rule: ImportRule, expectedVersion: Int? = nil) async -> Bool {
         await mutate { repo in try await repo.saveImportRule(rule, expectedVersion: expectedVersion) }
     }
+    func importMergeCandidates(batchID: UUID, rowID: UUID) async throws -> [LedgerEntry] {
+        guard let repository else { throw ImportError.invalidState }
+        return try await repository.importMergeCandidates(batchID: batchID, rowID: rowID)
+    }
+    func prepareImportUnlink(batchID: UUID, rowID: UUID) async throws -> ImportUnlinkPlan {
+        guard let repository else { throw ImportError.invalidState }
+        return try await repository.prepareImportUnlink(batchID: batchID, rowID: rowID)
+    }
+    func unlinkImport(_ plan: ImportUnlinkPlan) async -> Bool {
+        await mutate { repo in try await repo.unlinkImport(plan) }
+    }
+    func reviewImportMerge(batchID: UUID, rowID: UUID, entryID: UUID) async throws -> ImportMergeReview {
+        guard let repository else { throw ImportError.invalidState }
+        return try await repository.reviewImportMerge(batchID: batchID, rowID: rowID, entryID: entryID)
+    }
+    func mergeImport(_ plan: ImportMergePlan) async -> Bool {
+        await mutate { repo in try await repo.mergeImport(plan) }
+    }
     func reviewImportRules(batchID: UUID, rowID: UUID) async throws -> ImportRuleReview {
         guard let repository else { throw ImportError.invalidState }
         return try await repository.reviewImportRules(batchID: batchID, rowID: rowID)

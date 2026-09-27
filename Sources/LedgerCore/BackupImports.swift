@@ -13,7 +13,7 @@ enum BackupImports {
         result[BackupSchema.importRows.name] = rows.enumerated().map { position, pair in
             let (batchID, row) = pair
             return [String(position), id(batchID), id(row.id), id(row.operationID), id(row.accountID), id(row.destinationAccountID),
-                    id(row.categoryID), id(row.subjectID), row.state.rawValue, row.duplicateReviewToken] + row.raw.map(Optional.some) + [id(row.projectID)]
+                    id(row.categoryID), id(row.subjectID), row.state.rawValue, row.duplicateReviewToken] + row.raw.map(Optional.some) + [id(row.projectID), id(row.mergedEntryID)]
         }
         let links = rows.flatMap { pair in pair.1.tagIDs.map { [id(pair.1.id), id($0)] } }
         result[BackupSchema.importRowTags.name] = links.enumerated().map { [String($0.offset)] + $0.element }
@@ -50,6 +50,7 @@ enum BackupImports {
             row.duplicateReviewToken = record.optionalString("duplicate_review_token")
             row.tagIDs = links.removeValue(forKey: row.id) ?? []
             row.projectID = try record.optionalUUID("project_id")
+            row.mergedEntryID = try record.optionalUUID("merged_entry_id")
             rows[batchID, default: []].append(row)
         }
         for record in try ordered(BackupSchema.importAccounts) {

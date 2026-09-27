@@ -6,6 +6,55 @@ import Testing
 
 @Suite("Import persistence and transactions")
 struct ImportStoreTests {
+    @Test func mergeAndUnlinkAreAtomicRetainLatestDraftAndProtectOldDeletionPlans() throws {
+        try withStore { store, inspection, path in
+            let account = Account(name: "账户", openingMinor: 10_000)
+            var batch = try ImportCSV.parse(ImportCSV.template, name: "source", namespace: "bank")
+            batch.rows[0].accountID = account.id; batch.rows[0].categoryID = SeedData.mealsID
+            let entry = LedgerEntry(kind: .expense, amount: try Money.parse(batch.rows[0].raw[3]), accountID: account.id,
+                                    categoryID: SeedData.mealsID, occurredAt: try #require(ImportCSV.date(batch.rows[0].raw[1])), note: "手写保留")
+            try store.commit(LedgerBook(accounts: [account], entries: [entry]), draft: nil)
+            let before = try store.saveImport(batch)
+            let deletion = try LedgerEngine.deletionPlan(entryID: entry.id, in: before.book)
+            let review = try ImportEngine.reviewMerge(batchID: batch.id, rowID: batch.rows[0].id, entryID: entry.id, in: before.book)
+            let plan = try ImportEngine.prepareMerge(review, keepExisting: Set(review.differences))
+            let draft = EntryDraft(amountText: "12+(")
+            try store.saveDraft(draft)
+            try inspection.write { try $0.execute(sql: "CREATE TRIGGER reject_merge BEFORE INSERT ON import_batches BEGIN SELECT RAISE(ABORT, 'injected'); END") }
+            #expect(throws: (any Error).self) { try store.mergeImport(plan) }
+            #expect(try store.loadBook() == before.book)
+            try inspection.write { try $0.execute(sql: "DROP TRIGGER reject_merge") }
+            let merged = try store.mergeImport(plan)
+            #expect(merged.book.entries == [entry] && merged.draft == draft)
+            #expect(try store.mergeImport(plan).book == merged.book)
+            #expect(try SQLiteLedgerStore(path: path).loadBook() == merged.book)
+            #expect(throws: ImportError.self) { try store.deleteEntries(deletion) }
+            let unlink = try ImportEngine.prepareUnlink(batchID: batch.id, rowID: batch.rows[0].id, in: merged.book)
+            try inspection.write { try $0.execute(sql: "CREATE TRIGGER reject_unlink BEFORE INSERT ON import_batches BEGIN SELECT RAISE(ABORT, 'injected'); END") }
+            #expect(throws: (any Error).self) { try store.unlinkImport(unlink) }
+            #expect(try store.loadBook() == merged.book)
+            try inspection.write { try $0.execute(sql: "DROP TRIGGER reject_unlink") }
+            let released = try store.unlinkImport(unlink)
+            #expect(released.book.entries == [entry] && released.draft == draft)
+            #expect(try SQLiteLedgerStore(path: path).loadBook().importBatches[0].rows[0].state == .unlinked)
+        }
+    }
+    @Test func schemaNineSourceMigrationPreservesOldPayloadAndRollsBackInvalidData() throws {
+        try withStore { store, inspection, path in
+            let before = try store.saveImport(stagedBatch())
+            let payload = try inspection.read { try Data.fetchOne($0, sql: "SELECT payload FROM import_batches") }
+            try inspection.write { try $0.execute(sql: "PRAGMA user_version = 9; UPDATE import_batches SET payload = ?", arguments: [Data("invalid".utf8)]) }
+            #expect(throws: LedgerStoreError.corruptData("import_batches")) { try SQLiteLedgerStore(path: path) }
+            try inspection.read { (db: Database) throws -> Void in #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 9) }
+            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?", arguments: [payload]) }
+            #expect(try SQLiteLedgerStore(path: path).loadBook() == before.book)
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
+                #expect(try Data.fetchOne(db, sql: "SELECT payload FROM import_batches") == payload)
+            }
+        }
+    }
+
     @Test func schemaEightMigrationRetainsRulePayloadAndRollsBackOnInvalidRule() throws {
         try withStore { store, inspection, path in
             let rule = ImportRule(name: "旧规则", conditions: [.init(field: .kind, comparison: .equals, value: "expense")], actions: [.init(field: .category, targetID: SeedData.mealsID)])

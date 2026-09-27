@@ -229,6 +229,7 @@ struct EntryDetailView: View {
                         LabeledContent("主体", value: model.subjectName(entry.subjectID))
                         LabeledContent("日期", value: BookDate.dateTime(entry.occurredAt))
                     }
+                    ImportSourceSection(model: model, entryIDs: [entry.id])
                     if !entry.tagIDs.isEmpty || entry.projectID != nil {
                         Section("标签／项目") {
                             if let project = model.book.projects.first(where: { $0.id == entry.projectID }) {

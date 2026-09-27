@@ -48,6 +48,7 @@ struct EntryDeletionView: View {
                             .accessibilityIdentifier("delete.execute")
                     }
                 }
+                ImportSourceSection(model: model, entryIDs: Set([entryID] + model.book.entries.filter { $0.originalEntryID == entryID }.map(\.id)))
                 if let message { Text(message).foregroundStyle(.red) }
                 if message != nil { Button("重新核对影响") { Task { await reload() } } }
                 if plan == nil && message == nil { ProgressView("正在核对影响…") }

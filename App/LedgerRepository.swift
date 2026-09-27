@@ -232,6 +232,23 @@ actor LedgerRepository {
         let value = try store.saveImportRule(rule, expectedVersion: expectedVersion)
         return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
     }
+    func importMergeCandidates(batchID: UUID, rowID: UUID) throws -> [LedgerEntry] {
+        try ImportEngine.mergeCandidates(batchID: batchID, rowID: rowID, in: readSnapshot().book)
+    }
+    func prepareImportUnlink(batchID: UUID, rowID: UUID) throws -> ImportUnlinkPlan {
+        try ImportEngine.prepareUnlink(batchID: batchID, rowID: rowID, in: readSnapshot().book)
+    }
+    func unlinkImport(_ plan: ImportUnlinkPlan) throws -> LedgerSnapshot {
+        let value = try store.unlinkImport(plan)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
+    func reviewImportMerge(batchID: UUID, rowID: UUID, entryID: UUID) throws -> ImportMergeReview {
+        try ImportEngine.reviewMerge(batchID: batchID, rowID: rowID, entryID: entryID, in: readSnapshot().book)
+    }
+    func mergeImport(_ plan: ImportMergePlan) throws -> LedgerSnapshot {
+        let value = try store.mergeImport(plan)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
     func reviewImportRules(batchID: UUID, rowID: UUID) throws -> ImportRuleReview {
         try ImportRuleEngine.review(batchID: batchID, rowID: rowID, in: readSnapshot().book)
     }

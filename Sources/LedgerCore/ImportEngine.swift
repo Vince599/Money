@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ImportRowState: String, Codable, Sendable { case pending, imported, skipped, reverted }
+public enum ImportRowState: String, Codable, Sendable { case pending, imported, skipped, reverted, merged, unlinked }
 
 public struct ImportRow: Identifiable, Codable, Equatable, Sendable {
     public var id: UUID
@@ -14,6 +14,7 @@ public struct ImportRow: Identifiable, Codable, Equatable, Sendable {
     public var duplicateReviewToken: String?
     public var tagIDs: [UUID] = []
     public var projectID: UUID?
+    public var mergedEntryID: UUID?
     public init(id: UUID = UUID(), operationID: UUID = UUID(), raw: [String], subjectID: UUID = SeedData.mpcID) {
         self.id = id; self.operationID = operationID; self.raw = raw; self.subjectID = subjectID; self.state = .pending
     }
@@ -33,6 +34,7 @@ public struct ImportRow: Identifiable, Codable, Equatable, Sendable {
         duplicateReviewToken = try values.decodeIfPresent(String.self, forKey: .duplicateReviewToken)
         tagIDs = try values.decodeIfPresent([UUID].self, forKey: .tagIDs) ?? []
         projectID = try values.decodeIfPresent(UUID.self, forKey: .projectID)
+        mergedEntryID = try values.decodeIfPresent(UUID.self, forKey: .mergedEntryID)
     }
 }
 
@@ -96,7 +98,7 @@ public enum ImportEngine {
                   batch.rows.count <= ImportCSV.maximumRows else { throw ImportError.invalidState }
             if let revertedAt = batch.revertedAt {
                 guard BackupDates.isSupported(revertedAt), batch.rows.contains(where: { $0.state == .reverted }),
-                      !batch.rows.contains(where: { $0.state == .imported }) else { throw ImportError.invalidState }
+                      !batch.rows.contains(where: { $0.state == .imported || $0.state == .merged }) else { throw ImportError.invalidState }
             } else if batch.rows.contains(where: { $0.state == .reverted }) { throw ImportError.invalidState }
             for account in batch.proposedAccounts {
                 guard proposedIDs.insert(account.id).inserted, !book.accounts.contains(where: { $0.id == account.id }),
@@ -107,7 +109,14 @@ public enum ImportEngine {
                 guard row.raw.count == ImportCSV.header.count, row.raw.allSatisfy({ $0.utf8.count <= 65_536 }),
                       Set(row.tagIDs).count == row.tagIDs.count,
                       row.state != .imported || consumed.contains(row.operationID) else { throw ImportError.invalidState }
-                if row.state == .reverted {
+                if row.state == .merged {
+                    guard let target = row.mergedEntryID, target != row.id, liveEntryIDs.contains(target),
+                          !liveEntryIDs.contains(row.id), book.retiredOperationIDs.contains(row.operationID) else { throw ImportError.invalidState }
+                } else if row.state != .reverted && row.state != .unlinked && row.mergedEntryID != nil { throw ImportError.invalidState }
+                if row.state == .unlinked {
+                    guard let target = row.mergedEntryID, target != row.id else { throw ImportError.invalidState }
+                }
+                if row.state == .reverted || row.state == .unlinked {
                     guard book.retiredOperationIDs.contains(row.operationID),
                           !liveEntryIDs.contains(row.id) else { throw ImportError.invalidState }
                 }
@@ -117,7 +126,7 @@ public enum ImportEngine {
         }
         var importedKeys = Set<[String]>()
         for batch in batches {
-            for row in batch.rows where row.state == .imported {
+            for row in batch.rows where row.state == .imported || row.state == .merged {
                 guard !row.sourceID.isEmpty, importedKeys.insert([batch.namespace, row.sourceID]).inserted else { throw ImportError.invalidState }
             }
         }
@@ -132,7 +141,7 @@ public enum ImportEngine {
                   batch.namespace == old.namespace, batch.createdAt == old.createdAt,
                   batch.rows.map(\.id) == old.rows.map(\.id) else { throw ImportError.stalePreview }
             for (before, after) in zip(old.rows, batch.rows) {
-                guard before.raw == after.raw, before.operationID == after.operationID,
+                guard before.raw == after.raw, before.operationID == after.operationID, before.mergedEntryID == after.mergedEntryID,
                       before.state == after.state, before.state == .pending || before == after else { throw ImportError.invalidState }
             }
             var updated = batch; updated.version += 1; result.importBatches[index] = updated
@@ -157,7 +166,7 @@ public enum ImportEngine {
         guard row.raw.count == ImportCSV.header.count else { return .blocked("原始列数错误。") }
         guard !row.sourceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .blocked("缺少稳定的 source_id，请修正源文件。") }
         for priorBatch in book.importBatches {
-            for prior in priorBatch.rows where prior.state == .imported && priorBatch.namespace == batch.namespace && prior.sourceID == row.sourceID {
+            for prior in priorBatch.rows where (prior.state == .imported || prior.state == .merged) && priorBatch.namespace == batch.namespace && prior.sourceID == row.sourceID {
                 return prior.raw == row.raw ? .duplicate : .conflict
             }
         }

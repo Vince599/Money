@@ -14,27 +14,35 @@ struct ImportUndoView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("撤销本批已入账流水，并撤回这些流水的余额和消费影响。账户及期初余额保留，不恢复整本旧账，也不删除后续记录。")
+                    Text("撤销本批新增流水的余额和消费影响；已合并来源只解除关联，已有流水与后续编辑保留。账户及期初余额保留，不恢复整本旧账，也不删除后续记录。")
                     Text("撤销后本批关闭并保留来源记录，未处理行不再从此批提交。需要重新导入时，新建批次并重新核对。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 if let review {
                     if let plan = review.plan {
                         Section("账户余额变化") {
+                            if plan.accounts.isEmpty { Text("本次只解除来源，账户余额保持不变。") }
                             ForEach(plan.accounts) { impact in
                                 LabeledContent(model.accountName(impact.id), value: impact.before.decimalString + " → " + impact.after.decimalString + " " + impact.after.currency.rawValue)
                             }
                         }
-                        Section("将撤销的 \(plan.entries.count) 笔流水") {
-                            ForEach(plan.entries) { entry in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(model.displayTitle(entry)).foregroundStyle(.primary)
-                                    Text(entry.kind.displayName + " · " + entry.amount.decimalString + " " + entry.amount.currency.rawValue + " · " + BookDate.day(entry.occurredAt))
-                                        .font(.subheadline).foregroundStyle(.secondary)
+                        if !plan.entries.isEmpty {
+                            Section("将撤销的 \(plan.entries.count) 笔流水") {
+                                ForEach(plan.entries) { entry in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(model.displayTitle(entry)).foregroundStyle(.primary)
+                                        Text(entry.kind.displayName + " · " + entry.amount.decimalString + " " + entry.amount.currency.rawValue + " · " + BookDate.day(entry.occurredAt))
+                                            .font(.subheadline).foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }
-                        Button("撤销以上 \(plan.entries.count) 笔", role: .destructive) { confirm = true }
+                        if !plan.mergedRows.isEmpty {
+                            Section("解除 \(plan.mergedRows.count) 份合并来源（不改余额）") {
+                                ForEach(plan.mergedRows) { Text(rowTitle($0.id)) }
+                            }
+                        }
+                        Button("确认撤销本批的上述影响", role: .destructive) { confirm = true }
                             .disabled(model.isBusy || loading).accessibilityIdentifier("import.undo.execute")
                     } else {
                         Section("需要先处理的影响") {
@@ -59,7 +67,7 @@ struct ImportUndoView: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(model.isBusy) } }
             .task { await reload() }
             .sheet(item: $linkedEntry, onDismiss: { Task { await reload() } }) { EntryDetailView(model: model, entryID: $0.id) }
-            .confirmationDialog("确认撤销上述流水并关闭本批？账户和期初保留。", isPresented: $confirm, titleVisibility: .visible) {
+            .confirmationDialog("确认撤销上述新增流水及来源关联并关闭本批？账户和期初保留。", isPresented: $confirm, titleVisibility: .visible) {
                 Button("确认撤销本批", role: .destructive) {
                     if let plan = review?.plan {
                         Task {

@@ -136,9 +136,12 @@ enum BackupDates {
 }
 
 enum BackupSchema {
-    static let profile = "ledger-core-v9"
-    static let version = "9.0"
-    static let dbVersion = "9"
+    static let profile = "ledger-core-v10"
+    static let version = "10.0"
+    static let dbVersion = "10"
+    static let v9Profile = "ledger-core-v9"
+    static let v9Version = "9.0"
+    static let v9DBVersion = "9"
     static let v8Profile = "ledger-core-v8"
     static let v8Version = "8.0"
     static let v8DBVersion = "8"
@@ -255,7 +258,8 @@ enum BackupSchema {
         choice("state", "pending|imported|skipped"), text("duplicate_review_token", nullable: true)]
         + ImportCSV.header.map { text("raw_" + $0, "Original UTF-8 source field; preserved without trimming or interpretation") })
     static let v6ImportRows = BackupTable(name: "import_rows.csv", columns: v5ImportRows.columns + [uuid("project_id", nullable: true, reference: "soft:projects.csv.id")])
-    static let importRows = BackupTable(name: "import_rows.csv", columns: v6ImportRows.columns.map { $0.name == "state" ? choice("state", "pending|imported|skipped|reverted") : $0 })
+    static let v9ImportRows = BackupTable(name: "import_rows.csv", columns: v6ImportRows.columns.map { $0.name == "state" ? choice("state", "pending|imported|skipped|reverted") : $0 })
+    static let importRows = BackupTable(name: "import_rows.csv", columns: v9ImportRows.columns.map { $0.name == "state" ? choice("state", "pending|imported|skipped|reverted|merged|unlinked") : $0 } + [uuid("merged_entry_id", nullable: true, reference: "entries.csv.id when merged; historical when reverted or unlinked")])
     static let importRowTags = BackupTable(name: "import_row_tags.csv", columns: [position, uuid("row_id", reference: "import_rows.csv.id"), uuid("tag_id", reference: "soft:tags.csv.id")])
     static let importAccounts = BackupTable(name: "import_accounts.csv", columns: [uuid("batch_id", reference: "import_batches.csv.id")] + accounts.columns)
     static let importRules = BackupTable(name: "import_rules.csv", columns: [position, uuid("id"), text("name"), text("namespace", nullable: true), integer("priority", precision: "0...10000"), bool("is_enabled"), integer("version", precision: "1...9223372036854775807"),
@@ -265,9 +269,10 @@ enum BackupSchema {
     static let importRuleConditions = BackupTable(name: "import_rule_conditions.csv", columns: [position, uuid("rule_id", reference: "import_rules.csv.id"), choice("field", "title|note|category|account|kind"), choice("comparison", "equals|contains"), text("value")])
     static let v8ImportRuleActions = BackupTable(name: "import_rule_actions.csv", columns: [position, uuid("rule_id", reference: "import_rules.csv.id"), choice("field", "account|category|subject"), uuid("target_id", reference: "soft:accounts.csv.id|categories.csv.id|subjects.csv.id")])
     static let importRuleActions = BackupTable(name: "import_rule_actions.csv", columns: [position, uuid("rule_id", reference: "import_rules.csv.id"), choice("field", "account|destinationAccount|category|subject|tag|project"), uuid("target_id", reference: "soft:accounts.csv.id|categories.csv.id|subjects.csv.id|tags.csv.id|projects.csv.id")])
-    static let v8All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts, importRowTags, importRules, importRuleConditions, v8ImportRuleActions]
+    static let v8All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, v9ImportRows, importAccounts, importRowTags, importRules, importRuleConditions, v8ImportRuleActions]
+    static let v9All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, v9ImportRows, importAccounts, importRowTags, importRules, importRuleConditions, importRuleActions]
     static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts, importRowTags, importRules, importRuleConditions, importRuleActions]
-    static let v7All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v7Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts, importRowTags]
+    static let v7All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v7Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, v9ImportRows, importAccounts, importRowTags]
     static let v6All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v6Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, v6ImportBatches, v6ImportRows, importAccounts, importRowTags]
     static let v5All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v5Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, v6ImportBatches, v5ImportRows, importAccounts]
     static let v4All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v4Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags]
