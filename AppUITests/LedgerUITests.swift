@@ -27,7 +27,7 @@ final class LedgerUITests: XCTestCase {
         wait(rows, count: 1)
         let originalID = rows.firstMatch.identifier
         tap(rows.firstMatch)
-        tap(element("entry.refund"), scrolling: app.collectionViews.firstMatch)
+        tap(element("entry.refund"), scrolling: foregroundList)
         replace(app.textFields["entry.amount"], with: "200.00")
         tap(element("entry.save"))
         wait(app.textFields["entry.amount"], for: "exists == false")
@@ -39,16 +39,18 @@ final class LedgerUITests: XCTestCase {
         screenshot("07-recovery-history-original-amount")
         tap(element(originalID))
         let net = element("entry.netCost")
-        for _ in 0..<5 where !net.exists || !net.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        for _ in 0..<5 where !net.exists || !net.isHittable { foregroundList.swipeUp() }
         assertText(net, contains: "800.00 CNY")
         screenshot("08-recovery-net-cost")
-        tap(app.buttons["删除"], scrolling: app.collectionViews.firstMatch)
+        tap(app.buttons["删除"], scrolling: foregroundList)
         let execute = element("delete.execute")
-        for _ in 0..<5 where !execute.exists || !execute.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        for _ in 0..<5 where !execute.exists || !execute.isHittable { foregroundList.swipeUp() }
         XCTAssertTrue(execute.waitForExistence(timeout: 15))
         XCTAssertFalse(execute.isEnabled)
         let group = app.switches["delete.group"]
-        tap(group)
+        wait(group, for: "exists == true AND enabled == true AND hittable == true")
+        // The outer AX switch spans its text row; the native control is at the trailing edge.
+        group.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         wait(group, for: "value == '1'")
         screenshot("09-recovery-delete-impact")
         tap(execute)
@@ -132,7 +134,7 @@ final class LedgerUITests: XCTestCase {
         let originalID = rows.firstMatch.identifier
         tap(rows.firstMatch)
         // A medium sheet lazily creates the action rows after its details are scrolled.
-        let details = app.collectionViews.containing(.button, identifier: "编辑").firstMatch
+        let details = foregroundList
         tap(element("entry.copy"), scrolling: details)
         XCTAssertTrue(app.textFields["entry.amount"].waitForExistence(timeout: 15))
         XCTAssertEqual(app.textFields["entry.amount"].value as? String, "20.10")
@@ -225,6 +227,13 @@ final class LedgerUITests: XCTestCase {
     }
 
     private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any).matching(identifier: id).firstMatch }
+    private var foregroundList: XCUIElement {
+        // Modal lists follow their presenting list in the captured AX hierarchy.
+        // Do not require a lazily created offscreen action to locate its scroll container.
+        let lists = app.collectionViews
+        XCTAssertTrue(lists.firstMatch.waitForExistence(timeout: 15), app.debugDescription)
+        return lists.element(boundBy: max(0, lists.count - 1))
+    }
     private func leaveHistorySearch() {
         // Submit dismisses the keyboard but may keep native search active and hide the toolbar.
         // Search behaviour is verified above; cancel it before the independent amount-filter check.
