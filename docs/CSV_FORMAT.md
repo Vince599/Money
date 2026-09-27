@@ -1,12 +1,12 @@
-# LedgerCore CSV backup profile 2
+# LedgerCore CSV backup profile 3
 
-Status: implemented for the current `LedgerBook`, `EntryDraft` and `LedgerSettings` models. Date: 2026-09-26.
+Status: implemented for the current `LedgerBook`, `EntryDraft` and `LedgerSettings` models. Date: 2026-09-27. Current platform verification is recorded in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 `BackupCodec.encode` returns twelve named CSV byte buffers. `BackupCodec.decode` validates the complete set and returns a `LedgerBackupSnapshot`; it does not write to the database. The archive layer packages these files into one ZIP, and the repository commits the decoded book, draft and settings in one transaction.
 
-New exports identify `profile=ledger-core-v2`, `backup_format_version=2.0` and `db_schema_version=2`. `complete=true` means **all fields in these implemented models**, including account presentation identifiers, deleted operations' consumed UUID markers, the unfinished draft and defaults. It does not claim support for roadmap entities such as investments, refunds, reimbursement, loans, subscriptions, import rules, NAS jobs or daily valuation drafts. Those entities are not yet present in this model. Adding persistent fields requires a new supported contract and tested migration; an unknown profile, format version, schema version, file or column is rejected, never silently discarded.
+New exports identify `profile=ledger-core-v3`, `backup_format_version=3.0` and `db_schema_version=3`. `complete=true` means **all fields in these implemented models**, including account presentation identifiers, refund/recovery links, purchase-level net recovery opt-in, deleted operations' consumed UUID markers, the unfinished draft and defaults. It does not claim support for roadmap entities such as investments, reimbursement, loans, subscriptions, import rules, NAS jobs or daily valuation drafts. Those entities are not yet present in this model. Adding persistent fields requires a new supported contract and tested migration; an unknown profile, format version, schema version, file or column is rejected, never silently discarded.
 
-The decoder also accepts the exact legacy triplet `ledger-core-v1 / 1.0 / db1`. Its older `accounts.csv` has no institution, template or icon columns, so restored accounts receive `nil` for those three presentation fields. The next export always uses profile 2. Mixed contracts, such as a v1 manifest with a v2 table header or field dictionary, are rejected.
+The decoder also accepts the exact legacy triplets `ledger-core-v1 / 1.0 / db1` and `ledger-core-v2 / 2.0 / db2`. Version 1's `accounts.csv` has no institution, template or icon columns, so restored accounts receive `nil` for those three presentation fields. Both older profiles lack recovery links and opt-in fields; these decode as `nil`, with net recovery disabled. The next export always uses profile 3. Mixed manifests, table headers and field dictionaries are rejected.
 
 ## Files and model coverage
 
@@ -17,10 +17,10 @@ Every file exists, including empty tables containing only their header. Column n
 | `accounts.csv` | Array order; `position,id,name,kind,nature,currency,opening_minor,opening_at_utc,opening_at_bits,included_in_summary,is_active,institution_id,template_id,icon_id`. The final three text fields are nullable stable catalog identifiers; unknown nonempty values are retained losslessly. |
 | `subjects.csv` | Array order; `position,id,name,is_active` |
 | `categories.csv` | Array order; `position,id,name,parent_id,direction,symbol,is_active` |
-| `entries.csv` | Array order; `position,id,operation_id,kind,amount_minor,currency,account_id,destination_account_id,category_id,subject_id,occurred_at_utc,occurred_at_bits,created_at_utc,created_at_bits,title,note,version` |
+| `entries.csv` | Array order; `position,id,operation_id,kind,amount_minor,currency,account_id,destination_account_id,category_id,subject_id,occurred_at_utc,occurred_at_bits,created_at_utc,created_at_bits,title,note,version,original_entry_id,allows_net_recovery` |
 | `adjustments.csv` | Array order; `position,id,operation_id,account_id,difference_minor,difference_currency,target_minor,target_currency,occurred_at_utc,occurred_at_bits,note` |
 | `retired_operations.csv` | `operation_id`; sorted on export, restored as a set. Retains consumed command IDs only, without deleted event contents. |
-| `draft.csv` | Zero or one row; `entry_id,operation_id,kind,amount_text,account_id,destination_account_id,subject_id,expense_category_id,income_category_id,occurred_at_utc,occurred_at_bits,title,note` |
+| `draft.csv` | Zero or one row; `entry_id,operation_id,kind,amount_text,account_id,destination_account_id,subject_id,expense_category_id,income_category_id,occurred_at_utc,occurred_at_bits,title,note,original_entry_id,allows_net_recovery` |
 | `settings.csv` | Exactly one row; `default_account_id,default_subject_id` |
 | `manifest.csv` | Exactly one row; `profile,backup_format_version,db_schema_version,app_version,complete,created_at_utc,created_at_bits,file_count` |
 | `schema_dictionary.csv` | One row for every column in all twelve files, including its own columns; `file,column,position,type,required,nullable,unit,precision,allowed_values,foreign_key,meaning` |
@@ -56,6 +56,10 @@ These are exact recovery files. A separate spreadsheet-friendly export must hand
 ## Value rules
 
 UUIDs are lowercase standard 36-character hyphenated strings. Booleans are exactly `true` or `false`. Stable enums are listed in the dictionary. Every monetary field is a base-10 signed Int64 in the associated currency's minor unit (1/100 for CNY, HKD and USD). Money never passes through floating point. Integers use canonical spelling: ASCII digits, an optional negative sign, no leading zeros except `0`, no `-0`, plus sign, whitespace, decimal point, exponent or thousands separators. Posted amounts and versions must be positive; all arithmetic and currency constraints are checked by `LedgerEngine.validate`.
+
+Entry `kind` supports `expense|income|transfer|refund|recovery`. A posted refund/recovery must reference one expense through `original_entry_id`, use the original currency and subject, and occur no earlier than the purchase; it has no category or transfer destination. The receiving account may differ. Other kinds require a null original reference. Only an expense may have a non-null `allows_net_recovery`; null/false disables cumulative recovery above its original amount. Enabling this purchase-level option permits a negative net cost, displayed as net recovery, without changing income or budget occupancy. The entire receipt belongs to its one original purchase; no amount is posted twice. Category directions remain `expense|income`.
+
+SQLite schema 3 adds the two nullable entry projections and a deferred self-reference with no cascading deletion. Versions 1 and 2 migrate in the same transaction as opening validation; existing payload bytes remain intact. Derived recovery totals and deletion previews are recomputed, not backed up as authoritative balances. Group deletion retires every removed operation ID; unfinished drafts retain soft references for user repair.
 
 Each `Date` is represented by a pair:
 
