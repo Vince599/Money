@@ -141,7 +141,7 @@ struct HistoryPageTests {
                 let details = try plan.map { try $0.decode(String.self, forColumn: "detail") }.joined(separator: "\n")
                 #expect(details.contains("entries_history_order"))
                 #expect(!details.contains("TEMP B-TREE"))
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 2)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
             }
             _ = store
         }

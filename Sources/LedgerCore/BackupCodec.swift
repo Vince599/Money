@@ -34,7 +34,7 @@ public enum BackupCodec {
             [String(index), id(entry.id), id(entry.operationID), entry.kind.rawValue, String(entry.amount.minorUnits),
              entry.amount.currency.rawValue, id(entry.accountID), id(entry.destinationAccountID), id(entry.categoryID), id(entry.subjectID)]
                 + (try BackupDates.values(entry.occurredAt)) + (try BackupDates.values(entry.createdAt))
-                + [entry.title, entry.note, String(entry.version)]
+                + [entry.title, entry.note, String(entry.version), id(entry.originalEntryID), entry.allowsNetRecovery.map { String($0) }]
         }
         rows[BackupSchema.adjustments.name] = try book.adjustments.enumerated().map { index, adjustment in
             [String(index), id(adjustment.id), id(adjustment.operationID), id(adjustment.accountID), String(adjustment.difference.minorUnits),
@@ -45,7 +45,7 @@ public enum BackupCodec {
         if let draft = snapshot.draft {
             rows[BackupSchema.draft.name] = [[id(draft.entryID), id(draft.operationID), draft.kind.rawValue, draft.amountText,
                 id(draft.accountID), id(draft.destinationAccountID), id(draft.subjectID), id(draft.expenseCategoryID), id(draft.incomeCategoryID)]
-                + (try BackupDates.values(draft.occurredAt)) + [draft.title, draft.note]]
+                + (try BackupDates.values(draft.occurredAt)) + [draft.title, draft.note, id(draft.originalEntryID), draft.allowsNetRecovery.map { String($0) }]]
         } else { rows[BackupSchema.draft.name] = [] }
         rows[BackupSchema.settings.name] = [[id(snapshot.settings.defaultAccountID), id(snapshot.settings.defaultSubjectID)]]
         let appVersion = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "unbundled"
@@ -111,11 +111,15 @@ public enum BackupCodec {
         case (BackupSchema.profile, BackupSchema.version, BackupSchema.dbVersion):
             contractTables = BackupSchema.all
             accountTable = BackupSchema.accounts
+        case (BackupSchema.v2Profile, BackupSchema.v2Version, BackupSchema.v2DBVersion):
+            contractTables = BackupSchema.v2All
+            accountTable = BackupSchema.accounts
         case (BackupSchema.legacyProfile, BackupSchema.legacyVersion, BackupSchema.legacyDBVersion):
             contractTables = BackupSchema.legacyAll
             accountTable = BackupSchema.legacyAccounts
         default:
             let reportedVersion = (profile == BackupSchema.profile && version == BackupSchema.version)
+                || (profile == BackupSchema.v2Profile && version == BackupSchema.v2Version)
                 || (profile == BackupSchema.legacyProfile && version == BackupSchema.legacyVersion)
                 ? version + ";db=" + dbVersion : version
             throw BackupError.unsupportedFormat(profile: profile, version: reportedVersion)
@@ -163,7 +167,9 @@ public enum BackupCodec {
                         accountID: try row.uuid("account_id"), destinationAccountID: try row.optionalUUID("destination_account_id"),
                         categoryID: try row.optionalUUID("category_id"), subjectID: try row.uuid("subject_id"),
                         occurredAt: try row.date("occurred_at"), createdAt: try row.date("created_at"),
-                        title: try row.string("title"), note: try row.string("note"), version: try row.int("version"))
+                        title: try row.string("title"), note: try row.string("note"), version: try row.int("version"),
+                        originalEntryID: try row.optionalUUID("original_entry_id"),
+                        allowsNetRecovery: row.optionalString("allows_net_recovery").map { $0 == "true" })
         }
         let adjustments = try ordered(BackupSchema.adjustments).map { row in
             BalanceAdjustment(id: try row.uuid("id"), operationID: try row.uuid("operation_id"), accountID: try row.uuid("account_id"),
@@ -180,7 +186,9 @@ public enum BackupCodec {
                        amountText: try row.string("amount_text"), accountID: try row.optionalUUID("account_id"),
                        destinationAccountID: try row.optionalUUID("destination_account_id"), subjectID: try row.uuid("subject_id"),
                        expenseCategoryID: try row.optionalUUID("expense_category_id"), incomeCategoryID: try row.optionalUUID("income_category_id"),
-                       occurredAt: try row.date("occurred_at"), title: try row.string("title"), note: try row.string("note"))
+                       occurredAt: try row.date("occurred_at"), title: try row.string("title"), note: try row.string("note"),
+                       originalEntryID: try row.optionalUUID("original_entry_id"),
+                       allowsNetRecovery: row.optionalString("allows_net_recovery").map { $0 == "true" })
         }
         let settings = LedgerSettings(defaultAccountID: try settingRows[0].optionalUUID("default_account_id"),
                                       defaultSubjectID: try settingRows[0].uuid("default_subject_id"))

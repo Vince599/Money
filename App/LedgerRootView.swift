@@ -157,13 +157,15 @@ struct EntryRow: View {
     }
     private var symbol: String {
         if entry.kind == .transfer { return "arrow.left.arrow.right" }
+        if entry.kind.isRecovery { return "arrow.uturn.backward" }
         return model.book.categories.first(where: { $0.id == entry.categoryID })?.symbol ?? "tag"
     }
     private var metadata: String {
         let account = entry.kind == .transfer ? model.accountName(entry.accountID) + " → " + model.accountName(entry.destinationAccountID) : model.accountName(entry.accountID)
-        return account + " · " + model.subjectName(entry.subjectID) + " · " + BookDate.dateTime(entry.occurredAt)
+        let marker = model.recoveries[entry.id] == nil ? "" : "已回收 · "
+        return marker + account + " · " + model.subjectName(entry.subjectID) + " · " + BookDate.dateTime(entry.occurredAt)
     }
     private var amount: String {
-        (entry.kind == .expense ? "−" : entry.kind == .income ? "+" : "") + entry.amount.decimalString + " " + entry.amount.currency.rawValue
+        (entry.kind == .expense ? "−" : entry.kind == .income || entry.kind.isRecovery ? "+" : "") + entry.amount.decimalString + " " + entry.amount.currency.rawValue
     }
 }

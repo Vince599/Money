@@ -28,6 +28,7 @@ public struct ShortcutEntryRequest: Equatable, Sendable {
     /// Missing fields stay available for review. Direct saves must also call `EntryDraft.entry`
     /// and the repository's normal validated ledger mutation path.
     public func makeDraft(in book: LedgerBook, settings: LedgerSettings = LedgerSettings()) throws -> EntryDraft {
+        guard !kind.isRecovery else { throw LedgerError.unsupportedOperation }
         guard occurredAt.timeIntervalSinceReferenceDate.isFinite else { throw ShortcutEntryError.invalidDate }
         if kind != .transfer, destinationAccountID != nil { throw ShortcutEntryError.destinationNotAllowed }
         if kind == .transfer, categoryID != nil { throw ShortcutEntryError.categoryNotAllowed }

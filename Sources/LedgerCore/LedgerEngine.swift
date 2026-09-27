@@ -66,6 +66,7 @@ public enum LedgerEngine {
     public static func delete(entryID: UUID, in book: LedgerBook) throws -> LedgerBook {
         try validate(book)
         guard let existing = book.entries.first(where: { $0.id == entryID }) else { return book }
+        guard !book.entries.contains(where: { $0.originalEntryID == entryID }) else { throw LedgerError.linkedEntriesExist }
         var result = book
         result.retiredOperationIDs.insert(existing.operationID)
         result.entries.removeAll { $0.id == entryID }
@@ -191,7 +192,7 @@ public enum LedgerEngine {
         }
         let categories = Dictionary(uniqueKeysWithValues: book.categories.map { ($0.id, $0) })
         for category in book.categories {
-            guard category.direction != .transfer,
+            guard category.direction.needsCategory,
                   !category.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw LedgerError.invalidCategory
             }
@@ -211,6 +212,7 @@ public enum LedgerEngine {
             try checkEntry(entry, in: book)
             try apply(postings(for: entry), accounts: accounts, balances: &balances)
         }
+        try RecoveryRules.validate(book)
         for adjustment in book.adjustments {
             guard let account = accounts[adjustment.accountID] else { throw LedgerError.accountNotFound }
             guard adjustment.difference.currency == account.currency, adjustment.target.currency == account.currency else {
@@ -240,7 +242,12 @@ public enum LedgerEngine {
         guard book.subjects.contains(where: { $0.id == entry.subjectID }) else { throw LedgerError.invalidSubject }
         guard let account = book.accounts.first(where: { $0.id == entry.accountID }) else { throw LedgerError.accountNotFound }
         guard account.currency == entry.amount.currency else { throw LedgerError.currencyMismatch }
-        if entry.kind == .transfer {
+        guard entry.kind.isRecovery || entry.originalEntryID == nil,
+              entry.kind == .expense || entry.allowsNetRecovery == nil else { throw LedgerError.invalidRecovery }
+        if entry.kind.isRecovery {
+            guard entry.destinationAccountID == nil, entry.categoryID == nil,
+                  entry.originalEntryID != nil else { throw LedgerError.invalidRecovery }
+        } else if entry.kind == .transfer {
             guard entry.categoryID == nil else { throw LedgerError.invalidCategory }
             guard let destinationID = entry.destinationAccountID,
                   let destination = book.accounts.first(where: { $0.id == destinationID }) else {
@@ -291,7 +298,7 @@ public enum LedgerEngine {
         case .expense:
             return [Posting(accountID: entry.accountID, signedDebit: -amount, currency: currency),
                     Posting(accountID: nil, signedDebit: amount, currency: currency)]
-        case .income:
+        case .income, .refund, .recovery:
             return [Posting(accountID: entry.accountID, signedDebit: amount, currency: currency),
                     Posting(accountID: nil, signedDebit: -amount, currency: currency)]
         case .transfer:

@@ -34,7 +34,20 @@ public struct Account: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-public enum EntryKind: String, Codable, CaseIterable, Sendable { case expense, income, transfer }
+public enum EntryKind: String, Codable, CaseIterable, Sendable {
+    case expense, income, transfer, refund, recovery
+    public var isRecovery: Bool { self == .refund || self == .recovery }
+    public var needsCategory: Bool { self == .expense || self == .income }
+    public var displayName: String {
+        switch self {
+        case .expense: "支出"
+        case .income: "收入"
+        case .transfer: "转账"
+        case .refund: "退款"
+        case .recovery: "出售回收"
+        }
+    }
+}
 
 public struct Subject: Identifiable, Codable, Equatable, Sendable {
     public var id: UUID
@@ -74,14 +87,19 @@ public struct LedgerEntry: Identifiable, Codable, Equatable, Sendable {
     public var title: String
     public var note: String
     public var version: Int
+    public var originalEntryID: UUID?
+    /// Explicit purchase-level opt-in; nil in older records means disabled.
+    public var allowsNetRecovery: Bool?
     public init(id: UUID = UUID(), operationID: UUID = UUID(), kind: EntryKind, amount: Money,
                 accountID: UUID, destinationAccountID: UUID? = nil, categoryID: UUID? = nil,
                 subjectID: UUID = SeedData.mpcID, occurredAt: Date = Date(), createdAt: Date = Date(),
-                title: String = "", note: String = "", version: Int = 1) {
+                title: String = "", note: String = "", version: Int = 1,
+                originalEntryID: UUID? = nil, allowsNetRecovery: Bool? = nil) {
         self.id = id; self.operationID = operationID; self.kind = kind; self.amount = amount
         self.accountID = accountID; self.destinationAccountID = destinationAccountID
         self.categoryID = categoryID; self.subjectID = subjectID; self.occurredAt = occurredAt
         self.createdAt = createdAt; self.title = title; self.note = note; self.version = version
+        self.originalEntryID = originalEntryID; self.allowsNetRecovery = allowsNetRecovery
     }
 }
 
@@ -121,6 +139,7 @@ public enum LedgerError: Error, Equatable, Sendable {
     case invalidAmount, overflow, currencyMismatch, accountNotFound, inactiveAccount
     case sameAccountTransfer, invalidCategory, invalidSubject, duplicateID, operationConflict
     case invalidAccount, entryNotFound, staleVersion, unsupportedOperation
+    case invalidRecovery, linkedEntriesExist, excessRecoveryRequiresConfirmation
 }
 
 public enum SeedData {

@@ -53,6 +53,10 @@ struct BackupCodecTests {
 
     private func legacyFiles(from snapshot: LedgerBackupSnapshot) throws -> [String: Data] {
         var files = try BackupCodec.encode(snapshot, createdAt: timestamp)
+        for (current, legacy) in [(BackupSchema.entries, BackupSchema.v2Entries), (BackupSchema.draft, BackupSchema.v2Draft)] {
+            let rows = try current.read(files[current.name]!).map { row in legacy.columns.map { row.values[$0.name] } }
+            files[legacy.name] = BackupCSV.encode([legacy.header] + rows)
+        }
         let rows = try BackupSchema.accounts.read(files[BackupSchema.accounts.name]!).map { row in
             BackupSchema.legacyAccounts.columns.map { row.values[$0.name] }
         }
@@ -182,7 +186,7 @@ struct BackupCodecTests {
         #expect(throws: BackupError.self) { try BackupCodec.decode(files) }
     }
 
-    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "3.0"), ("backup_format_version", "2.1"), ("db_schema_version", "3")])
+    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "4.0"), ("backup_format_version", "3.1"), ("db_schema_version", "4")])
     func rejectsUnsupportedVersionsDistinctly(_ field: String, _ value: String) throws {
         var files = try BackupCodec.encode(blank())
         try edit(&files, table: BackupSchema.manifest, column: field, value: value)
@@ -190,6 +194,30 @@ struct BackupCodecTests {
             _ = try BackupCodec.decode(files)
             Issue.record("Expected unsupported backup format")
         } catch BackupError.unsupportedFormat {} catch { Issue.record("Wrong error: \(error)") }
+    }
+
+    @Test func versionTwoBackupRetainsAccountAppearanceAndRestoresWithoutLinks() throws {
+        let source = snapshot()
+        var files = try BackupCodec.encode(source)
+        for (current, old) in [(BackupSchema.entries, BackupSchema.v2Entries), (BackupSchema.draft, BackupSchema.v2Draft)] {
+            let rows = try current.read(files[current.name]!).map { row in old.columns.map { row.values[$0.name] } }
+            files[old.name] = BackupCSV.encode([old.header] + rows)
+        }
+        try edit(&files, table: BackupSchema.manifest, column: "profile", value: BackupSchema.v2Profile)
+        try edit(&files, table: BackupSchema.manifest, column: "backup_format_version", value: BackupSchema.v2Version)
+        try edit(&files, table: BackupSchema.manifest, column: "db_schema_version", value: BackupSchema.v2DBVersion)
+        files[BackupSchema.dictionary.name] = BackupSchema.dictionaryData(for: BackupSchema.v2All)
+        let countRows = try BackupSchema.counts.read(files[BackupSchema.counts.name]!).map { row -> [String?] in
+            let name = try row.string("file")
+            return [name, name == BackupSchema.dictionary.name ? String(BackupSchema.dictionaryRecords(for: BackupSchema.v2All).count) : try row.string("row_count")]
+        }
+        files[BackupSchema.counts.name] = BackupCSV.encode([BackupSchema.counts.header] + countRows)
+        rehash(&files)
+        #expect(try BackupCodec.decode(files) == source)
+        // A current header hidden behind an old manifest must still fail.
+        files[BackupSchema.entries.name] = try BackupCodec.encode(source)[BackupSchema.entries.name]
+        rehash(&files)
+        #expect(throws: BackupError.self) { try BackupCodec.decode(files) }
     }
 
     @Test func rejectsMissingUnknownFilesAndHeadersAndSchemaEvenWithNewHashes() throws {

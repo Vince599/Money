@@ -52,7 +52,7 @@ public struct SQLiteLedgerSnapshot: Sendable {
 /// Callers must coordinate read-modify-save operations; serialization of writes
 /// alone does not make two independently edited book snapshots merge safely.
 public final class SQLiteLedgerStore: Sendable {
-    public static let schemaVersion = 2
+    public static let schemaVersion = 3
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
     private let historyStoreID = UUID()
@@ -92,7 +92,7 @@ public final class SQLiteLedgerStore: Sendable {
         let database = try DatabaseQueue(path: path, configuration: configuration)
         let snapshot = try database.write { db in
             let version = try Int.fetchOne(db, sql: "PRAGMA user_version") ?? 0
-            guard version == 0 || version == 1 || version == Self.schemaVersion else {
+            guard (0...Self.schemaVersion).contains(version) else {
                 throw LedgerStoreError.unsupportedSchemaVersion(version)
             }
             if version == 0 {
@@ -124,9 +124,18 @@ public final class SQLiteLedgerStore: Sendable {
                 // matching the new NULL projections; validation below shares this transaction.
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
+            if version == 1 || version == 2 {
+                guard try Int.fetchOne(db, sql: "PRAGMA application_id") == Self.applicationID else {
+                    throw LedgerStoreError.unrecognizedDatabase
+                }
+                try db.execute(sql: "ALTER TABLE entries ADD COLUMN original_entry_id TEXT REFERENCES entries(id) DEFERRABLE INITIALLY DEFERRED")
+                try db.execute(sql: "ALTER TABLE entries ADD COLUMN allows_net_recovery INTEGER CHECK (allows_net_recovery IS NULL OR allows_net_recovery IN (0, 1))")
+                try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
+            }
             let snapshot = try Self.readSnapshot(in: db)
             // Derived access path only: no business data, payload or backup contract changes.
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS entries_history_order ON entries(occurred_at DESC, created_at DESC, id ASC)")
+            try db.execute(sql: "CREATE INDEX IF NOT EXISTS entries_original ON entries(original_entry_id)")
             return snapshot
         }
         return (database, snapshot)
@@ -348,6 +357,19 @@ public final class SQLiteLedgerStore: Sendable {
         try checkDatabase(db)
         return SQLiteLedgerSnapshot(book: try readBook(in: db, checkingRelationships: false),
                                     draft: try readDraft(in: db), settings: try readSettings(in: db))
+    }
+
+    public func deleteEntries(_ plan: EntryDeletionPlan) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try LedgerEngine.delete(plan, in: current.book)
+            try Self.writeBook(updated, in: db)
+            let saved = try Self.readSnapshot(in: db)
+            guard saved.book == updated, saved.draft == current.draft, saved.settings == current.settings else {
+                throw LedgerStoreError.corruptData("delete_commit")
+            }
+            return saved
+        }
     }
 
     private static func readDraft(in db: Database) throws -> EntryDraft? {
@@ -572,7 +594,9 @@ public final class SQLiteLedgerStore: Sendable {
          "subject_id": entry.subjectID.uuidString.databaseValue,
          "amount_minor": entry.amount.minorUnits.databaseValue, "currency": entry.amount.currency.rawValue.databaseValue,
          "occurred_at": entry.occurredAt.timeIntervalSinceReferenceDate.databaseValue,
-         "created_at": entry.createdAt.timeIntervalSinceReferenceDate.databaseValue, "version": entry.version.databaseValue]
+         "created_at": entry.createdAt.timeIntervalSinceReferenceDate.databaseValue, "version": entry.version.databaseValue,
+         "original_entry_id": entry.originalEntryID?.uuidString.databaseValue ?? .null,
+         "allows_net_recovery": entry.allowsNetRecovery?.databaseValue ?? .null]
     }
 
     private static func columns(for adjustment: BalanceAdjustment) -> [String: DatabaseValue] {
@@ -634,6 +658,8 @@ public final class SQLiteLedgerStore: Sendable {
             amount_minor INTEGER NOT NULL CHECK (typeof(amount_minor) = 'integer' AND amount_minor > 0),
             currency TEXT NOT NULL, occurred_at REAL NOT NULL, created_at REAL NOT NULL,
             version INTEGER NOT NULL CHECK (version > 0),
+            original_entry_id TEXT REFERENCES entries(id) DEFERRABLE INITIALLY DEFERRED,
+            allows_net_recovery INTEGER CHECK (allows_net_recovery IS NULL OR allows_net_recovery IN (0, 1)),
             payload BLOB NOT NULL CHECK (typeof(payload) = 'blob'),
             FOREIGN KEY (operation_id, id, record_kind)
                 REFERENCES operation_registry(operation_id, record_id, record_kind)

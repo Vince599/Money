@@ -4,6 +4,61 @@ import XCTest
 final class LedgerUITests: XCTestCase {
     private let app = XCUIApplication()
 
+    func testRefundShowsOriginalAndNetCostThenRequiresExplicitGroupDeletion() throws {
+        continueAfterFailure = false
+        app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]
+        app.launch()
+        tap(app.tabBars.buttons["账户"])
+        tap(element("accounts.add"))
+        replace(app.textFields["account.name"], with: "Recovery Wallet")
+        replace(app.textFields["account.opening"], with: "2000.00")
+        tap(element("account.save"))
+        wait(app.textFields["account.name"], for: "exists == false")
+        tap(app.tabBars.buttons["首页"])
+        tap(element("entry.add"))
+        replace(app.textFields["entry.amount"], with: "1000.00")
+        tap(element("entry.category"))
+        tap(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ OR label == %@",
+            "entry.category.option.00000000-0000-4000-8000-000000000011", "餐饮 / 正餐")).firstMatch)
+        tap(element("entry.save"))
+        wait(app.textFields["entry.amount"], for: "exists == false")
+        tap(app.tabBars.buttons["流水"])
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.row."))
+        wait(rows, count: 1)
+        let originalID = rows.firstMatch.identifier
+        tap(rows.firstMatch)
+        tap(element("entry.refund"), scrolling: app.collectionViews.firstMatch)
+        replace(app.textFields["entry.amount"], with: "200.00")
+        tap(element("entry.save"))
+        wait(app.textFields["entry.amount"], for: "exists == false")
+        // The detail can expand beyond its initial medium height as associations appear.
+        tap(element("entry.detail.done"))
+        wait(rows, count: 2)
+        assertText(element(originalID), contains: "−1000.00 CNY")
+        assertText(element(originalID), contains: "已回收")
+        screenshot("07-recovery-history-original-amount")
+        tap(element(originalID))
+        let net = element("entry.netCost")
+        for _ in 0..<5 where !net.exists || !net.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        assertText(net, contains: "800.00 CNY")
+        screenshot("08-recovery-net-cost")
+        tap(app.buttons["删除"], scrolling: app.collectionViews.firstMatch)
+        let execute = element("delete.execute")
+        for _ in 0..<5 where !execute.exists || !execute.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(execute.waitForExistence(timeout: 15))
+        XCTAssertFalse(execute.isEnabled)
+        let group = app.switches["delete.group"]
+        tap(group)
+        wait(group, for: "value == '1'")
+        screenshot("09-recovery-delete-impact")
+        tap(execute)
+        tap(app.buttons["确认删除"])
+        wait(rows, count: 0)
+        tap(app.tabBars.buttons["账户"])
+        let account = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "account.row.")).firstMatch
+        assertText(account, contains: "2000.00 CNY")
+    }
+
     func testAccountTemplateDefaultsAndSavedAppearanceSurviveRelaunch() throws {
         continueAfterFailure = false
         app.launchArguments = ["-ledger-ui-test-store", UUID().uuidString]

@@ -269,7 +269,7 @@ struct SQLiteLedgerStoreTests {
             })
             #expect(try LedgerEngine.balance(of: expected.book.accounts[0].id, in: opened.snapshot.book).minorUnits == 97_200)
             try inspection.read { (db: Database) throws -> Void in
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 2)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
                 #expect(try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position") == originalPayloads)
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM accounts WHERE institution_id IS NOT NULL OR template_id IS NOT NULL OR icon_id IS NOT NULL") == 0)
                 #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
@@ -384,6 +384,9 @@ struct SQLiteLedgerStoreTests {
                 ALTER TABLE accounts_v1 RENAME TO accounts;
                 PRAGMA user_version = 1;
                 """)
+            try db.execute(sql: "DROP INDEX entries_original")
+            try db.execute(sql: "ALTER TABLE entries DROP COLUMN original_entry_id")
+            try db.execute(sql: "ALTER TABLE entries DROP COLUMN allows_net_recovery")
             for row in try Row.fetchAll(db, sql: "SELECT id, payload FROM accounts") {
                 let id: String = try row.decode(forColumn: "id")
                 let payload: Data = try row.decode(forColumn: "payload")

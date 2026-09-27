@@ -40,6 +40,7 @@ extension EntryDraft {
                           subjectID: subjectID,
                           expenseCategoryID: entry.kind == .expense ? categoryID : nil,
                           incomeCategoryID: entry.kind == .income ? categoryID : nil,
-                          occurredAt: date, title: entry.title, note: entry.note)
+                          occurredAt: date, title: entry.title, note: entry.note,
+                          originalEntryID: entry.originalEntryID)
     }
 }

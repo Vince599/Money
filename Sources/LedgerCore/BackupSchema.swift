@@ -136,9 +136,12 @@ enum BackupDates {
 }
 
 enum BackupSchema {
-    static let profile = "ledger-core-v2"
-    static let version = "2.0"
-    static let dbVersion = "2"
+    static let profile = "ledger-core-v3"
+    static let version = "3.0"
+    static let dbVersion = "3"
+    static let v2Profile = "ledger-core-v2"
+    static let v2Version = "2.0"
+    static let v2DBVersion = "2"
     static let legacyProfile = "ledger-core-v1"
     static let legacyVersion = "1.0"
     static let legacyDBVersion = "1"
@@ -173,7 +176,7 @@ enum BackupSchema {
     static let subjects = BackupTable(name: "subjects.csv", columns: [position, uuid("id"), text("name"), bool("is_active")])
     static let categories = BackupTable(name: "categories.csv", columns: [position, uuid("id"), text("name"),
         uuid("parent_id", nullable: true, reference: "categories.csv.id"), choice("direction", "expense|income"), text("symbol"), bool("is_active")])
-    static let entries = BackupTable(name: "entries.csv", columns: [position, uuid("id"), uuid("operation_id"), choice("kind", "expense|income|transfer"),
+    static let v2Entries = BackupTable(name: "entries.csv", columns: [position, uuid("id"), uuid("operation_id"), choice("kind", "expense|income|transfer"),
         integer("amount_minor", unit: "currency minor units; 1/100", precision: "1...9223372036854775807"), choice("currency", "CNY|HKD|USD"),
         uuid("account_id", reference: "accounts.csv.id"), uuid("destination_account_id", nullable: true, reference: "accounts.csv.id"),
         uuid("category_id", nullable: true, reference: "categories.csv.id"), uuid("subject_id", reference: "subjects.csv.id")]
@@ -183,7 +186,7 @@ enum BackupSchema {
         choice("difference_currency", "CNY|HKD|USD"), integer("target_minor", unit: "target_currency minor units; 1/100"),
         choice("target_currency", "CNY|HKD|USD")] + date("occurred_at") + [text("note")])
     static let retired = BackupTable(name: "retired_operations.csv", columns: [uuid("operation_id")])
-    static let draft = BackupTable(name: "draft.csv", columns: [uuid("entry_id"), uuid("operation_id"), choice("kind", "expense|income|transfer"),
+    static let v2Draft = BackupTable(name: "draft.csv", columns: [uuid("entry_id"), uuid("operation_id"), choice("kind", "expense|income|transfer"),
         text("amount_text", "Unfinished input preserved verbatim; not parsed as a posted amount"),
         uuid("account_id", nullable: true, reference: "soft:accounts.csv.id"), uuid("destination_account_id", nullable: true, reference: "soft:accounts.csv.id"),
         uuid("subject_id", reference: "soft:subjects.csv.id"), uuid("expense_category_id", nullable: true, reference: "soft:categories.csv.id"),
@@ -199,8 +202,18 @@ enum BackupSchema {
     static let counts = BackupTable(name: "counts.csv", columns: [text("file"), .init(name: "row_count", type: "uint", precision: "0...9223372036854775807; excludes header")])
     static let checksums = BackupTable(name: "checksums.csv", columns: [text("file"), .init(name: "sha256", type: "sha256", precision: "64 lowercase hex digits; raw uncompressed bytes")])
 
+    private static func recoveryColumns(_ table: BackupTable, soft: Bool = false) -> [BackupColumn] {
+        table.columns.map { $0.name == "kind" ? choice("kind", "expense|income|transfer|refund|recovery") : $0 } + [
+            uuid("original_entry_id", nullable: true, reference: (soft ? "soft:" : "") + "entries.csv.id"),
+            .init(name: "allows_net_recovery", type: "bool", nullable: true, values: "true|false",
+                  meaning: "Purchase opt-in for total recovery above original cost; null means disabled")
+        ]
+    }
+    static let entries = BackupTable(name: "entries.csv", columns: recoveryColumns(v2Entries))
+    static let draft = BackupTable(name: "draft.csv", columns: recoveryColumns(v2Draft, soft: true))
     static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums]
-    static let legacyAll = [legacyAccounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums]
+    static let v2All = [accounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, manifest, dictionary, counts, checksums]
+    static let legacyAll = [legacyAccounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, manifest, dictionary, counts, checksums]
     static var fileNames: Set<String> { Set(all.map(\.name)) }
     static func dictionaryRecords(for tables: [BackupTable]) -> [[String?]] {
         tables.flatMap { table in

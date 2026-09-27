@@ -27,7 +27,7 @@ public enum CatalogEditor {
 
     public static func saveCategory(_ category: Category, in book: LedgerBook) throws -> LedgerBook {
         try LedgerEngine.validate(book)
-        guard category.direction != .transfer,
+        guard category.direction.needsCategory,
               !category.symbol.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw LedgerError.invalidCategory
         }

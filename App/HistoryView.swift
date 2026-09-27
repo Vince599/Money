@@ -121,6 +121,8 @@ struct HistoryFilterView: View {
                         Text("支出").tag(Optional(EntryKind.expense))
                         Text("收入").tag(Optional(EntryKind.income))
                         Text("转账").tag(Optional(EntryKind.transfer))
+                        Text("退款").tag(Optional(EntryKind.refund))
+                        Text("出售回收").tag(Optional(EntryKind.recovery))
                     }.accessibilityIdentifier("filter.kind")
                     Picker("账户", selection: $value.accountID) {
                         Text("全部账户").tag(Optional<UUID>.none)

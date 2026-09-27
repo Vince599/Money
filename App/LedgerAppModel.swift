@@ -202,6 +202,19 @@ final class LedgerAppModel {
     func delete(_ entryID: UUID) async -> Bool {
         await mutate { repo in try await repo.deleteEntry(entryID) }
     }
+    func delete(_ plan: EntryDeletionPlan) async -> Bool {
+        await mutate { repo in try await repo.deleteEntries(plan) }
+    }
+    func deletionPreview(_ entryID: UUID) async throws -> EntryDeletionPlan {
+        guard let repository, !isBusy else { throw LedgerError.unsupportedOperation }
+        isBusy = true
+        homeRequestGeneration += 1
+        defer { isBusy = false }
+        let result = try await repository.deletionPreview(entryID)
+        apply(result.snapshot)
+        return result.plan
+    }
+    private(set) var recoveries: [UUID: RecoverySummary] = [:]
     func adjust(_ accountID: UUID, target: Money, note: String, operationID: UUID) async -> Bool {
         await mutate { repo in try await repo.adjustAccount(accountID, target: target, note: note, operationID: operationID) }
     }
@@ -251,7 +264,7 @@ final class LedgerAppModel {
     func balance(_ account: Account) -> Money? { try? LedgerEngine.balance(of: account.id, in: book) }
     func displayTitle(_ entry: LedgerEntry) -> String {
         if !entry.title.isEmpty { return entry.title }
-        if entry.kind == .transfer { return "转账" }
+        if !entry.kind.needsCategory { return entry.kind.displayName }
         return book.categories.first(where: { $0.id == entry.categoryID })?.name ?? "未找到分类"
     }
     func accountName(_ id: UUID?) -> String { book.accounts.first(where: { $0.id == id })?.name ?? "未选择账户" }
@@ -310,12 +323,16 @@ final class LedgerAppModel {
         case .staleVersion: return "记录已被修改，请重新打开后编辑。"
         case .duplicateID, .operationConflict: return "这次操作已经处理或内容发生冲突，请返回查看结果。"
         case .unsupportedOperation: return "当前操作尚不支持。"
+        case .invalidRecovery: return "请选择同币种、同主体的原支出，回收日期不能早于购买；修改原购买时须先处理关联。"
+        case .linkedEntriesExist: return "这笔购买存在退款或回收，请先处理关联，或查看影响后明确整组删除。"
+        case .excessRecoveryRequiresConfirmation: return "累计回收超过购买金额。请先核对金额；确实存在净回收时，在原购买的更多信息中开启“允许净回收”。"
         }
     }
     private func apply(_ value: LedgerSnapshot) {
         homeRequestGeneration += 1
         historyRevision += 1
         book = value.book
+        recoveries = value.recoveries
         home = value.home
         settings = value.settings
         // Autosave can run while a mutation awaits the repository actor.

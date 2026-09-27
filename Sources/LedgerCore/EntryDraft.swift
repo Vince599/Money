@@ -22,14 +22,18 @@ public struct EntryDraft: Codable, Equatable, Sendable {
     public var occurredAt: Date
     public var title: String
     public var note: String
+    public var originalEntryID: UUID?
+    public var allowsNetRecovery: Bool?
     public init(entryID: UUID = UUID(), operationID: UUID = UUID(), kind: EntryKind = .expense,
                 amountText: String = "", accountID: UUID? = nil, destinationAccountID: UUID? = nil,
                 subjectID: UUID = SeedData.mpcID, expenseCategoryID: UUID? = nil, incomeCategoryID: UUID? = nil,
-                occurredAt: Date = Date(), title: String = "", note: String = "") {
+                occurredAt: Date = Date(), title: String = "", note: String = "",
+                originalEntryID: UUID? = nil, allowsNetRecovery: Bool? = nil) {
         self.entryID = entryID; self.operationID = operationID; self.kind = kind
         self.amountText = amountText; self.accountID = accountID; self.destinationAccountID = destinationAccountID
         self.subjectID = subjectID; self.expenseCategoryID = expenseCategoryID; self.incomeCategoryID = incomeCategoryID
         self.occurredAt = occurredAt; self.title = title; self.note = note
+        self.originalEntryID = originalEntryID; self.allowsNetRecovery = allowsNetRecovery
     }
     public var categoryID: UUID? {
         get { kind == .expense ? expenseCategoryID : kind == .income ? incomeCategoryID : nil }
@@ -37,7 +41,7 @@ public struct EntryDraft: Codable, Equatable, Sendable {
             switch kind {
             case .expense: expenseCategoryID = newValue
             case .income: incomeCategoryID = newValue
-            case .transfer: break
+            case .transfer, .refund, .recovery: break
             }
         }
     }
@@ -50,9 +54,12 @@ public struct EntryDraft: Codable, Equatable, Sendable {
         return LedgerEntry(id: entryID, operationID: operationID, kind: kind, amount: amount,
                            accountID: accountID, destinationAccountID: kind == .transfer ? destinationAccountID : nil,
                            categoryID: categoryID, subjectID: subjectID, occurredAt: occurredAt,
-                           createdAt: createdAt, title: title, note: note)
+                           createdAt: createdAt, title: title, note: note,
+                           originalEntryID: kind.isRecovery ? originalEntryID : nil,
+                           allowsNetRecovery: kind == .expense ? allowsNetRecovery : nil)
     }
     public func nextEntry(at date: Date = Date()) -> EntryDraft {
-        EntryDraft(kind: kind, accountID: accountID, subjectID: subjectID, occurredAt: date)
+        EntryDraft(kind: kind, accountID: accountID, subjectID: subjectID, occurredAt: date,
+                   originalEntryID: kind.isRecovery ? originalEntryID : nil)
     }
 }

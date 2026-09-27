@@ -9,6 +9,7 @@ struct LedgerSnapshot: Sendable {
     var draftRevision: UInt64
     // Derived presentation data, never serialized into the backup or database.
     var home: HomeOverview? = nil
+    var recoveries: [UUID: RecoverySummary] = [:]
 }
 
 /// All disk work runs outside the main actor; mutation decisions use the latest persisted book.
@@ -65,6 +66,7 @@ actor LedgerRepository {
         // Capture the month after entering the repository, not before actor queuing.
         // Derivation cannot throw after an already successful disk commit.
         result.home = HomeOverview.make(book: value.book, at: date ?? Date())
+        result.recoveries = (try? RecoveryRules.summaries(in: value.book)) ?? [:]
         return result
     }
     func saveDraft(_ draft: EntryDraft?, revision: UInt64) throws {
@@ -118,6 +120,15 @@ actor LedgerRepository {
         let updated = try LedgerEngine.delete(entryID: id, in: current.book)
         try store.commit(updated, draft: current.draft)
         return try snapshot()
+    }
+    func deleteEntries(_ plan: EntryDeletionPlan) throws -> LedgerSnapshot {
+        let saved = try store.deleteEntries(plan)
+        return Self.withHome(LedgerSnapshot(book: saved.book, draft: saved.draft, settings: saved.settings,
+                                            draftRevision: draftRevision))
+    }
+    func deletionPreview(_ id: UUID) throws -> (snapshot: LedgerSnapshot, plan: EntryDeletionPlan) {
+        let value = Self.withHome(try readSnapshot())
+        return (value, try LedgerEngine.deletionPlan(entryID: id, includingRecoveries: true, in: value.book))
     }
     func adjustAccount(_ id: UUID, target: Money, note: String, operationID: UUID) throws -> LedgerSnapshot {
         let current = try readSnapshot()

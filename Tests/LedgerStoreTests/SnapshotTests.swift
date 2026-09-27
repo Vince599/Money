@@ -44,7 +44,7 @@ struct SnapshotTests {
             let legacy = try SQLiteLedgerStore(path: path)
             expect(try legacy.loadSnapshot(), book: book, draft: draft, settings: settings)
             try inspection.read { (db: Database) throws -> Void in
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 2)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM adjustments") == 1)
                 #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM operation_registry WHERE record_kind = 'retired'") == 1)
             }
