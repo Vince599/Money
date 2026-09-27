@@ -11,7 +11,7 @@ struct HistoryPageTests {
             let expected = try EntryQuery.entries(in: book)
             for size in [1, 2, 17, 50, 200] {
                 let actual = try allPages(store, filter: EntryFilter(), size: size)
-                #expect(actual == expected, "Filter: \(filter)")
+                #expect(actual == expected)
                 #expect(Set(actual.map(\.id)).count == book.entries.count)
             }
         }
@@ -40,7 +40,7 @@ struct HistoryPageTests {
             for filter in filters {
                 let actual = try allPages(store, filter: filter, size: 7)
                 let expected = try EntryQuery.entries(in: book, matching: filter)
-                #expect(actual == expected)
+                #expect(actual == expected, "Filter: \(filter)")
             }
         }
     }
