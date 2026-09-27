@@ -287,10 +287,11 @@ struct SQLiteLedgerStoreTests {
             let expected = try createSchemaOneFixture(path: path)
             let inspection = try DatabaseQueue(path: path)
             let original = try inspection.read { db in
-                (accounts: try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position"),
-                 entries: try Data.fetchAll(db, sql: "SELECT payload FROM entries ORDER BY position"),
-                 draft: try #require(Data.fetchOne(db, sql: "SELECT payload FROM entry_draft")),
-                 settings: try #require(Data.fetchOne(db, sql: "SELECT payload FROM ledger_settings")))
+                let draft: Data? = try Data.fetchOne(db, sql: "SELECT payload FROM entry_draft")
+                let settings: Data? = try Data.fetchOne(db, sql: "SELECT payload FROM ledger_settings")
+                return (accounts: try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position"),
+                        entries: try Data.fetchAll(db, sql: "SELECT payload FROM entries ORDER BY position"),
+                        draft: try #require(draft), settings: try #require(settings))
             }
             let invalidDraft = Data("not JSON".utf8)
             try inspection.write { db in
