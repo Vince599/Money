@@ -44,8 +44,8 @@ struct EntryEditor: View {
                         Button { calculator = true } label: { Image(systemName: "plus.forwardslash.minus") }
                             .buttonStyle(.borderless).accessibilityLabel("金额计算器").accessibilityIdentifier("entry.calculator")
                     }
-                    if let value = try? AmountExpression.evaluate(draft.amountText, currency: currency), !draft.amountText.isEmpty {
-                        Text("入账金额：" + value.money.decimalString + " " + currency.rawValue + (value.wasRounded ? "（已四舍五入到两位小数）" : ""))
+                    if let amountExplanation {
+                        Text(amountExplanation)
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     if draft.kind.needsCategory {
@@ -62,9 +62,8 @@ struct EntryEditor: View {
                     Section {
                         Picker("原购买", selection: $draft.originalEntryID) {
                             Text("请选择原支出").tag(Optional<UUID>.none)
-                            ForEach(model.book.entries.filter { $0.kind == .expense && $0.id != editing?.id }
-                                .sorted { $0.occurredAt > $1.occurredAt }) { original in
-                                Text(model.displayTitle(original) + " · " + original.amount.decimalString + " " + original.amount.currency.rawValue + " · " + BookDate.day(original.occurredAt))
+                            ForEach(originalPurchases) { original in
+                                Text(originalTitle(original))
                                     .tag(Optional(original.id))
                             }
                         }.accessibilityIdentifier("entry.original")
@@ -73,7 +72,7 @@ struct EntryEditor: View {
                     }
                 }
                 Section {
-                    accountPicker(draft.kind == .income || draft.kind.isRecovery ? "收款账户" : draft.kind == .transfer ? "转出账户" : "付款账户", selection: $draft.accountID)
+                    accountPicker(sourceAccountTitle, selection: $draft.accountID)
                         .accessibilityIdentifier("entry.account")
                     if draft.kind == .transfer { accountPicker("转入账户", selection: $draft.destinationAccountID) }
                     if draft.kind.isRecovery {
@@ -141,6 +140,21 @@ struct EntryEditor: View {
     }
     private var currency: Currency {
         model.book.accounts.first { $0.id == draft.accountID }?.currency ?? .cny
+    }
+    private var amountExplanation: String? {
+        guard !draft.amountText.isEmpty, let value = try? AmountExpression.evaluate(draft.amountText, currency: currency) else { return nil }
+        let suffix = value.wasRounded ? "（已四舍五入到两位小数）" : ""
+        return "入账金额：\(value.money.decimalString) \(currency.rawValue)\(suffix)"
+    }
+    private var sourceAccountTitle: String {
+        if draft.kind == .income || draft.kind.isRecovery { return "收款账户" }
+        return draft.kind == .transfer ? "转出账户" : "付款账户"
+    }
+    private var originalPurchases: [LedgerEntry] {
+        model.book.entries.filter { $0.kind == .expense && $0.id != editing?.id }.sorted { $0.occurredAt > $1.occurredAt }
+    }
+    private func originalTitle(_ original: LedgerEntry) -> String {
+        "\(model.displayTitle(original)) · \(original.amount.decimalString) \(original.amount.currency.rawValue) · \(BookDate.day(original.occurredAt))"
     }
     private func followOriginalSubject() {
         if draft.kind.isRecovery, let original = model.book.entries.first(where: { $0.id == draft.originalEntryID }) {
