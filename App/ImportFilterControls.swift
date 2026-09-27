@@ -17,7 +17,7 @@ struct ImportFilterControls: View {
     @Binding var filter: ImportFilter
     var namespaces: [String]? = nil
     var body: some View {
-        Section("查找导入记录") {
+        Section {
             TextField("搜索交易号、标题或备注", text: $filter.keyword)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .accessibilityIdentifier("import.filter.keyword")
@@ -39,7 +39,7 @@ struct ImportFilterControls: View {
                 }
             }.accessibilityIdentifier("import.filter.state")
             if filter != ImportFilter() { Button("清除筛选") { filter = ImportFilter() }.accessibilityIdentifier("import.filter.clear") }
-        } footer: {
+        } header: { Text("查找导入记录") } footer: {
             Text("筛选只用于查找。已撤销批次中的待处理原行仍不可提交；切换筛选会清空勾选。")
         }
     }

@@ -77,62 +77,8 @@ struct ImportLabelsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if let preview {
-                    Section("仅修改所选 \(preview.rowIDs.count) 行") {
-                        Text("\(tagMode.rawValue) · \(projectMode.rawValue)")
-                        Text("只保存本批草稿；正式入账仍需单独确认，不建立长期规则。")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
-                    ForEach(preview.batch.rows.filter { preview.rowIDs.contains($0.id) }) { after in
-                        if let before = preview.expectedBook.importBatches.first(where: { $0.id == batch.id })?.rows.first(where: { $0.id == after.id }) {
-                            Section(after.title.isEmpty ? after.sourceID : after.title) {
-                                Text(after.raw[3] + " " + after.raw[4] + " · " + after.raw[1]).font(.caption).foregroundStyle(.secondary)
-                                LabeledContent("原标签", value: tagsText(before.tagIDs, book: preview.expectedBook))
-                                LabeledContent("修改后标签", value: tagsText(after.tagIDs, book: preview.expectedBook))
-                                LabeledContent("原项目", value: projectText(before.projectID, book: preview.expectedBook))
-                                LabeledContent("修改后项目", value: projectText(after.projectID, book: preview.expectedBook))
-                            }
-                        }
-                    }
-                    Button("确认仅修改这些草稿行") {
-                        Task { if await model.commitImportLabels(preview) { dismiss() } else { message = model.errorMessage } }
-                    }.accessibilityIdentifier("import.labels.confirm")
-                    Button("返回调整") { self.preview = nil; message = nil }
-                } else {
-                    Section("标签") {
-                        Picker("修改方式", selection: $tagMode) {
-                            ForEach(TagEditMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                        }
-                        if tagMode == .add || tagMode == .remove || tagMode == .replace {
-                            ForEach(tagChoices, id: \.self) { id in
-                                Toggle(tagText(id, book: model.book), isOn: Binding(get: { selectedTags.contains(id) }, set: { value in
-                                    if value { if !selectedTags.contains(id) { selectedTags.append(id) } }
-                                    else { selectedTags.removeAll { $0 == id } }
-                                }))
-                            }
-                        }
-                    } footer: { Text("追加保留原标签，替换覆盖全部原标签。移除可清理已停用或缺失的标签。") }
-                    Section("项目") {
-                        Picker("修改方式", selection: $projectMode) {
-                            ForEach(ProjectEditMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                        }
-                        if projectMode == .set {
-                            Picker("项目", selection: $projectID) {
-                                Text("请选择项目").tag(Optional<UUID>.none)
-                                ForEach(model.book.projects.filter { !$0.isArchived }) { Text($0.name).tag(Optional($0.id)) }
-                            }
-                        }
-                    }
-                    Button("预览所选 \(rowIDs.count) 行") {
-                        Task {
-                            do {
-                                let plan = try await model.prepareImportLabels(batchID: batch.id, rowIDs: rowIDs, tags: tagAction, project: projectAction)
-                                guard plan.expectedBook.importBatches.first(where: { $0.id == batch.id }) == batch else { throw ImportError.stalePreview }
-                                preview = plan; message = nil
-                            } catch { message = model.message(for: error) }
-                        }
-                    }.disabled(!canPreview).accessibilityIdentifier("import.labels.preview")
-                }
+                if let preview { previewSections(preview) }
+                else { tagSection; projectSection; previewButton }
                 if let message { Text(message).foregroundStyle(.red) }
             }
             .navigationTitle("本批标签／项目").navigationBarTitleDisplayMode(.inline)
@@ -140,6 +86,70 @@ struct ImportLabelsView: View {
             .onChange(of: tagMode) { _, _ in selectedTags = [] }
             .disabled(model.isBusy).interactiveDismissDisabled(model.isBusy)
         }
+    }
+    @ViewBuilder private func previewSections(_ plan: ImportLabelsPlan) -> some View {
+        Section("仅修改所选 \(plan.rowIDs.count) 行") {
+            Text("\(tagMode.rawValue) · \(projectMode.rawValue)")
+            Text("只保存本批草稿；正式入账仍需单独确认，不建立长期规则。")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
+        ForEach(plan.batch.rows.filter { plan.rowIDs.contains($0.id) }) { after in
+            if let before = plan.expectedBook.importBatches.first(where: { $0.id == batch.id })?.rows.first(where: { $0.id == after.id }) {
+                rowPreview(before: before, after: after, book: plan.expectedBook)
+            }
+        }
+        Button("确认仅修改这些草稿行") {
+            Task { if await model.commitImportLabels(plan) { dismiss() } else { message = model.errorMessage } }
+        }.accessibilityIdentifier("import.labels.confirm")
+        Button("返回调整") { preview = nil; message = nil }
+    }
+    private func rowPreview(before: ImportRow, after: ImportRow, book: LedgerBook) -> some View {
+        Section(after.title.isEmpty ? after.sourceID : after.title) {
+            Text(after.raw[3] + " " + after.raw[4] + " · " + after.raw[1]).font(.caption).foregroundStyle(.secondary)
+            LabeledContent("原标签", value: tagsText(before.tagIDs, book: book))
+            LabeledContent("修改后标签", value: tagsText(after.tagIDs, book: book))
+            LabeledContent("原项目", value: projectText(before.projectID, book: book))
+            LabeledContent("修改后项目", value: projectText(after.projectID, book: book))
+        }
+    }
+    private var tagSection: some View {
+        Section {
+            Picker("修改方式", selection: $tagMode) {
+                ForEach(TagEditMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            if tagMode == .add || tagMode == .remove || tagMode == .replace {
+                ForEach(tagChoices, id: \.self) { id in
+                    Toggle(tagText(id, book: model.book), isOn: Binding(get: { selectedTags.contains(id) }, set: { value in
+                        if value { if !selectedTags.contains(id) { selectedTags.append(id) } }
+                        else { selectedTags.removeAll { $0 == id } }
+                    }))
+                }
+            }
+        } header: { Text("标签") } footer: { Text("追加保留原标签，替换覆盖全部原标签。移除可清理已停用或缺失的标签。") }
+    }
+    private var projectSection: some View {
+        Section("项目") {
+            Picker("修改方式", selection: $projectMode) {
+                ForEach(ProjectEditMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            if projectMode == .set {
+                Picker("项目", selection: $projectID) {
+                    Text("请选择项目").tag(Optional<UUID>.none)
+                    ForEach(model.book.projects.filter { !$0.isArchived }) { Text($0.name).tag(Optional($0.id)) }
+                }
+            }
+        }
+    }
+    private var previewButton: some View {
+        Button("预览所选 \(rowIDs.count) 行") {
+            Task {
+                do {
+                    let plan = try await model.prepareImportLabels(batchID: batch.id, rowIDs: rowIDs, tags: tagAction, project: projectAction)
+                    guard plan.expectedBook.importBatches.first(where: { $0.id == batch.id }) == batch else { throw ImportError.stalePreview }
+                    preview = plan; message = nil
+                } catch { message = model.message(for: error) }
+            }
+        }.disabled(!canPreview).accessibilityIdentifier("import.labels.preview")
     }
     private func tagText(_ id: UUID, book: LedgerBook) -> String {
         guard let tag = book.tags.first(where: { $0.id == id }) else { return "缺失标签 " + String(id.uuidString.prefix(8)) }
