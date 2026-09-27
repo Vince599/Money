@@ -69,6 +69,11 @@ struct HistoryPageTests {
             }
             let other = try SQLiteLedgerStore(path: path)
             #expect(throws: LedgerStoreError.staleHistoryCursor) { try other.entryPage(after: cursor) }
+            let unicode = try store.entryPage(matching: EntryFilter(keyword: "café"), limit: 2)
+            let unicodeCursor = try #require(unicode.nextCursor)
+            #expect(throws: LedgerStoreError.staleHistoryCursor) {
+                try store.entryPage(matching: EntryFilter(keyword: "cafe\u{0301}"), after: unicodeCursor)
+            }
             var changed = book
             changed.entries.removeLast()
             try store.saveBook(changed)

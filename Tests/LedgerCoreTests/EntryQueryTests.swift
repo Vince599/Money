@@ -32,6 +32,18 @@ struct EntryQueryTests {
         #expect(book == before)
     }
 
+    @Test func filterIdentityPreservesLiteralUnicodeSearchDifferences() throws {
+        let composed = EntryFilter(keyword: "café")
+        let decomposed = EntryFilter(keyword: "cafe\u{0301}")
+        #expect(composed.keyword == decomposed.keyword)
+        #expect(composed != decomposed)
+        let first = entry(1, title: composed.keyword)
+        let second = entry(2, title: decomposed.keyword)
+        let book = LedgerBook(entries: [first, second])
+        #expect(try EntryQuery.entries(in: book, matching: composed) == [first])
+        #expect(try EntryQuery.entries(in: book, matching: decomposed) == [second])
+    }
+
     @Test func searchTrimsEdgesMatchesTitleOrNoteAndIgnoresCase() throws {
         let title = entry(1, title: "Lunch With ALICE")
         let note = entry(2, title: "午餐", note: "\nAlice 请客补记\n")

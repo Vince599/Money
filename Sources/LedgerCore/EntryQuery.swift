@@ -24,6 +24,16 @@ public struct EntryFilter: Equatable, Sendable {
         self.minimumMinor = minimumMinor; self.maximumMinor = maximumMinor
         self.from = from; self.to = to
     }
+
+    public static func == (lhs: EntryFilter, rhs: EntryFilter) -> Bool {
+        // String equality normalizes Unicode, but the literal search below does
+        // not. Request identity must distinguish those different query bytes.
+        lhs.keyword.utf8.elementsEqual(rhs.keyword.utf8)
+            && lhs.kind == rhs.kind && lhs.accountID == rhs.accountID
+            && lhs.categoryID == rhs.categoryID && lhs.subjectID == rhs.subjectID
+            && lhs.currency == rhs.currency && lhs.minimumMinor == rhs.minimumMinor
+            && lhs.maximumMinor == rhs.maximumMinor && lhs.from == rhs.from && lhs.to == rhs.to
+    }
 }
 
 public enum EntryQueryError: Error, Equatable, Sendable {
