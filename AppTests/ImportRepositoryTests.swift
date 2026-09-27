@@ -15,7 +15,7 @@ final class ImportRepositoryTests: XCTestCase {
         var batch = try ImportCSV.parse(ImportCSV.template, name: "source", namespace: "bank")
         batch.rows[0].accountID = account.id; batch.rows[0].categoryID = SeedData.mealsID
         let entry = LedgerEntry(kind: .expense, amount: try Money.parse(batch.rows[0].raw[3]), accountID: account.id,
-                                categoryID: SeedData.mealsID, occurredAt: try XCTUnwrap(ImportCSV.date(batch.rows[0].raw[1])), note: "保留手写")
+                                categoryID: SeedData.mealsID, occurredAt: try Date.ISO8601FormatStyle().parse(batch.rows[0].raw[1]), note: "保留手写")
         _ = try await repo.saveEntry(entry, expectedVersion: nil, nextDraft: nil, revision: 1)
         _ = try await repo.saveImport(batch)
         let review = try await repo.reviewImportMerge(batchID: batch.id, rowID: batch.rows[0].id, entryID: entry.id)

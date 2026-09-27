@@ -118,7 +118,8 @@ struct EntryLabelsStoreTests {
             try inspection.write { db in
                 try db.execute(sql: "DROP TABLE import_batches; DROP INDEX entries_project; DROP TABLE entry_tags; ALTER TABLE entries DROP COLUMN project_id; DROP TABLE tags; DROP TABLE projects; DROP TABLE IF EXISTS import_rules; PRAGMA user_version = 3")
                 for table in ["entries", "entry_draft"] {
-                    let payload = try #require(Data.fetchOne(db, sql: "SELECT payload FROM \(table)"))
+                    let storedPayload = try Data.fetchOne(db, sql: "SELECT payload FROM \(table)")
+                    let payload = try #require(storedPayload)
                     var object = try #require(JSONSerialization.jsonObject(with: payload) as? [String: Any])
                     object.removeValue(forKey: "tagIDs"); object.removeValue(forKey: "projectID")
                     try db.execute(sql: "UPDATE \(table) SET payload = ?", arguments: [try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])])
