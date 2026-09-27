@@ -256,7 +256,7 @@ struct SQLiteLedgerStoreTests {
             let inspection = try DatabaseQueue(path: path)
             let originalPayloads = try inspection.read { db in
                 #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 1)
-                #expect(try accountColumnNames(in: db).isDisjoint(["institution_id", "template_id", "icon_id"]))
+                #expect(try accountColumnNames(in: db).isDisjoint(with: ["institution_id", "template_id", "icon_id"]))
                 return try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position")
             }
 
@@ -300,7 +300,7 @@ struct SQLiteLedgerStoreTests {
             #expect(throws: LedgerStoreError.corruptData("entry_draft")) { try SQLiteLedgerStore.open(path: path) }
             try inspection.read { (db: Database) throws -> Void in
                 #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 1)
-                #expect(try accountColumnNames(in: db).isDisjoint(["institution_id", "template_id", "icon_id"]))
+                #expect(try accountColumnNames(in: db).isDisjoint(with: ["institution_id", "template_id", "icon_id"]))
                 #expect(try Data.fetchAll(db, sql: "SELECT payload FROM accounts ORDER BY position") == original.accounts)
                 #expect(try Data.fetchAll(db, sql: "SELECT payload FROM entries ORDER BY position") == original.entries)
                 #expect(try Data.fetchOne(db, sql: "SELECT payload FROM entry_draft") == invalidDraft)
