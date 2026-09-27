@@ -31,7 +31,7 @@ struct AccountsView: View {
                             Text(balance).monospacedDigit().foregroundStyle(.primary)
                                 .fixedSize(horizontal: true, vertical: false)
                         }
-                    }
+                    }.contentShape(Rectangle())
                 }.buttonStyle(.plain)
                     .accessibilityIdentifier("account.row." + account.id.uuidString.lowercased())
             }

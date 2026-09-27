@@ -23,7 +23,7 @@ final class LedgerUITests: XCTestCase {
         let tag = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "tag.row.")).firstMatch
         assertText(tag, contains: "Travel")
         let tagID = String(tag.identifier.dropFirst("tag.row.".count))
-        tap(app.navigationBars.buttons["设置"])
+        tap(app.navigationBars["标签管理"].buttons["BackButton"])
         tap(element("settings.projects"))
         tap(element("project.add"))
         replace(app.textFields["label.name"], with: "Shanghai")
@@ -32,7 +32,7 @@ final class LedgerUITests: XCTestCase {
         let project = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "project.row.")).firstMatch
         assertText(project, contains: "Shanghai")
         let projectID = project.identifier
-        tap(app.navigationBars.buttons["设置"])
+        tap(app.navigationBars["项目管理"].buttons["BackButton"])
         tap(element("settings.done"))
         tap(app.tabBars.buttons["首页"])
         tap(element("entry.add"))
@@ -54,11 +54,14 @@ final class LedgerUITests: XCTestCase {
         tap(element("accounts.settings"))
         tap(element("settings.projects"))
         tap(element(projectID))
-        tap(element("label.unavailable"))
+        let archived = app.switches["label.unavailable"]
+        wait(archived, for: "exists == true AND enabled == true AND hittable == true")
+        archived.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        wait(archived, for: "value == '1'")
         tap(element("label.save"))
         wait(app.textFields["label.name"], for: "exists == false")
         assertText(element(projectID), contains: "已归档")
-        tap(app.navigationBars.buttons["设置"])
+        tap(app.navigationBars["项目管理"].buttons["BackButton"])
         tap(element("settings.done"))
         tap(app.tabBars.buttons["流水"])
         tap(element("history.filter"))
