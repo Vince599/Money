@@ -8,6 +8,8 @@ struct EntryEditor: View {
     @State private var validationMessage: String?
     @State private var discard = false
     @State private var calculator = false
+    private enum InputField: Hashable { case amount, title, note }
+    @FocusState private var focusedField: InputField?
     @Environment(\.dismiss) private var dismiss
     init(model: LedgerAppModel, editing: LedgerEntry? = nil) {
         self.model = model; self.editing = editing
@@ -41,6 +43,7 @@ struct EntryEditor: View {
                     }
                     HStack {
                         TextField("金额", text: $draft.amountText).keyboardType(.decimalPad).font(.title2).monospacedDigit()
+                            .focused($focusedField, equals: .amount)
                             .accessibilityIdentifier("entry.amount")
                         Button { calculator = true } label: { Image(systemName: "plus.forwardslash.minus") }
                             .buttonStyle(.borderless).accessibilityLabel("金额计算器").accessibilityIdentifier("entry.calculator")
@@ -95,8 +98,9 @@ struct EntryEditor: View {
                         } label: {
                             LabeledContent("标签／项目", value: EntryLabelsSelectionView.summary(book: model.book, tags: draft.tagIDs, project: draft.projectID))
                         }.accessibilityIdentifier("entry.labels")
-                        TextField("标题（可空）", text: $draft.title).accessibilityIdentifier("entry.title")
+                        TextField("标题（可空）", text: $draft.title).focused($focusedField, equals: .title).accessibilityIdentifier("entry.title")
                         TextField("备注", text: $draft.note, axis: .vertical).lineLimit(3...8)
+                            .focused($focusedField, equals: .note)
                         if draft.kind == .expense && editing != nil {
                             Toggle("允许净回收", isOn: Binding(get: { draft.allowsNetRecovery == true },
                                                                set: { draft.allowsNetRecovery = $0 ? true : nil }))
@@ -119,12 +123,20 @@ struct EntryEditor: View {
                 }.disabled(model.isBusy || model.book.accounts.isEmpty)
                 Section { Button(editing == nil ? "放弃这份草稿" : "放弃修改", role: .destructive) { discard = true } }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(editing == nil ? "记一笔" : "编辑流水").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) {
                 Button("关闭") {
                     if editing == nil { closeKeepingDraft() } else { discard = true }
                 }.disabled(model.isBusy)
             } }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("收起键盘") { focusedField = nil }
+                        .accessibilityIdentifier("entry.keyboard.done")
+                }
+            }
             .disabled(model.isBusy)
             .interactiveDismissDisabled(model.isBusy || editing != nil)
             .sheet(isPresented: $calculator) {
