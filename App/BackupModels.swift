@@ -10,6 +10,7 @@ struct BackupRestorePreview: Identifiable, Sendable {
     var tagCount: Int = 0
     var projectCount: Int = 0
     var importBatchCount: Int = 0
+    var importRuleCount: Int = 0
     let hasDraft: Bool
 }
 

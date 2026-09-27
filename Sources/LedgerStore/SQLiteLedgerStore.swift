@@ -52,7 +52,7 @@ public struct SQLiteLedgerSnapshot: Sendable {
 /// Callers must coordinate read-modify-save operations; serialization of writes
 /// alone does not make two independently edited book snapshots merge safely.
 public final class SQLiteLedgerStore: Sendable {
-    public static let schemaVersion = 7
+    public static let schemaVersion = 8
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
     private let historyStoreID = UUID()
@@ -104,6 +104,7 @@ public final class SQLiteLedgerStore: Sendable {
                 guard tables.isEmpty, identifier == 0 else {
                     throw LedgerStoreError.unrecognizedDatabase
                 }
+                try db.execute(sql: Self.ruleSchema)
                 try db.execute(sql: Self.importSchema)
                 try db.execute(sql: Self.initialSchema)
                 try db.execute(sql: Self.labelSchema)
@@ -148,6 +149,10 @@ public final class SQLiteLedgerStore: Sendable {
             }
             if version == 5 || version == 6 {
                 // Import labels and reversal status live in the batch payload. Missing fields default without rewriting old bytes.
+                try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
+            }
+            if (1...7).contains(version) {
+                try db.execute(sql: Self.ruleSchema)
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
             let snapshot = try Self.readSnapshot(in: db)
@@ -398,6 +403,27 @@ public final class SQLiteLedgerStore: Sendable {
         }
     }
 
+    public func saveImportRule(_ rule: ImportRule, expectedVersion: Int? = nil) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try ImportRuleEngine.save(rule, expectedVersion: expectedVersion, in: current.book)
+            try Self.writeBook(updated, in: db)
+            let saved = try Self.readSnapshot(in: db)
+            guard saved.book == updated, saved.draft == current.draft, saved.settings == current.settings else { throw LedgerStoreError.corruptData("import_rule_save") }
+            return saved
+        }
+    }
+    public func applyImportRule(_ plan: ImportRuleApplyPlan) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try ImportRuleEngine.apply(plan, in: current.book)
+            try Self.writeBook(updated, in: db)
+            let saved = try Self.readSnapshot(in: db)
+            guard saved.book == updated, saved.draft == current.draft, saved.settings == current.settings else { throw LedgerStoreError.corruptData("import_rule_apply") }
+            return saved
+        }
+    }
+
     public func undoImport(_ plan: ImportUndoPlan) throws -> SQLiteLedgerSnapshot {
         try database.write { db in
             let current = try Self.readSnapshot(in: db)
@@ -500,6 +526,7 @@ public final class SQLiteLedgerStore: Sendable {
         // Children precede parents. LedgerCore.Category self-references are deferred so
         // arbitrary display order, including children before parents, is valid.
         try db.execute(sql: """
+            DELETE FROM import_rules;
             DELETE FROM import_batches;
             DELETE FROM entry_tags;
             DELETE FROM entries;
@@ -511,6 +538,7 @@ public final class SQLiteLedgerStore: Sendable {
             DELETE FROM subjects;
             DELETE FROM accounts;
             """)
+        try writeRows(book.importRules, table: "import_rules", in: db) { columns(for: $0) }
         try writeRows(book.importBatches, table: "import_batches", in: db) { columns(for: $0) }
         try writeRows(book.tags, table: "tags", in: db) { columns(for: $0) }
         try writeRows(book.projects, table: "projects", in: db) { columns(for: $0) }
@@ -583,7 +611,8 @@ public final class SQLiteLedgerStore: Sendable {
             retiredOperationIDs: retiredIDs,
             tags: try readRows(EntryTag.self, table: "tags", in: db) { columns(for: $0) },
             projects: try readRows(EntryProject.self, table: "projects", in: db) { columns(for: $0) },
-            importBatches: try readRows(ImportBatch.self, table: "import_batches", in: db) { columns(for: $0) })
+            importBatches: try readRows(ImportBatch.self, table: "import_batches", in: db) { columns(for: $0) },
+            importRules: try readRows(ImportRule.self, table: "import_rules", in: db) { columns(for: $0) })
         // Validate all links in one query; full-book reads must not add one SQL read per entry.
         var storedLinks: [String: [String]] = [:]
         for row in try Row.fetchAll(db, sql: "SELECT entry_id, tag_id, position FROM entry_tags ORDER BY entry_id, position") {
@@ -709,6 +738,11 @@ public final class SQLiteLedgerStore: Sendable {
         }
     }
 
+    private static func columns(for rule: ImportRule) -> [String: DatabaseValue] {
+        ["id": rule.id.uuidString.databaseValue, "name": rule.name.databaseValue, "priority": rule.priority.databaseValue,
+         "version": rule.version.databaseValue, "is_enabled": rule.isEnabled.databaseValue]
+    }
+
     private static func columns(for batch: ImportBatch) -> [String: DatabaseValue] {
         ["id": batch.id.uuidString.databaseValue, "name": batch.name.databaseValue,
          "namespace": batch.namespace.databaseValue, "version": batch.version.databaseValue,
@@ -747,6 +781,16 @@ public final class SQLiteLedgerStore: Sendable {
          "target_currency": adjustment.target.currency.rawValue.databaseValue,
          "occurred_at": adjustment.occurredAt.timeIntervalSinceReferenceDate.databaseValue]
     }
+
+    private static let ruleSchema = """
+        CREATE TABLE import_rules (
+            id TEXT PRIMARY KEY NOT NULL,
+            position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
+            name TEXT NOT NULL, priority INTEGER NOT NULL CHECK (priority BETWEEN 0 AND 10000),
+            version INTEGER NOT NULL CHECK (version > 0), is_enabled INTEGER NOT NULL CHECK (is_enabled IN (0, 1)),
+            payload BLOB NOT NULL CHECK (typeof(payload) = 'blob')
+        );
+        """
 
     private static let importSchema = """
         CREATE TABLE import_batches (

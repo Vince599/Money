@@ -6,6 +6,57 @@ import Testing
 
 @Suite("Import persistence and transactions")
 struct ImportStoreTests {
+    @Test func ruleSaveAndApplicationAreAtomicRetainLatestDraftAndReopen() throws {
+        try withStore { store, inspection, path in
+            let account = Account(name: "正式账户", openingMinor: 10_000)
+            try store.commit(LedgerBook(accounts: [account]), draft: nil)
+            let batch = try ImportCSV.parse(ImportCSV.template, name: "rules", namespace: "bank")
+            _ = try store.saveImport(batch)
+            let rule = ImportRule(name: "所有支出", conditions: [.init(field: .kind, comparison: .equals, value: "expense")], actions: [.init(field: .account, targetID: account.id)])
+            let configured = try store.saveImportRule(rule)
+            let review = try ImportRuleEngine.review(batchID: batch.id, rowID: batch.rows[0].id, in: configured.book)
+            let plan = try ImportRuleEngine.prepare(review, selections: [.account: account.id])
+            let draft = EntryDraft(amountText: "12+(")
+            try store.saveDraft(draft)
+            try inspection.write { try $0.execute(sql: "CREATE TRIGGER reject_rule_apply BEFORE INSERT ON import_batches BEGIN SELECT RAISE(ABORT, 'injected'); END") }
+            #expect(throws: (any Error).self) { try store.applyImportRule(plan) }
+            #expect(try store.loadBook() == configured.book)
+            #expect(try store.loadSnapshot().draft == draft)
+            var edited = rule; edited.name = "改名"
+            #expect(throws: (any Error).self) { try store.saveImportRule(edited, expectedVersion: 1) }
+            #expect(try store.loadBook().importRules == [rule])
+            try inspection.write { try $0.execute(sql: "DROP TRIGGER reject_rule_apply") }
+            let mapped = try store.applyImportRule(plan)
+            #expect(mapped.book.entries.isEmpty && mapped.draft == draft)
+            #expect(mapped.book.importBatches[0].rows[0].accountID == account.id)
+            let reopened = try SQLiteLedgerStore(path: path).loadSnapshot()
+            #expect(reopened.book == mapped.book && reopened.draft == draft)
+            try inspection.write { try $0.execute(sql: "UPDATE import_rules SET priority = priority + 1") }
+            #expect(throws: LedgerStoreError.corruptData("import_rules")) { try store.loadSnapshot() }
+        }
+    }
+
+    @Test func schemaSevenRuleMigrationPreservesPayloadsAndRollsBackOnCorruption() throws {
+        try withStore { store, inspection, path in
+            let batch = try stagedBatch()
+            let before = try store.saveImport(batch)
+            let payload = try inspection.read { try Data.fetchOne($0, sql: "SELECT payload FROM import_batches") }
+            try inspection.write { try $0.execute(sql: "DROP TABLE import_rules; PRAGMA user_version = 7; UPDATE import_batches SET payload = ?", arguments: [Data("bad JSON".utf8)]) }
+            #expect(throws: LedgerStoreError.corruptData("import_batches")) { try SQLiteLedgerStore(path: path) }
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 7)
+                #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sqlite_master WHERE name = 'import_rules'") == 0)
+            }
+            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?", arguments: [payload]) }
+            #expect(try SQLiteLedgerStore(path: path).loadBook() == before.book)
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 8)
+                #expect(try Data.fetchOne(db, sql: "SELECT payload FROM import_batches") == payload)
+                #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM import_rules") == 0)
+            }
+        }
+    }
+
     @Test func undoFailureRollsBackCashStatusAndRegistryThenRetryAndReopenSucceed() throws {
         try withStore { store, inspection, path in
             let batch = try stagedBatch()
@@ -36,7 +87,7 @@ struct ImportStoreTests {
             let batch = try stagedBatch()
             let snapshot = try store.saveImport(batch)
             let payload = try inspection.read { try Data.fetchOne($0, sql: "SELECT payload FROM import_batches") }
-            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?; PRAGMA user_version = 6", arguments: [Data("bad JSON".utf8)]) }
+            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?; DROP TABLE IF EXISTS import_rules; PRAGMA user_version = 6", arguments: [Data("bad JSON".utf8)]) }
             #expect(throws: LedgerStoreError.corruptData("import_batches")) { try SQLiteLedgerStore(path: path) }
             try inspection.read { (db: Database) throws -> Void in #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 6) }
             try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?", arguments: [payload]) }
@@ -85,7 +136,7 @@ struct ImportStoreTests {
             for index in rows.indices { rows[index].removeValue(forKey: "tagIDs"); rows[index].removeValue(forKey: "projectID") }
             object["rows"] = rows
             let oldPayload = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
-            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?; PRAGMA user_version = 5", arguments: [Data("invalid JSON".utf8)]) }
+            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?; DROP TABLE IF EXISTS import_rules; PRAGMA user_version = 5", arguments: [Data("invalid JSON".utf8)]) }
             #expect(throws: LedgerStoreError.corruptData("import_batches")) { try SQLiteLedgerStore(path: path) }
             try inspection.read { (db: Database) throws -> Void in
                 #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 5)
@@ -182,7 +233,7 @@ struct ImportStoreTests {
             let book = LedgerBook(accounts: [account], entries: [entry])
             let draft = EntryDraft(amountText: "12+")
             try store.commit(book, draft: draft)
-            try inspection.write { try $0.execute(sql: "DROP TABLE import_batches; PRAGMA user_version = 4") }
+            try inspection.write { try $0.execute(sql: "DROP TABLE import_batches; DROP TABLE IF EXISTS import_rules; PRAGMA user_version = 4") }
             let payloads = try inspection.read { db in
                 (try Data.fetchOne(db, sql: "SELECT payload FROM entries"), try Data.fetchOne(db, sql: "SELECT payload FROM entry_draft"))
             }

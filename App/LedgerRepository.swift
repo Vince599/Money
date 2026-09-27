@@ -228,6 +228,17 @@ actor LedgerRepository {
         return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
     }
 
+    func saveImportRule(_ rule: ImportRule, expectedVersion: Int? = nil) throws -> LedgerSnapshot {
+        let value = try store.saveImportRule(rule, expectedVersion: expectedVersion)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
+    func reviewImportRules(batchID: UUID, rowID: UUID) throws -> ImportRuleReview {
+        try ImportRuleEngine.review(batchID: batchID, rowID: rowID, in: readSnapshot().book)
+    }
+    func applyImportRule(_ plan: ImportRuleApplyPlan) throws -> LedgerSnapshot {
+        let value = try store.applyImportRule(plan)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
     func reviewImportUndo(batchID: UUID) throws -> ImportUndoReview {
         try ImportEngine.reviewUndo(batchID: batchID, in: readSnapshot().book)
     }
@@ -299,7 +310,8 @@ actor LedgerRepository {
         return BackupRestorePreview(id: id, accountCount: value.book.accounts.count,
                                     entryCount: value.book.entries.count, adjustmentCount: value.book.adjustments.count,
                                     categoryCount: value.book.categories.count, subjectCount: value.book.subjects.count,
-                                    tagCount: value.book.tags.count, projectCount: value.book.projects.count, importBatchCount: value.book.importBatches.count, hasDraft: value.draft != nil)
+                                    tagCount: value.book.tags.count, projectCount: value.book.projects.count, importBatchCount: value.book.importBatches.count,
+                                    importRuleCount: value.book.importRules.count, hasDraft: value.draft != nil)
     }
 
     func prepareRestore(from url: URL) throws -> BackupRestorePreview {

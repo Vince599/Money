@@ -116,7 +116,7 @@ struct EntryLabelsStoreTests {
             let legacyBook = LedgerBook(accounts: book.accounts, entries: [posted])
             try store.commit(legacyBook, draft: EntryDraft(amountText: "12+"))
             try inspection.write { db in
-                try db.execute(sql: "DROP TABLE import_batches; DROP INDEX entries_project; DROP TABLE entry_tags; ALTER TABLE entries DROP COLUMN project_id; DROP TABLE tags; DROP TABLE projects; PRAGMA user_version = 3")
+                try db.execute(sql: "DROP TABLE import_batches; DROP INDEX entries_project; DROP TABLE entry_tags; ALTER TABLE entries DROP COLUMN project_id; DROP TABLE tags; DROP TABLE projects; DROP TABLE IF EXISTS import_rules; PRAGMA user_version = 3")
                 for table in ["entries", "entry_draft"] {
                     let payload = try #require(Data.fetchOne(db, sql: "SELECT payload FROM \(table)"))
                     var object = try #require(JSONSerialization.jsonObject(with: payload) as? [String: Any])

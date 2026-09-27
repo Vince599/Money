@@ -228,6 +228,8 @@ struct ImportRowEditor: View {
     @State private var message: String?
     @State private var inspection: ImportRowInspection?
     @State private var inspectedRequest = ""
+    @State private var showRules = false
+    @State private var showRemember = false
     @Environment(\.dismiss) private var dismiss
     private var request: String {
         [row.accountID?.uuidString ?? "", row.destinationAccountID?.uuidString ?? "", row.categoryID?.uuidString ?? "",
@@ -271,6 +273,14 @@ struct ImportRowEditor: View {
                         LabeledContent("标签／项目", value: EntryLabelsSelectionView.summary(book: model.book, tags: row.tagIDs, project: row.projectID))
                     }.accessibilityIdentifier("import.row.labels")
                 }.disabled(row.state != .pending || batch.revertedAt != nil)
+                if row.state == .pending && batch.revertedAt == nil {
+                    Section("导入规则") {
+                        Button("保存本行并查看规则建议") { saveForRules() }
+                        Button("将这次选择保存为规则") { showRemember = true }
+                        Text("长期规则与本次映射分开保存；建议需核对后逐字段采用。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
                 Section("核对") {
                     Text(review?.explanation ?? "正在核对…")
                     if inspectedRequest == request, let inspection {
@@ -321,6 +331,12 @@ struct ImportRowEditor: View {
                 }.padding().background(.bar)
             }
             .navigationTitle("核对导入行").navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showRules, onDismiss: refreshSavedRow) {
+                ImportRuleReviewView(model: model, batchID: batch.id, rowID: row.id)
+            }
+            .sheet(isPresented: $showRemember) {
+                ImportRuleEditor(model: model, rule: ImportRule(), rememberedRow: row, namespace: batch.namespace)
+            }
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } } }
             .disabled(model.isBusy).interactiveDismissDisabled(model.isBusy)
             .task(id: request) {
@@ -331,6 +347,22 @@ struct ImportRowEditor: View {
                     inspection = result; inspectedRequest = key
                 } catch { if !Task.isCancelled { message = model.message(for: error) } }
             }
+        }
+    }
+    private func refreshSavedRow() {
+        guard let saved = model.book.importBatches.first(where: { $0.id == batch.id }),
+              let savedRow = saved.rows.first(where: { $0.id == row.id }) else { return }
+        batch = saved; row = savedRow
+    }
+    private func saveForRules() {
+        guard !model.isBusy else { return }
+        var updated = batch
+        guard let index = updated.rows.firstIndex(where: { $0.id == row.id }) else { return }
+        updated.rows[index] = row
+        Task {
+            if await model.saveImport(updated, expectedVersion: batch.version) {
+                refreshSavedRow(); message = nil; showRules = true
+            } else { message = model.errorMessage }
         }
     }
     private func saveAndMove(_ target: UUID?) {

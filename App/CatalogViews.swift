@@ -15,6 +15,7 @@ struct LedgerSettingsView: View {
                 }
                 Section("数据") {
                     NavigationLink("导入账单 CSV") { ImportListView(model: model) }.accessibilityIdentifier("settings.import")
+                    NavigationLink("导入规则") { ImportRulesListView(model: model) }.accessibilityIdentifier("settings.importRules")
                     NavigationLink("完整备份与恢复") { BackupView(model: model) }.accessibilityIdentifier("settings.backup")
                 }
             }
@@ -60,6 +61,7 @@ struct EditAccountView: View {
                     LabeledContent("币种", value: account.currency.rawValue)
                     Text("余额有差异时，请在账户详情中使用“手动更正余额”。").foregroundStyle(.secondary)
                 }
+                ImportRuleReferencesSection(book: model.book, field: .account, id: account.id)
                 if let message { Text(message).foregroundStyle(.red) }
                 Button("保存") {
                     var value = account
@@ -160,6 +162,7 @@ struct CategoryEditorView: View {
                 } footer: {
                     Text("普通收支选择二级分类。停用一级分类后，其下分类不再供新记账选择，历史记录保留。")
                 }
+                if !isNew { ImportRuleReferencesSection(book: model.book, field: .category, id: category.id) }
                 if let message { Text(message).foregroundStyle(.red) }
                 Button("保存") {
                     var value = category
@@ -216,6 +219,7 @@ struct SubjectEditorView: View {
                     TextField("主体名称", text: $subject.name)
                     Toggle("启用主体", isOn: $subject.isActive)
                 } footer: { Text("主体表示这笔消费属于谁，与收款人、付款账户分开。停用不会删除历史记录。") }
+                if !isNew { ImportRuleReferencesSection(book: model.book, field: .subject, id: subject.id) }
                 if !isNew, subject.isActive, model.settings.defaultSubjectID != subject.id {
                     Button("设为默认主体") {
                         Task { if await model.setDefaultSubject(subject.id) { message = "已设为默认主体" } else { message = model.errorMessage } }

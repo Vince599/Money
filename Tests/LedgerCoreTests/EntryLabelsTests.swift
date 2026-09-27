@@ -102,7 +102,7 @@ struct EntryLabelsTests {
         let snapshot = LedgerBackupSnapshot(book: book, draft: draft, settings: LedgerSettings())
         let time = Date(timeIntervalSince1970: 1_700_000_000)
         let files = try BackupCodec.encode(snapshot, createdAt: time)
-        #expect(files.count == 20)
+        #expect(files.count == 23)
         #expect(files == (try BackupCodec.encode(snapshot, createdAt: time)))
         #expect(try BackupCodec.decode(BackupArchive.decode(BackupArchive.encode(files))) == snapshot)
         #expect(try BackupSchema.entryTags.read(files["entry_tags.csv"]!).count == 4)

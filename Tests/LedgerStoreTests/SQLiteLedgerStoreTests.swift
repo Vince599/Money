@@ -382,7 +382,7 @@ struct SQLiteLedgerStoreTests {
                     opening_minor, opening_date, included_in_summary, is_active, payload FROM accounts;
                 DROP TABLE accounts;
                 ALTER TABLE accounts_v1 RENAME TO accounts;
-                PRAGMA user_version = 1;
+                DROP TABLE IF EXISTS import_rules; PRAGMA user_version = 1;
                 """)
             try db.execute(sql: "DROP TABLE import_batches")
                 try db.execute(sql: "DROP INDEX entries_project")

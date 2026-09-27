@@ -74,7 +74,7 @@ struct RecoveryStoreTests {
                 try db.execute(sql: "DROP INDEX entries_original")
                 try db.execute(sql: "ALTER TABLE entries DROP COLUMN original_entry_id")
                 try db.execute(sql: "ALTER TABLE entries DROP COLUMN allows_net_recovery")
-                try db.execute(sql: "PRAGMA user_version = 2")
+                try db.execute(sql: "DROP TABLE IF EXISTS import_rules; PRAGMA user_version = 2")
             }
             let payload = try inspection.read { try Data.fetchOne($0, sql: "SELECT payload FROM entries") }
             // A corrupt old projection must abort the whole migration, not just the opening read.

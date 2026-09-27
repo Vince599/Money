@@ -166,7 +166,7 @@ struct ImportTests {
         let saved = try commit(batch, in: book, ids: [batch.rows[0].id])
         let snapshot = LedgerBackupSnapshot(book: saved, draft: EntryDraft(amountText: "12+("), settings: LedgerSettings())
         let files = try BackupCodec.encode(snapshot, createdAt: now)
-        #expect(files.count == 20)
+        #expect(files.count == 23)
         #expect(try BackupCodec.decode(BackupArchive.decode(BackupArchive.encode(files))) == snapshot)
         let staged = LedgerBackupSnapshot(book: book, draft: nil, settings: LedgerSettings())
         #expect(try BackupCodec.decode(BackupCodec.encode(staged)) == staged)

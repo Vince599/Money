@@ -20,6 +20,7 @@ public enum BackupCodec {
         let book = snapshot.book
         var rows: [String: [[String?]]] = [:]
         rows.merge(try BackupImports.encode(book.importBatches)) { _, new in new }
+        rows.merge(BackupRules.encode(book.importRules)) { _, new in new }
         rows[BackupSchema.accounts.name] = try book.accounts.enumerated().map { index, account in
             [String(index), id(account.id), account.name, account.kind.rawValue, account.nature.rawValue,
              account.currency.rawValue, String(account.openingMinor)] + (try BackupDates.values(account.openingDate))
@@ -88,7 +89,7 @@ public enum BackupCodec {
 
     public static func decode(_ files: [String: Data]) throws -> LedgerBackupSnapshot {
         let fileNames = Set(files.keys)
-        guard fileNames == BackupSchema.fileNames || fileNames == Set(BackupSchema.v5All.map(\.name)) || fileNames == Set(BackupSchema.v4All.map(\.name)) || fileNames == Set(BackupSchema.v3All.map(\.name)) else {
+        guard fileNames == BackupSchema.fileNames || fileNames == Set(BackupSchema.v7All.map(\.name)) || fileNames == Set(BackupSchema.v5All.map(\.name)) || fileNames == Set(BackupSchema.v4All.map(\.name)) || fileNames == Set(BackupSchema.v3All.map(\.name)) else {
             throw BackupError.invalidArchive(reason: "Missing or unknown backup files")
         }
         guard files.values.allSatisfy({ $0.count <= BackupCSV.maxFileBytes }),
@@ -120,6 +121,9 @@ public enum BackupCodec {
         case (BackupSchema.profile, BackupSchema.version, BackupSchema.dbVersion):
             contractTables = BackupSchema.all
             accountTable = BackupSchema.accounts
+        case (BackupSchema.v7Profile, BackupSchema.v7Version, BackupSchema.v7DBVersion):
+            contractTables = BackupSchema.v7All
+            accountTable = BackupSchema.accounts
         case (BackupSchema.v6Profile, BackupSchema.v6Version, BackupSchema.v6DBVersion):
             contractTables = BackupSchema.v6All
             accountTable = BackupSchema.accounts
@@ -140,6 +144,7 @@ public enum BackupCodec {
             accountTable = BackupSchema.legacyAccounts
         default:
             let reportedVersion = (profile == BackupSchema.profile && version == BackupSchema.version)
+                || (profile == BackupSchema.v7Profile && version == BackupSchema.v7Version)
                 || (profile == BackupSchema.v6Profile && version == BackupSchema.v6Version)
                 || (profile == BackupSchema.v5Profile && version == BackupSchema.v5Version)
                 || (profile == BackupSchema.v4Profile && version == BackupSchema.v4Version)
@@ -239,7 +244,7 @@ public enum BackupCodec {
                                       defaultSubjectID: try settingRows[0].uuid("default_subject_id"))
         let book = LedgerBook(accounts: accounts, entries: entries, adjustments: adjustments, subjects: subjects,
                               categories: categories, retiredOperationIDs: Set(retired), tags: tags, projects: projects,
-                              importBatches: try BackupImports.decode(tables))
+                              importBatches: try BackupImports.decode(tables), importRules: try BackupRules.decode(tables))
         let snapshot = LedgerBackupSnapshot(book: book, draft: draft, settings: settings)
         do { try validate(snapshot) }
         catch { throw BackupError.invalidArchive(reason: "Invalid restored snapshot: \(error)") }

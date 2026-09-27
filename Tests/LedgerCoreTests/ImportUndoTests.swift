@@ -119,11 +119,11 @@ struct ImportUndoTests {
     @Test func exactProfileSixKeepsOldReceiptsAndCanSafelyReverseAfterRestore() throws {
         let (book, batch, _) = try fixture()
         let snapshot = LedgerBackupSnapshot(book: book, draft: nil, settings: LedgerSettings())
-        var files = try BackupCodec.encode(snapshot)
+        var files = try BackupCodec.encode(snapshot).filter { Set(BackupSchema.v6All.map(\.name)).contains($0.key) }
         let batches = try BackupSchema.importBatches.read(files["import_batches.csv"]!).map { row in BackupSchema.v6ImportBatches.columns.map { row.values[$0.name] } }
         files["import_batches.csv"] = BackupCSV.encode([BackupSchema.v6ImportBatches.header] + batches)
         var manifest = try BackupSchema.manifest.read(files["manifest.csv"]!)[0].values
-        manifest["profile"] = "ledger-core-v6"; manifest["backup_format_version"] = "6.0"; manifest["db_schema_version"] = "6"
+        manifest["profile"] = "ledger-core-v6"; manifest["backup_format_version"] = "6.0"; manifest["db_schema_version"] = "6"; manifest["file_count"] = "20"
         files["manifest.csv"] = BackupCSV.encode([BackupSchema.manifest.header, BackupSchema.manifest.columns.map { manifest[$0.name] }])
         files["schema_dictionary.csv"] = BackupSchema.dictionaryData(for: BackupSchema.v6All)
         try rehash(&files)

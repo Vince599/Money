@@ -99,7 +99,7 @@ struct ImportLabelsTests {
         #expect(try ImportEngine.commit(plan, in: posted) == posted)
         let snapshot = LedgerBackupSnapshot(book: posted, draft: EntryDraft(amountText: "12+"), settings: LedgerSettings())
         let files = try BackupCodec.encode(snapshot)
-        #expect(files.count == 20 && files["import_row_tags.csv"] != nil)
+        #expect(files.count == 23 && files["import_row_tags.csv"] != nil)
         #expect(try BackupCodec.decode(BackupArchive.decode(BackupArchive.encode(files))) == snapshot)
     }
 

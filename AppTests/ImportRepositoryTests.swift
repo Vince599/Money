@@ -5,6 +5,35 @@ import LedgerCore
 
 @MainActor
 final class ImportRepositoryTests: XCTestCase {
+    func testRuleVersionInvalidatesSuggestionAndBackupPreservesRulesAndManualDraft() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try LedgerRepository(path: directory.appendingPathComponent("ledger.sqlite").path)
+        let batch = try ImportCSV.parse(ImportCSV.template, name: "rules", namespace: "bank")
+        _ = try await repo.saveImport(batch)
+        var rule = ImportRule(name: "餐饮", conditions: [.init(field: .kind, comparison: .equals, value: "expense")], actions: [.init(field: .category, targetID: SeedData.mealsID)])
+        _ = try await repo.saveImportRule(rule)
+        let inspected = try await repo.reviewImportRules(batchID: batch.id, rowID: batch.rows[0].id)
+        let plan = try ImportRuleEngine.prepare(inspected, selections: [.category: SeedData.mealsID])
+        rule.name = "新的规则名称"
+        _ = try await repo.saveImportRule(rule, expectedVersion: 1)
+        do { _ = try await repo.applyImportRule(plan); XCTFail("Old rule preview must not commit") }
+        catch { XCTAssertEqual(error as? ImportError, .stalePreview) }
+        let fresh = try await repo.reviewImportRules(batchID: batch.id, rowID: batch.rows[0].id)
+        let draft = EntryDraft(amountText: "12+(")
+        try await repo.saveDraft(draft, revision: 11)
+        let mapped = try await repo.applyImportRule(ImportRuleEngine.prepare(fresh, selections: [.category: SeedData.mealsID]))
+        XCTAssertEqual(mapped.draft, draft); XCTAssertEqual(mapped.draftRevision, 11)
+        XCTAssertEqual(mapped.book.importRules[0].version, 2)
+        XCTAssertTrue(mapped.book.entries.isEmpty)
+        let backup = try await repo.exportBackup()
+        let preview = try await repo.prepareRestore(backup)
+        XCTAssertEqual(preview.importRuleCount, 1)
+        let restored = try await repo.restore(previewID: preview.id, revision: 12)
+        XCTAssertEqual(restored.book, mapped.book); XCTAssertEqual(restored.draft, draft)
+    }
+
     func testUndoPreservesLatestDraftAndBackupRestoresClosedBatchWithoutCashReplay() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
