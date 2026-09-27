@@ -32,6 +32,8 @@ bash scripts/build-ios.sh
 
 固定工具版本、GitHub Actions 手动工作流、产物与签名方式见 [构建说明](docs/BUILD.md)。2026-09-27 [云端运行 #15](https://github.com/Vince599/Money/actions/runs/36285466571)通过 166 项 macOS 包测试、39 项 iOS 模拟器 App 测试和 2 项页面操作测试，共 207 项，并生成 arm64 未签名 IPA 与模拟器截图。验证提交为 `fbbe3d03f61d2df6c83fc731802e47d8e65f2a7b`，包含快捷记账、共享启动、首页统一摘要、增量记账、一致快照、性能插桩、账户模板资源和 AppIcon；新增回归确认快捷保存后旧首页刷新结果与错误不能覆盖新状态。用户反馈此前版本在 iOS 27 真机上安装、基础记账、重开及 ZIP 导出恢复通过；新版覆盖安装与新增功能的真机测试尚待验证。
 
+Windows 真机安装统一从 **`D:\Data\Ledger-Install\Ledger-latest.ipa`** 取最新版，桌面“Ledger Install”快捷方式可直达。每次交付更新固定文件并保留历史，版本信息见同目录 `安装说明.txt`；流程见[固定安装包目录](docs/BUILD.md#固定安装包目录)。
+
 ## 目录
 
 | 路径 | 内容 |

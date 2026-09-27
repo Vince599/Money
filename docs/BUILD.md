@@ -98,6 +98,20 @@ bash scripts/build-ios.sh
 
 本批包含主 App 内的两个快捷记账动作、AppTests 与两条 UI 操作测试：基础入账重开，以及计算器、复制和搜索筛选。快捷动作与页面共用主 App 数据入口，未添加单独扩展；系统发现及前台／后台／锁屏行为须按[快捷指令清单](SHORTCUTS.md)实测。尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
 
+## 固定安装包目录
+
+Windows 真机安装统一使用工作区以外的 **`D:\Data\Ledger-Install\Ledger-latest.ipa`**。每次成功交付后更新此文件，用户无需再从不同的构建目录中找包；桌面“Ledger Install”快捷方式指向该目录。
+
+完成云端构建、下载并核验产物后执行：
+
+```powershell
+./scripts/publish-ipa.ps1 -ArtifactsDirectory 'build/validation/run-15-artifact/20260927T012516Z-1823/artifacts'
+```
+
+上面是运行 #15 的示例，后续传入对应构建的 `artifacts` 目录。脚本核对 IPA 的 SHA-256、成功构建状态、arm64 与源码提交，保留按构建时间和提交命名的 `history` 版本，再从同目录临时文件原子替换 `Ledger-latest.ipa`；文件被占用或复制失败时不会先删除旧 IPA。目录内的 `latest.json` 和 `安装说明.txt` 记录构建时间、提交、运行 ID、大小及哈希，它们分别更新，不与 IPA 构成多文件原子事务。更旧的构建不能覆盖最新版，也不自动清理历史。
+
+这一步是每次交付的固定流程，见根目录 `AGENTS.md`；仅云端构建成功不会自动写入本机磁盘，必须下载后执行脚本并确认成功。主工作区和其他 worktree 共用此位置，不将安装包提交到 Git。文件仍未签名，需用户在 Sideloadly 中签名安装；自己的签名输出另存，避免后续更新覆盖。
+
 ## 验证记录
 
 - 体验与版本政策：2026-09-26 新增[体验质量标准](EXPERIENCE_QUALITY.md)，要求最新稳定原生技术和分阶段体验验收；Xcode 27 升级、Q01—Q09 真机性能及完整 Widget 品质均尚未验证。模拟器截图和基础安装成功不能代替这些证据。

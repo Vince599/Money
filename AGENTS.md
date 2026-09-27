@@ -1,0 +1,7 @@
+# 安装包交付约定
+
+- 用户要求每次更新安装包后，放到工作区以外的固定位置：`D:\Data\Ledger-Install\Ledger-latest.ipa`。
+- Apple 构建成功、产物下载并核验后，从 Windows 运行 `scripts/publish-ipa.ps1 -ArtifactsDirectory <该构建的 artifacts 目录>`。脚本校验 IPA 与构建记录、保留 `history`，再更新最新版和版本说明。不要用未通过验证或更旧的包覆盖最新版。
+- 每次交付必须确认脚本成功，向用户提供固定 IPA 链接；发布失败时明确说明，不能声称最新版已更新。不要只提供 `build/validation` 中随构建变化的路径。
+- 固定目录为本地未签名包的交付位置；用户签名文件另存。不要删除历史版本，也不要改动用户的签名凭据或已安装 App 数据。
+- 使用其他 worktree 时也沿用上述固定目录。具体流程见 `docs/BUILD.md` 的“固定安装包目录”。
