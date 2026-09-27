@@ -15,12 +15,14 @@ This tool measures the current pure Swift Core in a separate **Release** package
 
 The fixed `core-mixed-v1` fixture has six accounts, two subjects, CNY/HKD/USD, expenses/incomes/same-currency transfers, four years of dates, Chinese/English text and long notes. IDs, dates and amounts do not depend on the machine clock or randomness. Fixture creation, full initial validation and independently computed expected results are outside the timed region. Each record attempt starts from the same original book and adds the same new entry; attempts never accumulate into a growing book.
 
-Four operations are measured separately:
+Six operations are measured separately:
 
 - `validate`: full `LedgerEngine.validate`.
 - `recordExpense`: `LedgerEngine.record`, including its own validations and in-memory copying.
 - `queryAll`: `EntryQuery.entries` with no filters, returning every row in its sorted order.
 - `queryCombined`: the same query with a fixed keyword, kind, account, parent category, subject, currency, amount range and date interval.
+- `homeLegacy`: the previous home computation: five included-account balance calls, CNY consumption for January 2024 in Shanghai, and sorting all entries to select five.
+- `homeSummary`: one full validation plus grouped account totals, consumption and bounded top-five selection for that same fixture and month. Every sample checks equality against the legacy result; monthly consumption and recent IDs also have independent fixture expectations. Both timings exclude number formatting, SQLite and UI work. This is a matched Core comparison, not an App speed-up claim.
 
 The report stores every warmup and measured attempt, nanoseconds from `ContinuousClock`, outcome, per-operation p50/p95/maximum in milliseconds, fixture version, source-file hashes, the combined compiled-source hash, compiler/platform and Release configuration. Percentiles use nearest rank; with fewer than 20 samples, p95 will usually be the maximum. Warmups are retained but excluded from those summaries. No measured outlier is dropped. A correctness failure preserves the partial report and exits unsuccessfully; incomplete/failed summaries are not usable performance results.
 

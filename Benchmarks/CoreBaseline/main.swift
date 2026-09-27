@@ -56,6 +56,9 @@ private struct Fixture {
     let allExpectedIDs: [UUID]
     let filteredExpectedIDs: [UUID]
     let expectedBalanceAfterRecord: Int64
+    let homeFrom = Date(timeIntervalSince1970: 1_704_038_400) // 2024-01-01 00:00 Asia/Shanghai.
+    let homeTo = Date(timeIntervalSince1970: 1_706_716_800) // 2024-02-01 00:00 Asia/Shanghai.
+    let expectedHomeConsumption: Int64
 
     init(count: Int) throws {
         let epoch = Date(timeIntervalSince1970: 1_640_995_200) // 2022-01-01 UTC, fixed across runs.
@@ -116,7 +119,34 @@ private struct Fixture {
         self.allExpectedIDs = entries.sorted { $0.occurredAt > $1.occurredAt }.map(\.id)
         self.filteredExpectedIDs = matching.sorted { $0.occurredAt > $1.occurredAt }.map(\.id)
         self.expectedBalanceAfterRecord = accountZeroBalance - addition.amount.minorUnits
+        self.expectedHomeConsumption = entries.filter { [homeFrom, homeTo] in
+            $0.kind == .expense && $0.amount.currency == .cny && $0.occurredAt >= homeFrom && $0.occurredAt < homeTo
+        }.reduce(0) { $0 + $1.amount.minorUnits }
     }
+}
+
+/// The old home path's repeated validation and full sort, with formatting and UI
+/// excluded from both sides. Fixture totals fit Int64, as checked outside timing.
+private func legacyHome(_ fixture: Fixture) throws -> HomeSummary {
+    var currencies: [HomeSummary.CurrencySummary] = []
+    for currency in Currency.allCases {
+        let accounts = fixture.book.accounts.filter { $0.currency == currency && $0.includedInSummary }
+        guard !accounts.isEmpty else { continue }
+        var assets = Money(minorUnits: 0, currency: currency)
+        var liabilities = Money(minorUnits: 0, currency: currency)
+        for account in accounts {
+            let balance = try LedgerEngine.balance(of: account.id, in: fixture.book)
+            if account.nature == .asset { assets = try assets.adding(balance) }
+            else { liabilities = try liabilities.adding(balance) }
+        }
+        currencies.append(.init(currency: currency, totals: .init(assets: assets, liabilities: liabilities,
+                                                                 netAsset: try assets.subtracting(liabilities))))
+    }
+    let monthly = try LedgerEngine.consumption(in: fixture.book, from: fixture.homeFrom, to: fixture.homeTo, currency: .cny)
+    let recent = fixture.book.entries.sorted {
+        $0.occurredAt == $1.occurredAt ? $0.createdAt > $1.createdAt : $0.occurredAt > $1.occurredAt
+    }
+    return HomeSummary(currencySummaries: currencies, monthlyConsumption: monthly, recentEntries: Array(recent.prefix(5)))
 }
 
 private struct Sample: Codable {
@@ -159,7 +189,7 @@ private final class Runner {
     func persist() throws {
         let encoder = JSONEncoder()
         let sampleObjects = try JSONSerialization.jsonObject(with: encoder.encode(samples))
-        let operations = ["validate", "recordExpense", "queryAll", "queryCombined"]
+        let operations = ["validate", "recordExpense", "queryAll", "queryCombined", "homeLegacy", "homeSummary"]
         let summaries: [[String: Any]] = options.sizes.flatMap { size in
             operations.map { operation in
                 var summary = statistics(samples.filter { $0.entries == size && $0.operation == operation })
@@ -181,7 +211,9 @@ private final class Runner {
                 "validate": "LedgerEngine.validate(book) return/throw",
                 "recordExpense": "LedgerEngine.record(new expense, in: unchanged baseline) return/throw; includes engine validation, excludes SQLite and UI",
                 "queryAll": "EntryQuery.entries default filter return/throw; all matching rows sorted, no pagination or rendering",
-                "queryCombined": "EntryQuery.entries combined synthetic filter return/throw; all matching rows sorted, no debounce or rendering"
+                "queryCombined": "EntryQuery.entries combined synthetic filter return/throw; all matching rows sorted, no debounce or rendering",
+                "homeLegacy": "Five included-account balance calls, CNY consumption for Shanghai January 2024, and full recent sort; excludes number formatting and SwiftUI",
+                "homeSummary": "LedgerEngine.homeSummary for the same book and month; one validation, grouped totals and bounded top-five selection; excludes formatting, SQLite and SwiftUI"
             ],
             "excludedFromTiming": "Fixture creation, correctness checks, JSON serialization, report writes, compilation and console output."
         ]
@@ -241,6 +273,19 @@ private final class Runner {
                 }
                 try measure("queryCombined", fixture: fixture, work: { try EntryQuery.entries(in: fixture.book, matching: fixture.filtered) }) { result in
                     guard result.map(\.id) == fixture.filteredExpectedIDs else { throw BaselineError.incorrectResult("filtered query results or order") }
+                }
+                let expectedHome = try legacyHome(fixture)
+                guard expectedHome.monthlyConsumption?.minorUnits == fixture.expectedHomeConsumption,
+                      expectedHome.recentEntries.map(\.id) == Array(fixture.allExpectedIDs.prefix(5)) else {
+                    throw BaselineError.incorrectResult("independent home consumption and recent IDs")
+                }
+                try measure("homeLegacy", fixture: fixture, work: { try legacyHome(fixture) }) { result in
+                    guard result == expectedHome else { throw BaselineError.incorrectResult("legacy home result") }
+                }
+                try measure("homeSummary", fixture: fixture, work: {
+                    try LedgerEngine.homeSummary(in: fixture.book, from: fixture.homeFrom, to: fixture.homeTo)
+                }) { result in
+                    guard result == expectedHome else { throw BaselineError.incorrectResult("home totals, consumption or recent entries differ") }
                 }
             }
             status = "completed"

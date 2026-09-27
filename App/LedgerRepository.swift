@@ -7,6 +7,8 @@ struct LedgerSnapshot: Sendable {
     var draft: EntryDraft?
     var settings: LedgerSettings
     var draftRevision: UInt64
+    // Derived presentation data, never serialized into the backup or database.
+    var home: HomeOverview? = nil
 }
 
 /// All disk work runs outside the main actor; mutation decisions use the latest persisted book.
@@ -32,16 +34,29 @@ actor LedgerRepository {
     static func open(path: String) throws -> (repository: LedgerRepository, snapshot: LedgerSnapshot) {
         let opened = try LedgerPerformance.measure("Store.Open") { try SQLiteLedgerStore.open(path: path) }
         return (LedgerRepository(store: opened.store, path: path),
-                LedgerSnapshot(book: opened.snapshot.book, draft: opened.snapshot.draft,
-                               settings: opened.snapshot.settings, draftRevision: 0))
+                withHome(LedgerSnapshot(book: opened.snapshot.book, draft: opened.snapshot.draft,
+                                       settings: opened.snapshot.settings, draftRevision: 0)))
     }
 
-    func snapshot() throws -> LedgerSnapshot {
+    func snapshot(at date: Date? = nil) throws -> LedgerSnapshot {
         try LedgerPerformance.measure("Repository.Snapshot") {
-            let value = try store.loadSnapshot()
-            return LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings,
-                                  draftRevision: draftRevision)
+            Self.withHome(try readSnapshot(), at: date)
         }
+    }
+
+    // Internal reads do not build unused home data before another mutation.
+    private func readSnapshot() throws -> LedgerSnapshot {
+        let value = try store.loadSnapshot()
+        return LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings,
+                              draftRevision: draftRevision)
+    }
+
+    private nonisolated static func withHome(_ value: LedgerSnapshot, at date: Date? = nil) -> LedgerSnapshot {
+        var result = value
+        // Capture the month after entering the repository, not before actor queuing.
+        // Derivation cannot throw after an already successful disk commit.
+        result.home = HomeOverview.make(book: value.book, at: date ?? Date())
+        return result
     }
     func saveDraft(_ draft: EntryDraft?, revision: UInt64) throws {
         guard revision >= draftRevision else { return }
@@ -49,7 +64,7 @@ actor LedgerRepository {
         draftRevision = revision
     }
     func addAccount(_ account: Account, makeDefault: Bool) throws -> LedgerSnapshot {
-        var current = try snapshot()
+        var current = try readSnapshot()
         guard !current.book.accounts.contains(where: { $0.id == account.id }) else { throw LedgerError.duplicateID }
         current.book.accounts.append(account)
         if makeDefault { current.settings.defaultAccountID = account.id }
@@ -70,19 +85,19 @@ actor LedgerRepository {
         if expectedVersion == nil {
             draftRevision = max(draftRevision, revision)
         }
-        let result = LedgerSnapshot(book: saved.book, draft: saved.draft, settings: saved.settings,
-                                    draftRevision: draftRevision)
+        let result = Self.withHome(LedgerSnapshot(book: saved.book, draft: saved.draft, settings: saved.settings,
+                                                draftRevision: draftRevision))
         outcome = .completed
         return result
     }
     func deleteEntry(_ id: UUID) throws -> LedgerSnapshot {
-        let current = try snapshot()
+        let current = try readSnapshot()
         let updated = try LedgerEngine.delete(entryID: id, in: current.book)
         try store.commit(updated, draft: current.draft)
         return try snapshot()
     }
     func adjustAccount(_ id: UUID, target: Money, note: String, operationID: UUID) throws -> LedgerSnapshot {
-        let current = try snapshot()
+        let current = try readSnapshot()
         let occurredAt = current.book.adjustments.first(where: { $0.operationID == operationID })?.occurredAt ?? Date()
         let updated = try LedgerEngine.adjustBalance(accountID: id, to: target, operationID: operationID,
                                                       at: occurredAt, note: note, in: current.book)
@@ -90,7 +105,7 @@ actor LedgerRepository {
         return try snapshot()
     }
     func setDefaultAccount(_ id: UUID?) throws -> LedgerSnapshot {
-        var current = try snapshot()
+        var current = try readSnapshot()
         if let id {
             guard current.book.accounts.contains(where: { $0.id == id && $0.isActive }) else { throw LedgerError.accountNotFound }
         }
@@ -100,7 +115,7 @@ actor LedgerRepository {
     }
 
     func saveAccount(_ account: Account) throws -> LedgerSnapshot {
-        var current = try snapshot()
+        var current = try readSnapshot()
         current.book = try CatalogEditor.saveAccount(account, in: current.book)
         if !account.isActive, current.settings.defaultAccountID == account.id {
             current.settings.defaultAccountID = nil
@@ -110,14 +125,14 @@ actor LedgerRepository {
     }
 
     func saveCategory(_ category: LedgerCore.Category) throws -> LedgerSnapshot {
-        var current = try snapshot()
+        var current = try readSnapshot()
         current.book = try CatalogEditor.saveCategory(category, in: current.book)
         try store.commit(current.book, draft: current.draft)
         return try snapshot()
     }
 
     func saveSubject(_ subject: LedgerCore.Subject) throws -> LedgerSnapshot {
-        var current = try snapshot()
+        var current = try readSnapshot()
         guard subject.isActive || current.settings.defaultSubjectID != subject.id else {
             throw RepositoryError.defaultSubjectMustRemainActive
         }
@@ -127,7 +142,7 @@ actor LedgerRepository {
     }
 
     func setDefaultSubject(_ id: UUID) throws -> LedgerSnapshot {
-        var current = try snapshot()
+        var current = try readSnapshot()
         guard current.book.subjects.contains(where: { $0.id == id && $0.isActive }) else {
             throw LedgerError.invalidSubject
         }
@@ -137,7 +152,7 @@ actor LedgerRepository {
     }
 
     func exportBackup() throws -> Data {
-        try archive(snapshot())
+        try archive(readSnapshot())
     }
 
     private func archive(_ value: LedgerSnapshot) throws -> Data {
@@ -176,7 +191,7 @@ actor LedgerRepository {
         guard let pendingRestore, pendingRestore.id == previewID else { throw RepositoryError.restorePreviewExpired }
         // The snapshot is already fully decoded and validated. Preserve the latest
         // current state, then replace every authoritative table in one SQLite transaction.
-        let current = try snapshot()
+        let current = try readSnapshot()
         let safetyData = try archive(current)
         let safetyURL = safetyDirectory.appendingPathComponent("before-restore-\(UUID().uuidString.lowercased()).zip")
         do {
@@ -194,8 +209,8 @@ actor LedgerRepository {
         self.pendingRestore = nil
         // No fallible read after the commit: a read failure must not be reported
         // as a failed restore while the disk already contains the restored book.
-        return LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings,
-                              draftRevision: draftRevision)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings,
+                                          draftRevision: draftRevision))
     }
 
     func safetyBackups() throws -> [SafetyBackup] {

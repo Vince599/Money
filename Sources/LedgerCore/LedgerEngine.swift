@@ -115,6 +115,57 @@ public enum LedgerEngine {
         return try money(total, currency: currency)
     }
 
+    /// Validates the book once, then derives all home-page values from the same balances and entries.
+    /// Included accounts contribute even when inactive; all entries remain eligible for consumption and recency.
+    /// Aggregate overflow is local to a currency or consumption, while an invalid book still throws.
+    public static func homeSummary(in book: LedgerBook, from: Date, to: Date) throws -> HomeSummary {
+        let balances = try validatedBalances(in: book)
+        guard from.timeIntervalSinceReferenceDate.isFinite, to.timeIntervalSinceReferenceDate.isFinite,
+              from <= to else { throw LedgerError.unsupportedOperation }
+
+        var totalsByCurrency: [Currency: (assets: Int128, liabilities: Int128)] = [:]
+        for account in book.accounts where account.includedInSummary {
+            guard let balance = balances[account.id] else { throw LedgerError.accountNotFound }
+            var totals = totalsByCurrency[account.currency, default: (0, 0)]
+            if account.nature == .asset { totals.assets += Int128(balance.minorUnits) }
+            else { totals.liabilities += Int128(balance.minorUnits) }
+            totalsByCurrency[account.currency] = totals
+        }
+        let currencySummaries = Currency.allCases.compactMap { currency -> HomeSummary.CurrencySummary? in
+            guard let totals = totalsByCurrency[currency] else { return nil }
+            let amounts = try? HomeSummary.AccountTotals(
+                assets: money(totals.assets, currency: currency),
+                liabilities: money(totals.liabilities, currency: currency),
+                netAsset: money(totals.assets - totals.liabilities, currency: currency)
+            )
+            return HomeSummary.CurrencySummary(currency: currency, totals: amounts)
+        }
+
+        var consumption: Int128 = 0
+        var recentEntries: [LedgerEntry] = []
+        recentEntries.reserveCapacity(5)
+        for entry in book.entries {
+            if entry.kind == .expense, entry.amount.currency == .cny,
+               entry.occurredAt >= from, entry.occurredAt < to {
+                consumption += Int128(entry.amount.minorUnits)
+            }
+            // A bounded insertion list avoids sorting the entire book. Strict comparison leaves
+            // entries with identical occurrence and creation dates in their original array order.
+            let insertionIndex = recentEntries.firstIndex { existing in
+                entry.occurredAt == existing.occurredAt
+                    ? entry.createdAt > existing.createdAt
+                    : entry.occurredAt > existing.occurredAt
+            } ?? recentEntries.count
+            if insertionIndex < 5 {
+                if recentEntries.count == 5 { recentEntries.removeLast() }
+                recentEntries.insert(entry, at: insertionIndex)
+            }
+        }
+        return HomeSummary(currencySummaries: currencySummaries,
+                           monthlyConsumption: try? money(consumption, currency: .cny),
+                           recentEntries: recentEntries)
+    }
+
     // Int128 aggregation avoids order-dependent overflow when large debits and credits offset.
     // Stored amounts and public balances still have the checked Int64 cash boundary.
     private static func money(_ value: Int128, currency: Currency) throws -> Money {

@@ -6,6 +6,14 @@ enum BookDate {
     static var calendar: Calendar {
         var value = Calendar(identifier: .gregorian); value.timeZone = timeZone; return value
     }
+    static func month(containing date: Date) -> DateInterval? {
+        guard date.timeIntervalSinceReferenceDate.isFinite,
+              let interval = calendar.dateInterval(of: .month, for: date),
+              interval.start.timeIntervalSinceReferenceDate.isFinite,
+              interval.end.timeIntervalSinceReferenceDate.isFinite,
+              interval.start <= date, date < interval.end else { return nil }
+        return interval
+    }
     static func day(_ date: Date) -> String {
         date.formatted(Date.FormatStyle(date: .complete, time: .omitted, locale: Locale(identifier: "zh_CN"),
                                        calendar: calendar, timeZone: timeZone))

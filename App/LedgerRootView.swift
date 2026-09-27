@@ -1,11 +1,15 @@
 import SwiftUI
+import UIKit
 import LedgerCore
 
 struct LedgerRootView: View {
     @Bindable var model: LedgerAppModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showEntry = false
     @State private var showAccount = false
     @State private var selectedEntry: LedgerEntry?
+    @State private var timeChangeGeneration: UInt64 = 0
+    @State private var homeDisplayDate = Date()
     var body: some View {
         Group {
             if model.isLoaded {
@@ -28,6 +32,13 @@ struct LedgerRootView: View {
         .sheet(isPresented: $showEntry) { EntryEditor(model: model) }
         .sheet(isPresented: $showAccount) { AddAccountView(model: model) }
         .sheet(item: $selectedEntry) { entry in EntryDetailView(model: model, entryID: entry.id) }
+        .task(id: HomeRefreshID(isActive: scenePhase == .active, isLoaded: model.isLoaded,
+                               isBusy: model.isBusy, timeChangeGeneration: timeChangeGeneration)) {
+            await maintainHomeOverview()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            timeChangeGeneration &+= 1
+        }
         .tint(.primary)
     }
     @ToolbarContentBuilder private var recordToolbar: some ToolbarContent {
@@ -37,7 +48,11 @@ struct LedgerRootView: View {
         }
     }
     private var home: some View {
-        List {
+        let overview = model.home
+        let summary = overview?.summary
+        let monthlyConsumption = overview?.isCurrent(at: homeDisplayDate) == true
+            ? summary?.monthlyConsumption?.decimalString : nil
+        return List {
             if model.book.accounts.isEmpty {
                 Section {
                     ContentUnavailableView("从第一个账户开始", systemImage: "wallet.bifold",
@@ -45,25 +60,30 @@ struct LedgerRootView: View {
                     Button("添加账户") { showAccount = true }
                 }
             } else {
-                ForEach(Currency.allCases, id: \.self) { currency in
-                    if model.book.accounts.contains(where: { $0.currency == currency && $0.includedInSummary }) {
-                        Section(currency.rawValue + " · 当前余额") {
-                            let totals = totals(currency)
-                            LabeledContent("净资产", value: totals.net)
-                            LabeledContent("总资产", value: totals.assets)
-                            LabeledContent("总负债", value: totals.debt)
+                if let summary {
+                    ForEach(summary.currencySummaries, id: \.currency) { currency in
+                        Section(currency.currency.rawValue + " · 当前余额") {
+                            LabeledContent("净资产", value: currency.totals?.netAsset.decimalString ?? "暂不可用")
+                            LabeledContent("总资产", value: currency.totals?.assets.decimalString ?? "暂不可用")
+                            LabeledContent("总负债", value: currency.totals?.liabilities.decimalString ?? "暂不可用")
                         }.monospacedDigit()
                     }
+                } else {
+                    Section("当前余额") { Text("暂不可用") }
                 }
-                Section("本月个人消费 · CNY") { Text(monthlyConsumption).font(.title2).monospacedDigit() }
+                Section("本月个人消费 · CNY") { Text(monthlyConsumption ?? "暂不可用").font(.title2).monospacedDigit() }
             }
             if model.draft != nil {
                 Section { Button("继续未完成的记账") { showEntry = true } }
             }
             if let error = model.draftError { Section { Text(error).foregroundStyle(.red) } }
             Section("最近流水") {
-                if model.book.entries.isEmpty { Text("还没有流水").foregroundStyle(.secondary) }
-                ForEach(sortedEntries.prefix(5)) { entry in
+                if let summary {
+                    if summary.recentEntries.isEmpty { Text("还没有流水").foregroundStyle(.secondary) }
+                } else {
+                    Text("暂不可用").foregroundStyle(.secondary)
+                }
+                ForEach(summary?.recentEntries ?? []) { entry in
                     Button { selectedEntry = entry } label: { EntryRow(model: model, entry: entry) }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("entry.row." + entry.id.uuidString.lowercased())
@@ -71,40 +91,32 @@ struct LedgerRootView: View {
             }
         }
     }
-    private var sortedEntries: [LedgerEntry] {
-        LedgerPerformance.measure("Home.RecentSort") {
-            model.book.entries.sorted {
-                $0.occurredAt == $1.occurredAt ? $0.createdAt > $1.createdAt : $0.occurredAt > $1.occurredAt
+
+    private struct HomeRefreshID: Equatable {
+        let isActive: Bool
+        let isLoaded: Bool
+        let isBusy: Bool
+        let timeChangeGeneration: UInt64
+    }
+
+    @MainActor private func maintainHomeOverview() async {
+        guard scenePhase == .active, model.isLoaded else { return }
+        while !Task.isCancelled {
+            // Hide the previous month's amount before waiting for a fresh snapshot.
+            homeDisplayDate = Date()
+            await model.refreshHomeIfNeeded()
+            guard !Task.isCancelled else { return }
+            let now = Date()
+            let delay: TimeInterval
+            if model.home?.isCurrent(at: now) == true, let month = BookDate.month(containing: now) {
+                delay = max(1, month.end.timeIntervalSince(now))
+            } else {
+                // Read failures or an invalid clock must not turn into a busy retry loop.
+                delay = 60
             }
+            do { try await Task.sleep(for: .seconds(delay)) }
+            catch { return }
         }
-    }
-    private var monthlyConsumption: String {
-        let interval = LedgerPerformance.begin("Home.MonthlyConsumption")
-        var outcome = LedgerPerformance.Outcome.threw
-        defer { LedgerPerformance.end(interval, outcome: outcome) }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-        guard let interval = calendar.dateInterval(of: .month, for: Date()),
-              let value = try? LedgerEngine.consumption(in: model.book, from: interval.start, to: interval.end, currency: .cny)
-        else { return "暂不可用" }
-        outcome = .completed
-        return value.decimalString
-    }
-    private func totals(_ currency: Currency) -> (assets: String, debt: String, net: String) {
-        let interval = LedgerPerformance.begin("Home.AccountTotals")
-        var outcome = LedgerPerformance.Outcome.threw
-        defer { LedgerPerformance.end(interval, outcome: outcome) }
-        do {
-            var assets = Money(minorUnits: 0, currency: currency), debt = assets
-            for account in model.book.accounts where account.currency == currency && account.includedInSummary {
-                let value = try LedgerEngine.balance(of: account.id, in: model.book)
-                if account.nature == .asset { assets = try assets.adding(value) }
-                else { debt = try debt.adding(value) }
-            }
-            let result = (assets.decimalString, debt.decimalString, try assets.subtracting(debt).decimalString)
-            outcome = .completed
-            return result
-        } catch { return ("暂不可用", "暂不可用", "暂不可用") }
     }
 }
 

@@ -5,6 +5,7 @@ import LedgerCore
 @Observable @MainActor
 final class LedgerAppModel {
     var book = LedgerBook()
+    var home: HomeOverview?
     var draft: EntryDraft?
     var settings = LedgerSettings()
     var isLoaded = false
@@ -14,6 +15,17 @@ final class LedgerAppModel {
     private var repository: LedgerRepository?
     private var revision: UInt64 = 0
     private var starting = false
+    private var homeRequestGeneration: UInt64 = 0
+    private let now: @MainActor () -> Date
+    private let homeSnapshot: @MainActor (LedgerRepository) async throws -> LedgerSnapshot
+
+    init(repository: LedgerRepository? = nil,
+         now: @escaping @MainActor () -> Date = { Date() },
+         homeSnapshot: @escaping @MainActor (LedgerRepository) async throws -> LedgerSnapshot = { try await $0.snapshot() }) {
+        self.repository = repository
+        self.now = now
+        self.homeSnapshot = homeSnapshot
+    }
 
     func start() async {
         guard !isLoaded, !starting else { return }
@@ -23,15 +35,21 @@ final class LedgerAppModel {
         starting = true
         defer { starting = false }
         do {
-            let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                   appropriateFor: nil, create: true)
-            let directory = Self.storageDirectory(in: base)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let path = directory.appendingPathComponent("ledger.sqlite").path
-            // Database creation/migration is also off the main actor.
-            let opened = try await Task.detached { try LedgerRepository.open(path: path) }.value
-            repository = opened.repository
-            apply(opened.snapshot)
+            let initial: LedgerSnapshot
+            if let repository {
+                initial = try await repository.snapshot()
+            } else {
+                let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                       appropriateFor: nil, create: true)
+                let directory = Self.storageDirectory(in: base)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let path = directory.appendingPathComponent("ledger.sqlite").path
+                // Database creation/migration is also off the main actor.
+                let opened = try await Task.detached { try LedgerRepository.open(path: path) }.value
+                repository = opened.repository
+                initial = opened.snapshot
+            }
+            apply(initial)
             isLoaded = true
             outcome = .completed
         } catch { errorMessage = message(for: error) }
@@ -51,6 +69,23 @@ final class LedgerAppModel {
     }
     func newDraft() -> EntryDraft {
         draft ?? EntryDraft(accountID: settings.defaultAccountID, subjectID: settings.defaultSubjectID)
+    }
+
+    /// Called on foreground entry and at Shanghai month boundaries, never for
+    /// draft keystrokes. A newer mutation or refresh invalidates this response.
+    func refreshHomeIfNeeded() async {
+        guard isLoaded, !isBusy, let repository, home?.isCurrent(at: now()) != true else { return }
+        homeRequestGeneration += 1
+        let request = homeRequestGeneration
+        do {
+            let value = try await homeSnapshot(repository)
+            guard request == homeRequestGeneration, !isBusy, !Task.isCancelled,
+                  value.home?.isCurrent(at: now()) == true else { return }
+            apply(value)
+        } catch {
+            guard request == homeRequestGeneration, !isBusy, !Task.isCancelled else { return }
+            errorMessage = message(for: error)
+        }
     }
     @discardableResult
     func updateDraft(_ value: EntryDraft?) -> Task<Void, Never> {
@@ -196,7 +231,9 @@ final class LedgerAppModel {
         }
     }
     private func apply(_ value: LedgerSnapshot) {
+        homeRequestGeneration += 1
         book = value.book
+        home = value.home
         settings = value.settings
         // Autosave can run while a mutation awaits the repository actor.
         if value.draftRevision >= revision {
@@ -208,6 +245,7 @@ final class LedgerAppModel {
     private func mutate(_ work: (LedgerRepository) async throws -> LedgerSnapshot) async -> Bool {
         guard let repository, !isBusy else { return false }
         isBusy = true
+        homeRequestGeneration += 1
         defer { isBusy = false }
         do { apply(try await work(repository)); errorMessage = nil; return true }
         catch { errorMessage = message(for: error); return false }
