@@ -52,7 +52,8 @@ struct EntryEditor: View {
                         Picker("分类", selection: $draft.categoryID) {
                             Text("请选择分类").tag(Optional<UUID>.none)
                             ForEach(selectableCategories) { category in
-                                Label { Text(categoryTitle(category)) } icon: { CategorySymbolView(symbol: category.symbol) }
+                                // Native menu pickers require a primitive Label for title/image extraction.
+                                Label(categoryTitle(category), systemImage: CategorySymbolPresentation.resolved(category.symbol))
                                     .tag(Optional(category.id))
                                     .accessibilityIdentifier("entry.category.option." + category.id.uuidString.lowercased())
                             }
