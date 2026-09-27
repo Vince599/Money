@@ -10,15 +10,17 @@
 
 ## 本机验证
 
+已接入快捷指令记账代码：支持打开预填确认与直接保存两种动作，覆盖支出、收入和同币种转账，沿用精确金额、默认账户及草稿保护。使用方式和验证边界见[快捷指令说明](docs/SHORTCUTS.md)；本批尚待 Apple 构建与真机验证，旧 IPA 不包含这些动作。
+
 Windows PowerShell，在项目根目录运行：
 
 ```powershell
 ./scripts/test-core.ps1
 ```
 
-2026-09-26 实测 Swift 6.4，112 项核心测试通过，覆盖账务、目录维护、计算器、复制、查询、CSV、ZIP、备份往返及账户模板。Windows 脚本在隔离目录原样镜像纯 Swift 核心及测试，保留根 Apple 依赖锁；SQLite/GRDB、SwiftUI、模拟器和 IPA 构建使用 Apple 工具链。生成的 IPA 可在 Windows 通过用户本地签名后安装。
+2026-09-27 实测 Swift 6.4，133 项核心测试通过，覆盖账务、目录维护、计算器、复制、查询、CSV、ZIP、备份往返、账户模板、快捷指令请求和首页摘要。Windows 脚本在隔离目录原样镜像纯 Swift 核心及测试，保留根 Apple 依赖锁；SQLite/GRDB、SwiftUI、模拟器和 IPA 构建使用 Apple 工具链。生成的 IPA 可在 Windows 通过用户本地签名后安装。
 
-性能测量准备、合成数据的 Windows 领域基线和 App 内计时边界见[性能基线说明](docs/PERFORMANCE_BASELINE.md)。领域耗时不代表 iPhone 的实际操作速度；新增 App 插桩尚待 Apple 编译和真机 trace 验证。
+性能测量准备、合成数据的 Windows 领域基线和 App 内计时边界见[性能基线说明](docs/PERFORMANCE_BASELINE.md)。普通新建／编辑已改为同事务增量写入；完整快照改为一次读事务，磁盘启动直接使用首次存储快照，避免重复全量解码。首页改为后台统一派生资产、本月消费和最近五条，草稿输入不重算，并防止跨月及延迟刷新显示旧状态。防重、草稿和回滚规则保留，整本读取／校验仍需后续优化。App 插桩已通过 Apple 编译，Instruments trace 与真机性能仍待测量。
 
 ## Apple 平台构建
 
@@ -28,7 +30,7 @@ macOS 的统一入口：
 bash scripts/build-ios.sh
 ```
 
-固定工具版本、GitHub Actions 手动工作流、产物与签名方式见 [构建说明](docs/BUILD.md)。2026-09-26 第三批[完整构建与页面验证](https://github.com/Vince599/Money/actions/runs/36218393077)通过 118 项 macOS 包测试、8 项 iOS 模拟器 App 测试和 2 项页面操作测试，覆盖计算器、复制、搜索和金额筛选，并生成 arm64 未签名 IPA 与模拟器截图。用户反馈此前版本在 iOS 27 真机上安装、基础记账、重开及 ZIP 导出恢复通过；新版覆盖安装与第三批新增功能的真机测试尚待验证。
+固定工具版本、GitHub Actions 手动工作流、产物与签名方式见 [构建说明](docs/BUILD.md)。2026-09-27 [云端运行 #14](https://github.com/Vince599/Money/actions/runs/36283853854)通过 157 项 macOS 包测试、30 项 iOS 模拟器 App 测试和 2 项页面操作测试，共 189 项，并生成 arm64 未签名 IPA 与模拟器截图。验证提交为 `c59628f73f9c32005ae125762f8e8dd0e792ff04`，包括首页统一摘要、增量记账、一致快照与启动去重、性能插桩、账户模板资源和 AppIcon；并行开发中的快捷记账代码不在该快照内。用户反馈此前版本在 iOS 27 真机上安装、基础记账、重开及 ZIP 导出恢复通过；新版覆盖安装与新增功能的真机测试尚待验证。
 
 ## 目录
 

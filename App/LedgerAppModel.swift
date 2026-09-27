@@ -4,6 +4,8 @@ import LedgerCore
 
 @Observable @MainActor
 final class LedgerAppModel {
+    // App Intents run in the app process and share the UI's repository and draft sequence.
+    static let shared = LedgerAppModel()
     var book = LedgerBook()
     var home: HomeOverview?
     var draft: EntryDraft?
@@ -12,9 +14,12 @@ final class LedgerAppModel {
     var isBusy = false
     var errorMessage: String?
     var draftError: String?
+    var pendingShortcut: ShortcutEntryRequest?
+    var shortcutBlockingSheets: Set<String> = []
     private var repository: LedgerRepository?
     private var revision: UInt64 = 0
-    private var starting = false
+    private var startupTask: Task<Void, Never>?
+
     private var homeRequestGeneration: UInt64 = 0
     private let now: @MainActor () -> Date
     private let homeSnapshot: @MainActor (LedgerRepository) async throws -> LedgerSnapshot
@@ -28,12 +33,18 @@ final class LedgerAppModel {
     }
 
     func start() async {
-        guard !isLoaded, !starting else { return }
+        if let startupTask { await startupTask.value; return }
+        guard !isLoaded else { return }
+        let task = Task { await self.load() }
+        startupTask = task
+        await task.value
+        startupTask = nil
+    }
+
+    private func load() async {
         let interval = LedgerPerformance.begin("App.StartToModel")
         var outcome = LedgerPerformance.Outcome.threw
         defer { LedgerPerformance.end(interval, outcome: outcome) }
-        starting = true
-        defer { starting = false }
         do {
             let initial: LedgerSnapshot
             if let repository {
@@ -51,6 +62,7 @@ final class LedgerAppModel {
             }
             apply(initial)
             isLoaded = true
+            errorMessage = nil
             outcome = .completed
         } catch { errorMessage = message(for: error) }
     }
@@ -85,6 +97,65 @@ final class LedgerAppModel {
         } catch {
             guard request == homeRequestGeneration, !isBusy, !Task.isCancelled else { return }
             errorMessage = message(for: error)
+        }
+    }
+    func shortcutSnapshot() async throws -> LedgerSnapshot {
+        await start()
+        return try readyShortcutSnapshot()
+    }
+
+    private func readyShortcutSnapshot() throws -> LedgerSnapshot {
+        guard isLoaded else { throw ShortcutExecutionError.unavailable }
+        guard !isBusy else { throw ShortcutExecutionError.busy }
+        return LedgerSnapshot(book: book, draft: draft, settings: settings, draftRevision: revision, home: home)
+    }
+
+    func prepareShortcut(_ request: ShortcutEntryRequest) async throws {
+        await start()
+        let current = try readyShortcutSnapshot()
+        guard pendingShortcut == nil else { throw ShortcutExecutionError.pendingReview }
+        _ = try request.makeDraft(in: current.book, settings: current.settings)
+        pendingShortcut = request
+    }
+
+    /// Called only by the shortcut review sheet, after any existing editor has closed.
+    func installShortcutDraft(_ request: ShortcutEntryRequest, replacingExisting: Bool) async throws {
+        await start()
+        let current = try readyShortcutSnapshot()
+        guard pendingShortcut == request else { throw ShortcutExecutionError.expiredReview }
+        guard current.draft == nil || replacingExisting else { throw ShortcutExecutionError.existingDraft }
+        guard let repository else { throw ShortcutExecutionError.unavailable }
+        let value = try request.makeDraft(in: current.book, settings: current.settings)
+        isBusy = true
+        defer { isBusy = false }
+        revision += 1
+        let sequence = revision
+        // Persist first: failure leaves the user's previous draft in memory and on disk.
+        try await repository.saveDraft(value, revision: sequence)
+        guard revision == sequence else { throw ShortcutExecutionError.draftChanged }
+        draft = value
+        draftError = nil
+    }
+
+    func recordShortcut(_ request: ShortcutEntryRequest) async throws -> LedgerEntry {
+        await start()
+        let current = try readyShortcutSnapshot()
+        guard let repository else { throw ShortcutExecutionError.unavailable }
+        isBusy = true
+        homeRequestGeneration += 1
+        defer { isBusy = false }
+        do {
+            let value = try request.makeDraft(in: current.book, settings: current.settings)
+            let entry = try value.entry(in: current.book)
+            let saved = try await repository.saveShortcutEntry(entry)
+            apply(saved)
+            errorMessage = nil
+            // A retry may return an already committed entry with its original creation date.
+            return saved.book.entries.first(where: { $0.operationID == entry.operationID }) ?? entry
+        } catch let error as ShortcutEntryError {
+            throw error
+        } catch {
+            throw ShortcutExecutionError.failed(message(for: error))
         }
     }
     @discardableResult

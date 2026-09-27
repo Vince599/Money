@@ -90,6 +90,20 @@ actor LedgerRepository {
         outcome = .completed
         return result
     }
+    /// Shortcuts create independent entries without consuming the manual editor's draft.
+    func saveShortcutEntry(_ entry: LedgerEntry) throws -> LedgerSnapshot {
+        let interval = LedgerPerformance.begin("Repository.SaveShortcutEntry")
+        var outcome = LedgerPerformance.Outcome.threw
+        defer { LedgerPerformance.end(interval, outcome: outcome) }
+        let saved = try LedgerPerformance.measure("Entry.Commit") {
+            try store.saveEntry(entry, expectedVersion: nil, draftUpdate: .preserve)
+        }
+        // The editor owns its revision fence; a shortcut must never advance it.
+        let result = Self.withHome(LedgerSnapshot(book: saved.book, draft: saved.draft, settings: saved.settings,
+                                                draftRevision: draftRevision))
+        outcome = .completed
+        return result
+    }
     func deleteEntry(_ id: UUID) throws -> LedgerSnapshot {
         let current = try readSnapshot()
         let updated = try LedgerEngine.delete(entryID: id, in: current.book)

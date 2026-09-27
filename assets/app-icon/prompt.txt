@@ -1,0 +1,11 @@
+Use case: logo-brand
+Asset type: production iPhone home-screen app icon for a restrained personal ledger app; one single square image, 1024 x 1024.
+Primary request: A beautiful, quietly philosophical symbol for knowing what is enough, the balance between accumulating and leaving room for life. No literal money imagery.
+Scene/backdrop: perfectly solid deep warm charcoal background, full bleed to all four square edges, no rounded-square container drawn inside.
+Subject: one bold sculptural ivory porcelain annulus, almost a complete circle, with a deliberate clean gap around the upper right at 1:30. One small perfectly round ivory porcelain sphere floats in that gap, visibly separated from BOTH cut ends by breathing space. The sphere is part of the circular rhythm. The ring has generous thickness, broad clean silhouette, gently rounded bevels and a subtle front-facing dimensional surface. The ring is circular, never an ellipse; no stem or tail. Its opening and separate sphere should read immediately even as a small app icon. Main ring outer diameter about 62 percent of the canvas; band thickness about 11 percent of the canvas; sphere diameter about 10 percent of canvas. Optical center in the middle.
+Style/medium: exquisitely restrained contemporary sculptural brand mark, mostly frontal orthographic view, tactile matte porcelain, premium editorial minimalism. A single coherent symbol, not an illustration of a room or object arrangement.
+Lighting/mood: very soft studio illumination from upper left, subtle tonal form only; quiet, thoughtful and balanced. Crisp silhouette and strong contrast. No dramatic shadow or glossy reflections.
+Color palette: near-black warm graphite and warm ivory only, consistent with a neutral minimal SwiftUI app.
+Text: none.
+Constraints: full-bleed opaque square image, no transparent pixels, no pre-rounded corners, no outside margin or white frame, no phone mockup, no contact sheet. Keep all symbol details safely in central 72 percent of canvas. This image itself is the app icon.
+Avoid: currency signs, coins, banknotes, wallets, charts, numbers, letters, words, watermarks, gold, bright accent colors, gradients in the background, glass, metallic surfaces, busy grain, thin strokes, generic infinity sign, power-button stem, extra objects.

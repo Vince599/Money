@@ -58,7 +58,12 @@ struct HistoryView: View {
                 }.accessibilityIdentifier("history.filter")
             }
         }
-        .sheet(isPresented: $showFilters) { HistoryFilterView(book: model.book, filter: $filter) }
+        .sheet(isPresented: $showFilters, onDismiss: { model.shortcutBlockingSheets.remove("history.filters") }) {
+            HistoryFilterView(book: model.book, filter: $filter)
+        }
+        .onChange(of: showFilters) { _, presented in
+            if presented { model.shortcutBlockingSheets.insert("history.filters") }
+        }
     }
     private struct DayGroup { let day: Date; var entries: [LedgerEntry] }
     private func groups(_ entries: [LedgerEntry]) -> [DayGroup] {

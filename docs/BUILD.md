@@ -4,7 +4,7 @@
 
 ## 当前已验证的固定基线
 
-主要体验目标已更新为用户当前 iOS 27 真机。下表记录实际采用过的构建基线；最新稳定工具链目标、升级流程和性能证据要求见[原生体验与工程质量标准](EXPERIENCE_QUALITY.md)。本批已修正历史验证状态、精确固定 Apple Swift 6.3.3 并增加只读探测入口；未切换到 Xcode 27，也未执行新的 Apple 构建。
+主要体验目标已更新为用户当前 iOS 27 真机。下表记录实际采用过的构建基线；最新稳定工具链目标、升级流程和性能证据要求见[原生体验与工程质量标准](EXPERIENCE_QUALITY.md)。配置已精确固定 Apple Swift 6.3.3 并增加只读探测入口；云端运行 #14 已按该基线完成新一轮 Apple 验证，尚未切换到 Xcode 27。
 
 | 项目 | 固定值 |
 |---|---|
@@ -45,7 +45,7 @@ bash scripts/probe-apple-toolchain.sh /Applications/Xcode_27.app
 
 JSON 输出包含宿主、已安装 Xcode 的精确版本／build、Swift、SDK 和模拟器运行时，各命令错误保留在对应字段。脚本不下载安装、不构建、不启动设备、不修改全局 `xcode-select`；退出成功仅说明完成了安装目录探测，不代表每个工具可用或 App 已验证。Windows 调用会明确拒绝。
 
-如兼容宿主尚未安装稳定工具，使用 [Apple 官方安装入口](https://developer.apple.com/xcode/resources/)准备环境，再探测、更新固定配置并完整回归。本次没有探测远端 runner 或下载 Xcode，故保留当前已验证的构建版本；不能把网络清单当成一次实际环境执行。App 新增的性能插桩及其待验证范围见[性能基线](PERFORMANCE_BASELINE.md)。
+如兼容宿主尚未安装稳定工具，使用 [Apple 官方安装入口](https://developer.apple.com/xcode/resources/)准备环境，再探测、更新固定配置并完整回归。尚未在远端执行新增的 Xcode 27 探测入口或下载 Xcode，故保留当前已验证的构建版本；运行 #11 核对并使用的是已固定的 Xcode 26.6，不能把网络清单当成新工具链执行证据。App 性能插桩的编译证据及待测范围见[性能基线](PERFORMANCE_BASELINE.md)。
 
 核心在内存中用 Int128 累加分录，再检查 Int64 可存储范围；[Apple Int128 文档](https://developer.apple.com/documentation/swift/int128)标明 macOS 15.0／iOS 18.0 起可用。包的 macOS 最低版本因此为 15.0，App 仍为 iOS 26.0；这项配置核对不替代实际 Apple 平台编译。
 
@@ -107,6 +107,17 @@ bash scripts/build-ios.sh
 - 运行 #4 的 [完整产物](https://github.com/Vince599/Money/actions/runs/36212928265/artifacts/10896293141)为 `ledger-ios-4`；IPA 为 3,059,852 字节，SHA-256 `fdd7f69b98079e46ae1598a7fe193e0a16a5d1aee3aabfcb6da5480b0de78132`，已下载核对一致。3 张截图来自 iPhone 17 Pro Max／iOS 26.5 模拟器，分辨率 1320×2868，内容为重启后首页、账户页及备份入口。
 - 2026-09-26，[云端运行 #9](https://github.com/Vince599/Money/actions/runs/36218393077)（提交 `d778e373dd1cdd568492400d2acc9e87610ccaae`）：第三批 macOS 包测试 118 项／11 个 suite、iOS AppTests 8 项、UITests 2 项全部通过，Release arm64 构建成功。新增页面测试验证算式 `10+5.05*2` 得到 20.10、复制形成两笔独立流水后余额 59.80、大小写搜索、无结果状态、最低金额 20.11 排除两笔 20.10 流水，以及清除筛选后恢复两笔记录。5 张命名截图包含前三个基础页面、计算器和复制后的搜索列表。
 - 运行 #9 的[完整产物](https://github.com/Vince599/Money/actions/runs/36218393077/artifacts/10898635666)为 `ledger-ios-9`，已下载并核对：IPA 为 3,218,468 字节，SHA-256 `9ae789b9433ad5994ec068ee14b07ff354060cceef2f0c429c6aeb71453a5f1e`。测试摘要为 iPhone 17 Pro Max／iOS 26.5（23F77），10 项 App／UI 测试零失败、零跳过；其余 118 项见包测试日志。新增计算器和搜索截图已查看，未发现当前合成数据下的遮挡或文字截断。此包尚未进行真机覆盖安装验证。
+- 2026-09-26，[云端运行 #10](https://github.com/Vince599/Money/actions/runs/36221607153)（提交 `664e7d2c1dd3616c69fa7df6ea6546f5cd1ce809`）通过 135 项 macOS 包测试／13 套件，随后因缺少配置所指的 `AppIcon` 集而在资源编译失败，App／UI 测试未执行、未生成 IPA。失败日志保留；补入并行任务已制作的 AppIcon 后重新完整验证。
+- 2026-09-26，[云端运行 #11](https://github.com/Vince599/Money/actions/runs/36221886418)（分支 `codex/incremental-entry-validation`，提交 `44ef8b11da2bc84764f98e33286b9b4e5a5a47fa`）全部成功：135 项 macOS 包测试（112 Core＋23 Store，13 套件）、12 项 AppTests、2 项 UITests，共 149 项。新增回归覆盖普通新建／编辑增量事务、草稿序号、防重、故障回滚及旧数据兼容；性能插桩和新增图标资源通过 Apple 编译。实际工具为 Xcode 26.6（17F113）、Apple Swift 6.3.3、iOS 26.5 SDK；模拟器为 iPhone 17 Pro Max／iOS 26.5（23F77），runner 镜像 `20260907.0351.1`。
+- 运行 #11 的[完整产物](https://github.com/Vince599/Money/actions/runs/36221886418/artifacts/10898673854)为 `ledger-ios-11`。已下载至 `build/validation/run-11-artifact/20260926T054837Z-8946/`，核对下载 ZIP 的 GitHub 摘要及 IPA 随附清单：IPA 为 **5,838,918 字节**，SHA-256 `6bc108000240aab9fe08c5a70d0ef3563dc5d1e1f230a65a295b0eae0e12519d`。测试摘要记录 14 项 App／UI 测试零失败、零跳过；5 张 1320×2868 截图（首页、账户、备份入口、计算器、搜索）已查看，当前合成数据下未见遮挡或截断。
+- 运行 #11 验证的是固定快照，包括普通记账增量事务、性能插桩、账户模板素材和 AppIcon；随后并行新增的快捷记账代码不在此提交中。原工作区 `main` 与暂存区未由本批提交或重置。该 IPA 尚未真机安装验证，Instruments trace、性能指标及最终 UI 仍待专项验收。
+- 2026-09-26，[云端运行 #12](https://github.com/Vince599/Money/actions/runs/36224785602)（`codex/incremental-entry-validation`，提交 `f50dd055e6662932c40de56adc6095617ac160bf`）全部成功：145 项包测试（112 Core＋33 Store，14 套件）、16 项 AppTests、2 项 UITests，共 **163 项**。本批只在上一验证快照增加 5 个代码／测试文件，覆盖一致快照、启动去重和相应回归；保留普通保存与备份恢复测试。实际工具仍为 Xcode 26.6（17F113）、Apple Swift 6.3.3，runner 镜像 `20260907.0351.1`，完成 arm64 Release 构建。
+- 2026-09-27 完成运行 #12 的[完整产物](https://github.com/Vince599/Money/actions/runs/36224785602/artifacts/10900386916)核对：`ledger-ios-12` 的 ZIP 为 113,682,285 字节，SHA-256 `02663953656b10d19f245ac477f66c9ee2802f0242f33406487305cf3129fa31` 与 GitHub 摘要一致；安全解压至 `build/validation/run-12-artifact/20260926T064703Z-4677/`。IPA 为 **5,843,152 字节**，SHA-256 `f41ae9389f1cf6703253af078d52c98658210ddd0ff08a3a906a8e4ba4c46b56` 与随附清单一致，构建元数据的源码提交与本次运行匹配。测试摘要确认 iPhone 17 Pro Max／iOS 26.5（23F77）上 18 项 App／UI 测试零失败、零跳过；5 张 1320×2868 截图（首页、账户、备份入口、计算器、搜索）已查看，当前合成数据下未见遮挡或截断。
+- 运行 #12 同样不包含并行快捷记账代码及其启动协调变更。原工作区已用最小补丁接入本批工厂与读取 API，保留快捷入口；两者整合后的完整 Apple 回归须另记证据。整本读取仍存在，尚未进行本版本的真机安装、Instruments trace 或性能验收。
+- 2026-09-27，[云端运行 #13](https://github.com/Vince599/Money/actions/runs/36283696910)（提交 `6418ee3fdd2ce90c7bd68bedc6e40bf400e9462f`）在新增首页摘要测试的复杂表达式处触发 Apple Swift 6.3.3 类型推断耗时错误；包测试未执行完成，App／UI 测试未运行，未生成 IPA。拆分测试表达式后重新执行完整构建。
+- 2026-09-27，[云端运行 #14](https://github.com/Vince599/Money/actions/runs/36283853854)（`codex/incremental-entry-validation`，提交 `c59628f73f9c32005ae125762f8e8dd0e792ff04`）全部成功：157 项包测试（124 Core＋33 Store，15 套件）、30 项 AppTests、2 项 UITests，共 **189 项**。新增回归覆盖首页分币种汇总、金额边界、最近五条、上海月界、延迟刷新、草稿保护，以及保存／编辑／删除／目录修改／更正／恢复后的摘要一致性；工具链仍为 Xcode 26.6（17F113）／Apple Swift 6.3.3，完成 arm64 Release 构建。
+- 运行 #14 的[完整产物](https://github.com/Vince599/Money/actions/runs/36283853854/artifacts/10920231592)为 `ledger-ios-14`，已下载并核对：ZIP 为 113,072,281 字节，SHA-256 `291c7449a24b115b8ea3414227dbd381b801aad4b4bac9d432fed04f85478def` 与 GitHub 摘要一致；解压至 `build/validation/run-14-artifact/20260927T005331Z-7609/`。IPA 为 **5,870,993 字节**，SHA-256 `573816d47a7efa7384ab77da89a57d0b36b4018fd671159aa9dd158d08d1245f` 与随附清单一致，元数据提交及 run ID 匹配。摘要确认 iPhone 17 Pro Max／iOS 26.5（23F77）上 32 项 App／UI 测试零失败、零跳过；5 张 1320×2868 截图已查看，首页余额 79.90／消费 20.10 与合成账本一致，当前场景未见遮挡或截断。
+- 运行 #14 固定快照包含本轮首页优化，仍不含并行快捷指令记账。原工作区已保留这些入口并接入首页摘要；合并后的完整 Apple 回归、真机安装和 Instruments 性能测量仍待实施。本机完整 Core 已通过 133 项／13 套件（含快捷请求的 9 项），不可与此快照的包测试总数直接混比；原主分支与暂存区保持原状。
 - 2026-09-26，用户反馈此前提供版本在 iOS 27 真机签名安装成功：新建“真机测试”账户期初 100.00 元、本月消费 0；记录 20.10 元餐饮／正餐支出后余额 79.90 元、消费 20.10 元且只有一笔流水；强制退出重开后保留；完整 ZIP 可导出到系统“文件”；再支出 5.00 元后恢复原 ZIP，余额从 74.90 元回到 79.90 元且恢复一笔流水。精确 iOS build、已安装包哈希未取得，证据类型为用户反馈；不能作为第三批新增功能的真机测试结果。
 - 覆盖升级、续签与过期恢复：待真机验证。模拟器结果仍为 iOS 26.5；上述 iOS 27 基础人工验证不代表全量兼容性验收。
 - 家庭 fnOS、iCloud 目录与 Widget：本批未实现、未验证。

@@ -1,0 +1,8 @@
+Use case: precise-object-edit
+Asset type: production iPhone app icon, single full-bleed opaque square image.
+Input image 1 is the edit target: the existing circular porcelain ring and floating sphere app icon.
+Primary request: The user does not want a black background. Replace the entire charcoal background with a clean, solid, LIGHT WARM IVORY background, approximately #F3F0E8, extending uniformly to all four square edges and throughout the empty center of the ring.
+To maintain excellent small-icon contrast on the light background, change the ring and sphere from white porcelain to muted medium-dark warm graphite ceramic, approximately #555750, with subtle lighter highlights from the upper left. The objects must not become black. Preserve their softly tactile matte ceramic material.
+Invariants: preserve the exact existing ring silhouette, circular proportions, thick band, gap at upper right, separate sphere, visible air gaps, front-facing composition, central placement, generous outer space and relative object scale. Retain the restrained philosophical mood. Change only the background and the subject tonal colors needed for readable contrast. No new forms, no extra decorative elements.
+Lighting: subtle dimensional shading confined to the ring and sphere, gently rounded beveled form, clean bright background without vignette. The result should feel airy, warm and calm.
+Constraints: 1024 x 1024 square PNG artwork; opaque background; no pre-rounded corners, border, container, phone mockup, text, currency symbols, numerals or watermark. No dark or black background anywhere, including inside the ring. Background must be LIGHT warm ivory.

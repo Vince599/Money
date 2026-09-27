@@ -34,9 +34,15 @@ struct AccountsView: View {
             ToolbarItem(placement: .topBarLeading) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("设置").accessibilityIdentifier("accounts.settings") }
             ToolbarItem(placement: .topBarTrailing) { Button("添加") { add = true }.accessibilityIdentifier("accounts.add") }
         }
-        .sheet(isPresented: $add) { AddAccountView(model: model) }
-        .sheet(isPresented: $settings) { LedgerSettingsView(model: model) }
-        .sheet(item: $selected) { account in AccountDetailView(model: model, accountID: account.id) }
+        .sheet(isPresented: $add, onDismiss: unblockShortcuts) { AddAccountView(model: model) }
+        .sheet(isPresented: $settings, onDismiss: unblockShortcuts) { LedgerSettingsView(model: model) }
+        .sheet(item: $selected, onDismiss: unblockShortcuts) { account in AccountDetailView(model: model, accountID: account.id) }
+        .onChange(of: add || settings || selected != nil) { _, presented in
+            if presented { model.shortcutBlockingSheets.insert("accounts") }
+        }
+    }
+    private func unblockShortcuts() {
+        if !add, !settings, selected == nil { model.shortcutBlockingSheets.remove("accounts") }
     }
 }
 

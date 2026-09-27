@@ -8,6 +8,7 @@ struct LedgerRootView: View {
     @State private var showEntry = false
     @State private var showAccount = false
     @State private var selectedEntry: LedgerEntry?
+    @State private var showShortcut = false
     @State private var timeChangeGeneration: UInt64 = 0
     @State private var homeDisplayDate = Date()
     var body: some View {
@@ -29,9 +30,17 @@ struct LedgerRootView: View {
                 }
             } else { ProgressView("正在打开账本") }
         }
-        .sheet(isPresented: $showEntry) { EntryEditor(model: model) }
-        .sheet(isPresented: $showAccount) { AddAccountView(model: model) }
-        .sheet(item: $selectedEntry) { entry in EntryDetailView(model: model, entryID: entry.id) }
+        .sheet(isPresented: $showEntry, onDismiss: presentShortcutIfPossible) { EntryEditor(model: model) }
+        .sheet(isPresented: $showAccount, onDismiss: presentShortcutIfPossible) { AddAccountView(model: model) }
+        .sheet(item: $selectedEntry, onDismiss: presentShortcutIfPossible) { entry in EntryDetailView(model: model, entryID: entry.id) }
+        .sheet(isPresented: $showShortcut, onDismiss: { model.pendingShortcut = nil }) {
+            if let request = model.pendingShortcut { ShortcutReviewView(model: model, request: request) }
+        }
+        .onChange(of: model.pendingShortcut) { _, _ in presentShortcutIfPossible() }
+        .onChange(of: model.isBusy) { _, _ in presentShortcutIfPossible() }
+        .onChange(of: model.isLoaded) { _, _ in presentShortcutIfPossible() }
+        .onChange(of: model.shortcutBlockingSheets) { _, _ in presentShortcutIfPossible() }
+        .onAppear { presentShortcutIfPossible() }
         .task(id: HomeRefreshID(isActive: scenePhase == .active, isLoaded: model.isLoaded,
                                isBusy: model.isBusy, timeChangeGeneration: timeChangeGeneration)) {
             await maintainHomeOverview()
@@ -40,6 +49,12 @@ struct LedgerRootView: View {
             timeChangeGeneration &+= 1
         }
         .tint(.primary)
+    }
+    private func presentShortcutIfPossible() {
+        guard model.isLoaded, !model.isBusy, model.pendingShortcut != nil,
+              model.shortcutBlockingSheets.isEmpty,
+              !showEntry, !showAccount, selectedEntry == nil, !showShortcut else { return }
+        showShortcut = true
     }
     @ToolbarContentBuilder private var recordToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
@@ -53,6 +68,9 @@ struct LedgerRootView: View {
         let monthlyConsumption = overview?.isCurrent(at: homeDisplayDate) == true
             ? summary?.monthlyConsumption?.decimalString : nil
         return List {
+            if model.pendingShortcut != nil, !showShortcut {
+                Section { Text("快捷指令记账已准备好，关闭当前页面后继续确认。") }
+            }
             if model.book.accounts.isEmpty {
                 Section {
                     ContentUnavailableView("从第一个账户开始", systemImage: "wallet.bifold",
