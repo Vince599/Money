@@ -30,6 +30,11 @@ struct ImportTemplateDocument: FileDocument {
 struct ImportListView: View {
     @Bindable var model: LedgerAppModel
     @State private var namespace = ""
+    @State private var filter = ImportFilter()
+    @State private var visibleBatchCount = 50
+    @State private var matches: [ImportBatchMatch] = []
+    @State private var queryLoading = true
+    private var queryRequest: ImportReviewRequest { ImportReviewRequest(revision: model.historyRevision, limit: 0, filter: filter) }
     @State private var chooseFile = false
     @State private var exportTemplate = false
     @State private var message: String?
@@ -44,23 +49,41 @@ struct ImportListView: View {
             } footer: {
                 Text("同一来源账户请一直使用相同身份，交易号在该身份内防重。模板只含合成示例，请替换；目前未直接适配钱迹、微信等原始表头。选择文件不会立即入账。")
             }
-            Section("导入批次") {
-                ForEach(model.book.importBatches.reversed()) { batch in
+            ImportFilterControls(filter: $filter, namespaces: Array(Set(model.book.importBatches.map(\.namespace))).sorted())
+            Section("导入批次（\(matches.count)）") {
+                if matches.isEmpty && !queryLoading { Text(model.book.importBatches.isEmpty ? "还没有导入批次。" : "没有符合条件的记录，可清除筛选后重试。") }
+                ForEach(matches.prefix(visibleBatchCount)) { match in
+                    let batch = match.batch
                     NavigationLink {
-                        ImportBatchView(model: model, batchID: batch.id)
+                        ImportBatchView(model: model, batchID: batch.id, filter: ImportFilter(state: filter.state, keyword: filter.keyword))
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(batch.name).foregroundStyle(.primary)
+                            Text("匹配 \(match.matchingRowCount) / \(batch.rows.count) 行").font(.caption).foregroundStyle(.secondary)
                             Text(batch.revertedAt == nil ? "\(batch.namespace) · 待处理 \(batch.rows.filter { $0.state == .pending }.count) / \(batch.rows.count)" : "\(batch.namespace) · 已撤销（保留核对记录）")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }.accessibilityIdentifier("import.batch." + batch.id.uuidString.lowercased())
                 }
             }
+            if visibleBatchCount < matches.count { Button("显示更多批次") { visibleBatchCount += 50 } }
+            if queryLoading { ProgressView("正在查找导入记录…") }
             if model.isBusy { ProgressView("正在读取或保存…") }
             if let message { Text(message).foregroundStyle(.red) }
         }
         .navigationTitle("导入账单").disabled(model.isBusy)
+        .onChange(of: filter) { _, _ in visibleBatchCount = 50; matches = []; queryLoading = true }
+        .task(id: queryRequest) {
+            let started = queryRequest
+            queryLoading = true
+            do {
+                try await Task.sleep(for: .milliseconds(200))
+                let book = model.book, snapshot = filter
+                let found = await Task.detached(priority: .userInitiated) { ImportQuery.batches(in: book, matching: snapshot) }.value
+                guard !Task.isCancelled, started == queryRequest else { return }
+                matches = found; queryLoading = false
+            } catch { if !Task.isCancelled, started == queryRequest { queryLoading = false } }
+        }
         .fileImporter(isPresented: $chooseFile, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
             switch result {
             case .success(let url): Task {
@@ -77,14 +100,28 @@ struct ImportListView: View {
     }
 }
 
+private struct ImportReviewSelection: Identifiable {
+    let id: UUID
+    let rowIDs: [UUID]
+}
+private struct ImportReviewRequest: Equatable {
+    let revision: UInt64
+    let limit: Int
+    let filter: ImportFilter
+    var retry: UUID? = nil
+}
+
 struct ImportBatchView: View {
     @Bindable var model: LedgerAppModel
     let batchID: UUID
+    @State var filter = ImportFilter()
+    @State private var retryToken: UUID?
+    @State private var completedRequest: ImportReviewRequest?
     @State private var visibleCount = 50
     @State private var selected: Set<UUID> = []
     @State private var reviews: [UUID: ImportRowReview] = [:]
     @State private var reviewLoading = false
-    @State private var editing: ImportRow?
+    @State private var editing: ImportReviewSelection?
     @State private var showMapping = false
     @State private var showClassification = false
     @State private var showLabels = false
@@ -93,8 +130,10 @@ struct ImportBatchView: View {
     @State private var preview: ImportCommitPreview?
     @State private var message: String?
     private var batch: ImportBatch? { model.book.importBatches.first { $0.id == batchID } }
-    private var visible: [ImportRow] { Array((batch?.rows ?? []).prefix(visibleCount)) }
-    private var request: String { "\(model.historyRevision):\(visibleCount)" }
+    @State private var matchingRows: [ImportRow] = []
+    private var visible: [ImportRow] { Array(matchingRows.prefix(visibleCount)) }
+    private var request: ImportReviewRequest { ImportReviewRequest(revision: model.historyRevision, limit: visibleCount, filter: filter, retry: retryToken) }
+    private var reviewsAreCurrent: Bool { completedRequest == request && !reviewLoading }
     var body: some View {
         List {
             if let batch {
@@ -106,70 +145,84 @@ struct ImportBatchView: View {
                         Button("本批账户匹配／新建") { showMapping = true }.accessibilityIdentifier("import.accounts")
                         Button("选择当前已显示的可导入行") {
                             selected = Set(visible.filter { reviews[$0.id] == .ready }.prefix(200).map(\.id))
-                        }.disabled(reviewLoading)
+                        }.disabled(!reviewsAreCurrent)
                         Button("清除选择") { selected = [] }
                         Button("选择当前已显示的待处理行（最多 200 行）") {
-                            selected = Set(visible.filter { $0.state == .pending }.prefix(200).map(\.id))
-                        }
+                            selected = ImportQuery.selectableIDs(in: batch, matching: filter, limit: visibleCount)
+                        }.disabled(!reviewsAreCurrent)
                         Button("核对所选行的规则建议") { showBatchRules = true }
-                            .disabled(selected.isEmpty || selected.count > 200)
+                            .disabled(selected.isEmpty || selected.count > 200 || !reviewsAreCurrent)
                             .accessibilityIdentifier("import.batchRules")
                         Button("修改所选行的标签／项目") { showLabels = true }
-                            .disabled(selected.isEmpty || selected.count > 200)
+                            .disabled(selected.isEmpty || selected.count > 200 || !reviewsAreCurrent)
                             .accessibilityIdentifier("import.labels")
                         Button("修改所选行的分类／主体") { showClassification = true }
-                            .disabled(selected.isEmpty || selected.count > 200)
+                            .disabled(selected.isEmpty || selected.count > 200 || !reviewsAreCurrent)
                     }
                 }
                 if let date = batch.revertedAt {
                     Text("本批已于 " + BookDate.dateTime(date) + " 撤销。来源和未处理内容仅供核对；需要重导入时请新建批次。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                ImportFilterControls(filter: $filter)
+                Text("匹配 \(matchingRows.count) / \(batch.rows.count) 行 · 已选 \(selected.count) 行").font(.footnote).foregroundStyle(.secondary)
+                if matchingRows.isEmpty && reviewsAreCurrent { Text("没有符合条件的记录，可清除筛选后重试。") }
                 ForEach(visible) { row in
                     HStack {
                         if row.state == .pending && batch.revertedAt == nil {
                             Toggle("选择此行", isOn: Binding(get: { selected.contains(row.id) }, set: {
                                 if $0 { selected.insert(row.id) } else { selected.remove(row.id) }
-                            })).labelsHidden().accessibilityLabel("选择 " + row.title).toggleStyle(.button)
+                            })).labelsHidden().accessibilityLabel("选择 " + row.title).toggleStyle(.button).disabled(!reviewsAreCurrent)
                         }
-                        Button { editing = row } label: {
+                        Button { editing = ImportReviewSelection(id: row.id, rowIDs: matchingRows.map(\.id)) } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(row.title.isEmpty ? row.sourceID : row.title).foregroundStyle(.primary)
                                 Text("\(row.raw[3]) \(row.raw[4]) · \(row.raw[1])").font(.caption).foregroundStyle(.secondary)
-                                Text(row.state == .pending ? (reviews[row.id]?.explanation ?? "正在核对…") : (row.state == .imported ? "已导入" : row.state == .merged ? "已合并来源" : row.state == .unlinked ? "已解除来源" : row.state == .reverted ? "已撤销" : "已跳过"))
+                                Text(row.state == .pending ? (batch.revertedAt != nil ? "原待处理（批次已撤销）" : (reviewsAreCurrent ? (reviews[row.id]?.explanation ?? "待核对") : "正在核对…")) : row.state.filterName)
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }.buttonStyle(.plain).accessibilityIdentifier("import.row." + row.id.uuidString.lowercased())
                     }
                 }
-                if visibleCount < batch.rows.count { Button("显示更多") { visibleCount += 50 } }
+                if visibleCount < matchingRows.count { Button("显示更多") { visibleCount += 50 } }
                 if reviewLoading { ProgressView("正在核对当前行…") }
                 if batch.revertedAt == nil {
                     Section {
                         Button("预览导入所选 \(selected.count) 行") { prepare(skip: false) }.accessibilityIdentifier("import.preview")
                         Button("预览跳过所选 \(selected.count) 行") { prepare(skip: true) }
                     } footer: { Text("每次最多 200 行。跳过也需确认，原始数据和处理结果会保留。未处理行可下次继续；历史流水正常影响当前余额。") }
-                        .disabled(selected.isEmpty || reviewLoading)
+                        .disabled(selected.isEmpty || !reviewsAreCurrent)
                     if batch.rows.contains(where: { $0.state == .imported || $0.state == .merged }) {
                         Button("查看撤销本批导入的影响", role: .destructive) { showUndo = true }
                             .accessibilityIdentifier("import.undo")
                     }
                 }
-                if let message { Text(message).foregroundStyle(.red) }
+                if let message {
+                    Text(message).foregroundStyle(.red)
+                    Button("重新核对当前筛选") { retryToken = UUID() }.disabled(reviewLoading)
+                }
             }
         }
         .navigationTitle(batch?.name ?? "导入批次").navigationBarTitleDisplayMode(.inline).disabled(model.isBusy)
+        .onChange(of: filter) { _, _ in selected = []; visibleCount = 50; reviews = [:]; matchingRows = []; completedRequest = nil; message = nil }
         .task(id: request) {
-            reviewLoading = true
+            let startedRequest = request
+            reviewLoading = true; completedRequest = nil
             do {
-                let values = try await model.importReviews(batchID: batchID, rowIDs: Set(visible.map(\.id)))
-                guard !Task.isCancelled else { return }
-                reviews = values; reviewLoading = false
-                selected.formIntersection(Set((batch?.rows ?? []).filter { $0.state == .pending }.map(\.id)))
-            } catch { if !Task.isCancelled { message = model.message(for: error); reviewLoading = false } }
+                try await Task.sleep(for: .milliseconds(200))
+                guard let snapshot = batch else { reviewLoading = false; return }
+                let conditions = filter
+                let found = await Task.detached(priority: .userInitiated) { ImportQuery.rows(in: snapshot, matching: conditions) }.value
+                guard !Task.isCancelled, startedRequest == request else { return }
+                let shown = Array(found.prefix(visibleCount))
+                let values = try await model.importReviews(batchID: batchID, rowIDs: Set(shown.map(\.id)))
+                guard !Task.isCancelled, startedRequest == request else { return }
+                matchingRows = found; reviews = values; reviewLoading = false; completedRequest = startedRequest; message = nil
+                selected.formIntersection(snapshot.revertedAt == nil ? Set(shown.filter { $0.state == .pending }.map(\.id)) : [])
+            } catch { if !Task.isCancelled, startedRequest == request { message = model.message(for: error); reviewLoading = false } }
         }
         .sheet(item: $editing) { row in
-            ImportReviewView(model: model, batchID: batchID, initialRowID: row.id)
+            ImportReviewView(model: model, batchID: batchID, initialRowID: row.id, rowIDs: row.rowIDs)
         }
         .sheet(isPresented: $showUndo) { ImportUndoView(model: model, batchID: batchID) }
         .sheet(isPresented: $showBatchRules) { ImportBatchRulesView(model: model, batchID: batchID, rowIDs: selected) }

@@ -5,22 +5,28 @@ import LedgerCore
 struct ImportReviewView: View {
     @Bindable var model: LedgerAppModel
     let batchID: UUID
+    let rowIDs: [UUID]?
     @State private var rowID: UUID
-    init(model: LedgerAppModel, batchID: UUID, initialRowID: UUID) {
-        self.model = model; self.batchID = batchID; _rowID = State(initialValue: initialRowID)
+    init(model: LedgerAppModel, batchID: UUID, initialRowID: UUID, rowIDs: [UUID]? = nil) {
+        self.model = model; self.batchID = batchID; self.rowIDs = rowIDs
+        _rowID = State(initialValue: initialRowID)
     }
     var body: some View {
-        if let batch = model.book.importBatches.first(where: { $0.id == batchID }),
-           let index = batch.rows.firstIndex(where: { $0.id == rowID }) {
-            ImportRowEditor(model: model, batch: batch,
-                            previousID: index > 0 ? batch.rows[index - 1].id : nil,
-                            nextID: index + 1 < batch.rows.count ? batch.rows[index + 1].id : nil,
-                            position: "第 \(index + 1) / \(batch.rows.count) 笔 · 按文件顺序",
-                            move: { rowID = $0 }, row: batch.rows[index])
-                .id(rowID)
-        } else {
-            ContentUnavailableView("导入批次已变化", systemImage: "doc", description: Text("关闭后重新打开导入批次。"))
-        }
+        if let batch = model.book.importBatches.first(where: { $0.id == batchID }) {
+            let allowed = rowIDs.map(Set.init)
+            let rows = batch.rows.filter { allowed?.contains($0.id) ?? true }
+            if let index = rows.firstIndex(where: { $0.id == rowID }) {
+                ImportRowEditor(model: model, batch: batch,
+                                previousID: index > 0 ? rows[index - 1].id : nil,
+                                nextID: index + 1 < rows.count ? rows[index + 1].id : nil,
+                                position: "第 \(index + 1) / \(rows.count) 笔 · " + (rowIDs == nil ? "按文件顺序" : "本次筛选，按文件顺序"),
+                                move: { rowID = $0 }, row: rows[index])
+                    .id(rowID)
+            } else { unavailable }
+        } else { unavailable }
+    }
+    private var unavailable: some View {
+        ContentUnavailableView("导入批次已变化", systemImage: "doc", description: Text("关闭后重新打开导入批次。"))
     }
 }
 
