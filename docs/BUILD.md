@@ -4,7 +4,7 @@
 
 ## 当前已验证的固定基线
 
-主要体验目标已更新为用户当前 iOS 27 真机。下表记录实际采用过的构建基线；最新稳定工具链目标、升级流程和性能证据要求见[原生体验与工程质量标准](EXPERIENCE_QUALITY.md)。配置已精确固定 Apple Swift 6.3.3 并增加只读探测入口；云端运行 #15 已按该基线完成新一轮 Apple 验证，尚未切换到 Xcode 27。
+主要体验目标已更新为用户当前 iOS 27 真机。下表记录实际采用过的构建基线；最新稳定工具链目标、升级流程和性能证据要求见[原生体验与工程质量标准](EXPERIENCE_QUALITY.md)。配置已精确固定 Apple Swift 6.3.3 并增加只读探测入口；云端运行 #19 已按该基线完成当前完整 Apple 验证，尚未切换到 Xcode 27。
 
 | 项目 | 固定值 |
 |---|---|
@@ -90,13 +90,13 @@ bash scripts/build-ios.sh
 
 成功产物位于 `build/ios/<时间戳>/artifacts/`，包括 `Ledger-unsigned.ipa`、SHA-256、实际依赖锁、工具基线、构建元数据和测试结果。`screenshots/` 保存导出的 PNG 与附件清单，可从下载的 artifact 直接查看；`test-summary.json` 在工具可读取结果时保存测试摘要。日志位于同级 `logs/`；失败时仍尝试导出已有截图、保存已有日志，然后保留原测试失败状态。测试成功但截图导出失败或没有 PNG 时，不继续打包 IPA。GitHub artifact 保留 7 天，不能作为账本备份。
 
-截图使用 [Apple 在 Xcode 16 起提供的 `xcresulttool export attachments` 命令](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_3-release-notes)。脚本同时保存当前固定 Xcode 的 `help export attachments` 输出；运行 #4 实际导出 3 张截图，第三批运行 #9 导出 5 张。
+截图使用 [Apple 在 Xcode 16 起提供的 `xcresulttool export attachments` 命令](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_3-release-notes)。脚本同时保存当前固定 Xcode 的 `help export attachments` 输出；运行 #4 实际导出 3 张截图，第三批运行 #9 导出 5 张，账户模板整合运行 #19 导出 6 张。
 
 ## Windows 签名与设备验证
 
 未签名 IPA 不能直接在普通 iPhone 上运行。下载成功产物后在 Windows 使用用户自己的 Sideloadly／Apple 账号签名安装，密码与签名凭据不交给 GitHub Actions。第一次安装只用合成数据，验证启动、记账、重启、覆盖安装后数据保留；真实续签及到期恢复必须记录发生日期，不能用首次安装代替。
 
-本批包含主 App 内的两个快捷记账动作、AppTests 与两条 UI 操作测试：基础入账重开，以及计算器、复制和搜索筛选。快捷动作与页面共用主 App 数据入口，未添加单独扩展；系统发现及前台／后台／锁屏行为须按[快捷指令清单](SHORTCUTS.md)实测。尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
+本批包含主 App 内的两个快捷记账动作、AppTests 与三条 UI 操作测试：基础入账重开，计算器／复制／搜索筛选，以及运营商账户模板切换与重启持久化。快捷动作与页面共用主 App 数据入口，未添加单独扩展；系统发现及前台／后台／锁屏行为须按[快捷指令清单](SHORTCUTS.md)实测。尚未添加 Widget target、App Groups、NAS、iCloud、后台传输或相关权限。后续按分项 P0 证据扩展。实际机型／iOS 版本以用户设备显示为准；模拟器机型只是云端测试条件。
 
 ## 固定安装包目录
 
@@ -105,17 +105,17 @@ Windows 真机安装统一使用工作区以外的 **`D:\Data\Ledger-Install\Led
 完成云端构建、下载并核验产物后执行：
 
 ```powershell
-./scripts/publish-ipa.ps1 -ArtifactsDirectory 'build/validation/run-15-artifact/20260927T012516Z-1823/artifacts'
+./scripts/publish-ipa.ps1 -ArtifactsDirectory 'build/validation/run-19-artifact/20260927T105703Z/extracted/20260927T024338Z-42280/artifacts'
 ```
 
-上面是运行 #15 的示例，后续传入对应构建的 `artifacts` 目录。脚本核对 IPA 的 SHA-256、成功构建状态、arm64 与源码提交，保留按构建时间和提交命名的 `history` 版本，再从同目录临时文件原子替换 `Ledger-latest.ipa`；文件被占用或复制失败时不会先删除旧 IPA。目录内的 `latest.json` 和 `安装说明.txt` 记录构建时间、提交、运行 ID、大小及哈希，它们分别更新，不与 IPA 构成多文件原子事务。更旧的构建不能覆盖最新版，也不自动清理历史。
+上面是运行 #19 的已执行示例，后续传入对应构建的 `artifacts` 目录。脚本核对 IPA 的 SHA-256、成功构建状态、arm64 与源码提交，保留按构建时间和提交命名的 `history` 版本，再从同目录临时文件原子替换 `Ledger-latest.ipa`；文件被占用或复制失败时不会先删除旧 IPA。目录内的 `latest.json` 和 `安装说明.txt` 记录构建时间、提交、运行 ID、大小及哈希，它们分别更新，不与 IPA 构成多文件原子事务。更旧的构建不能覆盖最新版，也不自动清理历史。
 
 这一步是每次交付的固定流程，见根目录 `AGENTS.md`；仅云端构建成功不会自动写入本机磁盘，必须下载后执行脚本并确认成功。主工作区和其他 worktree 共用此位置，不将安装包提交到 Git。文件仍未签名，需用户在 Sideloadly 中签名安装；自己的签名输出另存，避免后续更新覆盖。
 
 ## 验证记录
 
 - 体验与版本政策：2026-09-26 新增[体验质量标准](EXPERIENCE_QUALITY.md)，要求最新稳定原生技术和分阶段体验验收；Xcode 27 升级、Q01—Q09 真机性能及完整 Widget 品质均尚未验证。模拟器截图和基础安装成功不能代替这些证据。
-- Windows 核心测试：2026-09-26 第三批 Swift 6.4 实测 106 项／10 个 suite 通过。
+- Windows 核心测试：2026-09-27 当前 Swift 6.4 实测 137 项／13 个套件通过；历史第三批基线为 106 项／10 个套件。
 - 2026-09-26，[云端运行 #3](https://github.com/Vince599/Money/actions/runs/36212521636)（提交 `073742da04b90498938dccf703d2693a0e50caeb`）：macOS 包测试 84 项／8 个 suite 通过，iOS 模拟器 AppTests 7 项通过，Release `iphoneos` arm64 构建成功并生成未签名 IPA。实际编译器为 Apple Swift 6.3.3，产物为 `ledger-ios-3`（artifact ID `10896510760`）。
 - 2026-09-26，[云端运行 #4](https://github.com/Vince599/Money/actions/runs/36212928265)（提交 `c5ba22d45f000a611cb2dd57293b2537ae6c1366`）：在前述 84 项包测试、7 项 App 测试之外，通过 1 项 UI 操作测试；新增账户与支出、重启后数据保留、备份入口均验证通过，导出截图并生成同版未签名 IPA。UI 测试未操作系统文件选择器或执行页面恢复。
 - 运行 #4 的 [完整产物](https://github.com/Vince599/Money/actions/runs/36212928265/artifacts/10896293141)为 `ledger-ios-4`；IPA 为 3,059,852 字节，SHA-256 `fdd7f69b98079e46ae1598a7fe193e0a16a5d1aee3aabfcb6da5480b0de78132`，已下载核对一致。3 张截图来自 iPhone 17 Pro Max／iOS 26.5 模拟器，分辨率 1320×2868，内容为重启后首页、账户页及备份入口。
@@ -135,6 +135,13 @@ Windows 真机安装统一使用工作区以外的 **`D:\Data\Ledger-Install\Led
 - 2026-09-27，[云端运行 #15](https://github.com/Vince599/Money/actions/runs/36285466571)（`codex/incremental-entry-validation`，提交 `fbbe3d03f61d2df6c83fc731802e47d8e65f2a7b`）全部成功：166 项包测试（133 Core＋33 Store，16 套件）、39 项 AppTests、2 项 UITests，共 **207 项**。本轮把快捷记账、共享启动、弹窗协调及首页摘要整合进同一固定快照；新增两项回归确认快捷保存后旧首页结果／错误不会覆盖新状态和手动草稿。Xcode 26.6（17F113）／Apple Swift 6.3.3 完成 arm64 Release 构建，runner 镜像仍为 `20260907.0351.1`。
 - 运行 #15 的[完整产物](https://github.com/Vince599/Money/actions/runs/36285466571/artifacts/10920687143)为 `ledger-ios-15`，已下载并核对：ZIP 为 112,238,100 字节，SHA-256 `7a036f9a8ee083624abc458c37391f76fa1a2bd9b9dcd122a42039c0dd9e9caa` 与 GitHub 摘要一致；解压至 `build/validation/run-15-artifact/20260927T012516Z-1823/`。IPA 为 **6,008,239 字节**，SHA-256 `0e2b132c2c55edfec72efd71a5439e5be88bddebac28157acebb5c17013d8cb3` 与随附清单一致，元数据源码提交与 run ID 匹配。测试摘要确认 iPhone 17 Pro Max／iOS 26.5（23F77）上 41 项 App／UI 测试零失败、零跳过；5 张 1320×2868 截图已查看，当前合成场景未见遮挡或截断。
 - 运行 #15 的 IPA 内已核对 `Metadata.appintents/extract.actionsdata` 与 `root.ssu.yaml`，确含“直接记一笔”“准备记一笔”、账户／分类／主体实体与查询、三个中文短语；元数据版本 3.0、工具 build `17F113`。这不证明系统动作已索引或真实后台执行通过。主 App 三处同步 `requestValue` 重载出现弃用警告，另有既有无实际异步的 `await` 与屏幕方向警告；构建及测试成功，不称为零警告构建。签名覆盖安装、系统快捷指令、最终视觉和 Instruments／真机性能仍待验证。核对记录保存在 `build/validation/run-15-verified.json`，原工作区 `main` 与暂存区未由本批提交或重置。
+- 2026-09-27，[云端运行 #16](https://github.com/Vince599/Money/actions/runs/36288358797)（提交 `b788d739106d78177077ecd9c5a7caa3f970dd72`）在 Apple Swift 6.3.3 编译 Store 测试时失败：`Set.isDisjoint` 在该工具链要求显式 `with:` 参数标签。包、App 和 UI 回归未完整执行，未生成 IPA；补兼容写法后重跑。
+- 2026-09-27，[云端运行 #17](https://github.com/Vince599/Money/actions/runs/36288471471)（提交 `68d6a12ba043301e3da7cf47653e9a26532ca2fd`）继续在 Store 测试编译阶段失败：抛出的 GRDB `Data.fetchOne` 调用嵌入 `#require` 宏，Apple Swift 6.3.3 无法编译。将读取与断言拆开后重新完整执行；本轮同样未生成 IPA。
+- 2026-09-27，[云端运行 #18](https://github.com/Vince599/Money/actions/runs/36288574926)（提交 `e2f9ead3716653b3abd3c64b740d57c594264c29`）通过 173 项包测试／16 套件及 39 项 AppTests；3 项 UITests 中 2 项通过，账户模板用例因键盘焦点下的通用元素点击落在汇总开关左侧而失败。测试摘要为 42 项中 41 通过、1 失败、0 跳过；整轮失败且未生成可交付 IPA。后续提交只调整 UI 测试：明确定位开关、点击右侧控制区域并等待值变为 1，产品代码没有变化。
+- 2026-09-27，[云端运行 #19](https://github.com/Vince599/Money/actions/runs/36289340271)（提交 `de6889a9757a8c29100f02dfcfad746fc2edff08`）全部成功：173 项包测试／16 套件、39 项 AppTests、3 项 UITests，共 **215 项**，零失败、零跳过。新增 UI 路径验证 10086 中国移动话费默认不计汇总、用户修改名称与汇总设置后切换 10010 中国联通、保存并重启仍保留模板。Xcode 26.6（17F113）／Apple Swift 6.3.3、iOS 26.5 SDK、XcodeGen 2.46.0 和 GRDB 7.11.1 完成 arm64 Release 构建；runner 镜像为 `20260907.0351.1`。
+- 运行 #19 的[完整产物](https://github.com/Vince599/Money/actions/runs/36289340271/artifacts/10921873775)为 `ledger-ios-19`。ZIP 为 134,721,689 字节，SHA-256 `1b58022a0826e6dce39de7c007ced48d957a907960cfc0514ca775fb2b251c7f`，与 GitHub 摘要一致；安全解压至 `build/validation/run-19-artifact/20260927T105703Z/extracted/20260927T024338Z-42280/`。IPA 为 **6,070,693 字节**，SHA-256 `70738ddf9095a830721e2ddc1f2a1b312da736505438b0bcc20e7db44b6cfcb7`，与随附清单一致；元数据的提交、运行 ID、arm64 和成功状态均匹配。IPA 含 `Payload/Ledger.app`、可执行文件、`Info.plist`、`Assets.car` 与 App Intents 元数据，不含 provisioning profile。
+- 运行 #19 的测试摘要确认 iPhone 17 Pro Max／iOS 26.5（23F77）上 42 项 App／UI 测试全部通过。6 张 1320×2868 截图已查看；新增账户模板截图显示中国联通原色图标、自定义名称和汇总开关在重启后保留，当前合成场景未见阻断性布局问题，交互结果由 UI 测试断言确认。构建仍有既有的三处 `requestValue` 弃用、一个无实际异步的 `await`、屏幕方向、多目标目的地及模拟器 App Intents 元数据跳过警告，日志无编译错误，不能称为零警告构建。
+- 运行 #19 已通过 `scripts/publish-ipa.ps1` 发布到 **`D:\Data\Ledger-Install\Ledger-latest.ipa`**；固定文件、历史文件 `history\20260927T025604Z-de6889a975\Ledger-unsigned.ipa` 与云端 IPA 的字节数和 SHA-256 三方一致，`latest.json` 和 `安装说明.txt` 均记录运行 ID `36289340271`，核对摘要保存在忽略目录的 `build/validation/run-19-verified.json`。该文件仍未签名，`deviceInstallation` 为 `not verified`；用户需在本地签名后完成 iOS 27 覆盖、profile 2 恢复、账户模板视觉和新增功能真机验证。
 - 2026-09-26，用户反馈此前提供版本在 iOS 27 真机签名安装成功：新建“真机测试”账户期初 100.00 元、本月消费 0；记录 20.10 元餐饮／正餐支出后余额 79.90 元、消费 20.10 元且只有一笔流水；强制退出重开后保留；完整 ZIP 可导出到系统“文件”；再支出 5.00 元后恢复原 ZIP，余额从 74.90 元回到 79.90 元且恢复一笔流水。精确 iOS build、已安装包哈希未取得，证据类型为用户反馈；不能作为第三批新增功能的真机测试结果。
 - 覆盖升级、续签与过期恢复：待真机验证。模拟器结果仍为 iOS 26.5；上述 iOS 27 基础人工验证不代表全量兼容性验收。
 - 家庭 fnOS、iCloud 目录与 Widget：本批未实现、未验证。
