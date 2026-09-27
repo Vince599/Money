@@ -24,6 +24,15 @@ struct ImportTests {
         return try ImportEngine.commit(plan, in: book, now: now)
     }
 
+    @Test func encoderQuotesCSVBytesIndependentOfGraphemeClusters() throws {
+        let samples = ["one\r\ntwo", "one\ntwo", "one\rtwo", ",\u{0301}", "\"\u{0301}"]
+        let expected = ["\"one\r\ntwo\"\r\n", "\"one\ntwo\"\r\n", "\"one\rtwo\"\r\n", "\",\u{0301}\"\r\n", "\"\"\"\u{0301}\"\r\n"]
+        for (sample, encoded) in zip(samples, expected) {
+            #expect(ImportCSV.encode([[sample]]) == Data(encoded.utf8))
+            #expect(try ImportCSV.decode(Data(encoded.utf8)) == [[sample]])
+        }
+    }
+
     @Test func parserPreservesSourceTextBOMCRLFMultilineAndMissingFinalNewline() throws {
         var source = raw(); source[8] = "含,逗号\"引号"; source[9] = "原样\r\n第二行\\N\\path😀"
         let bytes = ImportCSV.encode([ImportCSV.header, source])

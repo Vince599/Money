@@ -73,12 +73,22 @@ public enum ImportCSV {
     }
 
     static func encode(_ rows: [[String]]) -> Data {
-        Data((rows.map { row in row.map { value in
-            if value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r") {
-                return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        var output = Data()
+        for row in rows {
+            for (index, value) in row.enumerated() {
+                if index > 0 { output.append(44) }
+                // CSV delimiters are bytes, not grapheme clusters (CRLF is one Character).
+                let quoted = value.utf8.contains { $0 == 44 || $0 == 34 || $0 == 13 || $0 == 10 }
+                if quoted { output.append(34) }
+                for byte in value.utf8 {
+                    if byte == 34 { output.append(34) }
+                    output.append(byte)
+                }
+                if quoted { output.append(34) }
             }
-            return value
-        }.joined(separator: ",") }.joined(separator: "\r\n") + "\r\n").utf8)
+            output.append(contentsOf: [13, 10])
+        }
+        return output
     }
 
     /// Requires explicit time zone and a real Gregorian date; never infers the phone's locale.
