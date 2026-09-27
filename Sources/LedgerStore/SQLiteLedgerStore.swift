@@ -78,9 +78,12 @@ public final class SQLiteLedgerStore: Sendable {
         configuration.prepareDatabase { db in
             db.add(function: DatabaseFunction("ledger_history_contains", argumentCount: 2, pure: true) { values in
                 guard let data = Data.fromDatabaseValue(values[0]),
-                      let keyword = String.fromDatabaseValue(values[1]) else {
+                      let keywordData = Data.fromDatabaseValue(values[1]) else {
                     throw LedgerStoreError.corruptData("entries")
                 }
+                // Preserve embedded NULs as well as Unicode; the SQL TEXT bridge
+                // may use null-terminated strings when invoking custom functions.
+                let keyword = String(decoding: keywordData, as: UTF8.self)
                 // Decode only searchable text. Full entry decoding is limited to the returned page.
                 let text = try Self.decode(HistoryText.self, payload: data, table: "entries")
                 return EntryQuery.containsKeyword(keyword, title: text.title, note: text.note)
@@ -187,7 +190,7 @@ public final class SQLiteLedgerStore: Sendable {
             if let from = filter.from { add("occurred_at >= ?", [from.timeIntervalSinceReferenceDate.databaseValue]) }
             if let to = filter.to { add("occurred_at < ?", [to.timeIntervalSinceReferenceDate.databaseValue]) }
             let keyword = filter.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !keyword.isEmpty { add("ledger_history_contains(payload, ?)", [keyword.databaseValue]) }
+            if !keyword.isEmpty { add("ledger_history_contains(payload, ?)", [Data(keyword.utf8).databaseValue]) }
             let condition = clauses.isEmpty ? "1" : clauses.joined(separator: " AND ")
             let total: Int
             if let cursor { total = cursor.totalCount }

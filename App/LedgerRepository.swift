@@ -46,6 +46,7 @@ actor LedgerRepository {
 
     func historyPage(matching filter: EntryFilter, after cursor: EntryPageCursor? = nil,
                      limit: Int = 50) throws -> HistoryPage {
+        try Task.checkCancellation()
         let page = try LedgerPerformance.measure("History.SQLPage") {
             try store.entryPage(matching: filter, after: cursor, limit: limit)
         }

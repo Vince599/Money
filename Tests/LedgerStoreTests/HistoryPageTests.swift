@@ -11,7 +11,7 @@ struct HistoryPageTests {
             let expected = try EntryQuery.entries(in: book)
             for size in [1, 2, 17, 50, 200] {
                 let actual = try allPages(store, filter: EntryFilter(), size: size)
-                #expect(actual == expected)
+                #expect(actual == expected, "Filter: \(filter)")
                 #expect(Set(actual.map(\.id)).count == book.entries.count)
             }
         }
@@ -128,7 +128,10 @@ struct HistoryPageTests {
             let reopened = try SQLiteLedgerStore(path: path)
             #expect(try reopened.loadBook() == book)
             #expect(try reopened.entryPage(limit: 5).entries.count == 5)
-            try inspection.read { db in
+            // A fresh connection observes the new schema before preparing EXPLAIN.
+            let planInspection = try DatabaseQueue(path: path)
+            try planInspection.read { db in
+                #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'entries_history_order'") == 1)
                 let plan = try Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN SELECT * FROM entries ORDER BY occurred_at DESC, created_at DESC, id ASC LIMIT 51")
                 let details = try plan.map { try $0.decode(String.self, forColumn: "detail") }.joined(separator: "\n")
                 #expect(details.contains("entries_history_order"))
