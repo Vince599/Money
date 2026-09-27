@@ -136,9 +136,12 @@ enum BackupDates {
 }
 
 enum BackupSchema {
-    static let profile = "ledger-core-v5"
-    static let version = "5.0"
-    static let dbVersion = "5"
+    static let profile = "ledger-core-v6"
+    static let version = "6.0"
+    static let dbVersion = "6"
+    static let v5Profile = "ledger-core-v5"
+    static let v5Version = "5.0"
+    static let v5DBVersion = "5"
     static let v4Profile = "ledger-core-v4"
     static let v4Version = "4.0"
     static let v4DBVersion = "4"
@@ -226,18 +229,24 @@ enum BackupSchema {
     static let v4Manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
         $0.name == "file_count" ? BackupColumn(name: "file_count", type: "uint", precision: "16") : $0
     })
-    static let manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
+    static let v5Manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
         $0.name == "file_count" ? BackupColumn(name: "file_count", type: "uint", precision: "19") : $0
     })
+    static let manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
+        $0.name == "file_count" ? BackupColumn(name: "file_count", type: "uint", precision: "20") : $0
+    })
     static let importBatches = BackupTable(name: "import_batches.csv", columns: [position, uuid("id"), text("name"), text("namespace"), integer("version", precision: "1...9223372036854775807")] + date("created_at"))
-    static let importRows = BackupTable(name: "import_rows.csv", columns: [position, uuid("batch_id", reference: "import_batches.csv.id"), uuid("id"), uuid("operation_id"),
+    static let v5ImportRows = BackupTable(name: "import_rows.csv", columns: [position, uuid("batch_id", reference: "import_batches.csv.id"), uuid("id"), uuid("operation_id"),
         uuid("account_id", nullable: true, reference: "soft:accounts.csv.id|import_accounts.csv.id"),
         uuid("destination_account_id", nullable: true, reference: "soft:accounts.csv.id|import_accounts.csv.id"),
         uuid("category_id", nullable: true, reference: "soft:categories.csv.id"), uuid("subject_id", reference: "soft:subjects.csv.id"),
         choice("state", "pending|imported|skipped"), text("duplicate_review_token", nullable: true)]
         + ImportCSV.header.map { text("raw_" + $0, "Original UTF-8 source field; preserved without trimming or interpretation") })
+    static let importRows = BackupTable(name: "import_rows.csv", columns: v5ImportRows.columns + [uuid("project_id", nullable: true, reference: "soft:projects.csv.id")])
+    static let importRowTags = BackupTable(name: "import_row_tags.csv", columns: [position, uuid("row_id", reference: "import_rows.csv.id"), uuid("tag_id", reference: "soft:tags.csv.id")])
     static let importAccounts = BackupTable(name: "import_accounts.csv", columns: [uuid("batch_id", reference: "import_batches.csv.id")] + accounts.columns)
-    static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts]
+    static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts, importRowTags]
+    static let v5All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v5Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, v5ImportRows, importAccounts]
     static let v4All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v4Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags]
     static let v3All = [accounts, subjects, categories, v3Entries, adjustments, retired, v3Draft, settings, legacyManifest, dictionary, counts, checksums]
     static let v2All = [accounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, legacyManifest, dictionary, counts, checksums]

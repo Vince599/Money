@@ -52,7 +52,7 @@ public struct SQLiteLedgerSnapshot: Sendable {
 /// Callers must coordinate read-modify-save operations; serialization of writes
 /// alone does not make two independently edited book snapshots merge safely.
 public final class SQLiteLedgerStore: Sendable {
-    public static let schemaVersion = 5
+    public static let schemaVersion = 6
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
     private let historyStoreID = UUID()
@@ -144,6 +144,10 @@ public final class SQLiteLedgerStore: Sendable {
             }
             if (1...4).contains(version) {
                 try db.execute(sql: Self.importSchema)
+                try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
+            }
+            if version == 5 {
+                // Import row labels live in the batch payload. Decode absent fields without rewriting old bytes.
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
             let snapshot = try Self.readSnapshot(in: db)
@@ -391,6 +395,19 @@ public final class SQLiteLedgerStore: Sendable {
             let updated = try ImportEngine.save(batch, in: current.book, expectedVersion: expectedVersion)
             try Self.writeBook(updated, in: db)
             return try Self.readSnapshot(in: db)
+        }
+    }
+
+    public func commitImportLabels(_ plan: ImportLabelsPlan) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try ImportEngine.commitLabels(plan, in: current.book)
+            try Self.writeBook(updated, in: db)
+            let saved = try Self.readSnapshot(in: db)
+            guard saved.book == updated, saved.draft == current.draft, saved.settings == current.settings else {
+                throw LedgerStoreError.corruptData("import_labels")
+            }
+            return saved
         }
     }
 

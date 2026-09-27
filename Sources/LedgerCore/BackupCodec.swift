@@ -88,7 +88,7 @@ public enum BackupCodec {
 
     public static func decode(_ files: [String: Data]) throws -> LedgerBackupSnapshot {
         let fileNames = Set(files.keys)
-        guard fileNames == BackupSchema.fileNames || fileNames == Set(BackupSchema.v4All.map(\.name)) || fileNames == Set(BackupSchema.v3All.map(\.name)) else {
+        guard fileNames == BackupSchema.fileNames || fileNames == Set(BackupSchema.v5All.map(\.name)) || fileNames == Set(BackupSchema.v4All.map(\.name)) || fileNames == Set(BackupSchema.v3All.map(\.name)) else {
             throw BackupError.invalidArchive(reason: "Missing or unknown backup files")
         }
         guard files.values.allSatisfy({ $0.count <= BackupCSV.maxFileBytes }),
@@ -120,6 +120,9 @@ public enum BackupCodec {
         case (BackupSchema.profile, BackupSchema.version, BackupSchema.dbVersion):
             contractTables = BackupSchema.all
             accountTable = BackupSchema.accounts
+        case (BackupSchema.v5Profile, BackupSchema.v5Version, BackupSchema.v5DBVersion):
+            contractTables = BackupSchema.v5All
+            accountTable = BackupSchema.accounts
         case (BackupSchema.v4Profile, BackupSchema.v4Version, BackupSchema.v4DBVersion):
             contractTables = BackupSchema.v4All
             accountTable = BackupSchema.accounts
@@ -134,6 +137,7 @@ public enum BackupCodec {
             accountTable = BackupSchema.legacyAccounts
         default:
             let reportedVersion = (profile == BackupSchema.profile && version == BackupSchema.version)
+                || (profile == BackupSchema.v5Profile && version == BackupSchema.v5Version)
                 || (profile == BackupSchema.v4Profile && version == BackupSchema.v4Version)
                 || (profile == BackupSchema.v3Profile && version == BackupSchema.v3Version)
                 || (profile == BackupSchema.v2Profile && version == BackupSchema.v2Version)

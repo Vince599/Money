@@ -12,12 +12,28 @@ public struct ImportRow: Identifiable, Codable, Equatable, Sendable {
     public var subjectID: UUID
     public var state: ImportRowState
     public var duplicateReviewToken: String?
+    public var tagIDs: [UUID] = []
+    public var projectID: UUID?
     public init(id: UUID = UUID(), operationID: UUID = UUID(), raw: [String], subjectID: UUID = SeedData.mpcID) {
         self.id = id; self.operationID = operationID; self.raw = raw; self.subjectID = subjectID; self.state = .pending
     }
     public var sourceID: String { raw[0] }
     public var sourceAccount: String { raw[5] }
     public var title: String { raw[8].isEmpty ? raw[7] : raw[8] }
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        operationID = try values.decode(UUID.self, forKey: .operationID)
+        raw = try values.decode([String].self, forKey: .raw)
+        accountID = try values.decodeIfPresent(UUID.self, forKey: .accountID)
+        destinationAccountID = try values.decodeIfPresent(UUID.self, forKey: .destinationAccountID)
+        categoryID = try values.decodeIfPresent(UUID.self, forKey: .categoryID)
+        subjectID = try values.decode(UUID.self, forKey: .subjectID)
+        state = try values.decode(ImportRowState.self, forKey: .state)
+        duplicateReviewToken = try values.decodeIfPresent(String.self, forKey: .duplicateReviewToken)
+        tagIDs = try values.decodeIfPresent([UUID].self, forKey: .tagIDs) ?? []
+        projectID = try values.decodeIfPresent(UUID.self, forKey: .projectID)
+    }
 }
 
 public struct ImportBatch: Identifiable, Codable, Equatable, Sendable {
@@ -83,6 +99,7 @@ public enum ImportEngine {
             }
             for row in batch.rows {
                 guard row.raw.count == ImportCSV.header.count, row.raw.allSatisfy({ $0.utf8.count <= 65_536 }),
+                      Set(row.tagIDs).count == row.tagIDs.count,
                       row.state != .imported || consumed.contains(row.operationID) else { throw ImportError.invalidState }
                 if let entryID = liveOperations[row.operationID], entryID != row.id { throw ImportError.invalidState }
                 if let token = row.duplicateReviewToken, !BackupTable.isHex(token, count: 64) { throw ImportError.invalidState }
@@ -186,10 +203,18 @@ public enum ImportEngine {
             }
         }
         guard book.subjects.contains(where: { $0.id == row.subjectID && $0.isActive }) else { throw ImportError.invalidFile("请选择有效主体。") }
+        guard Set(row.tagIDs).count == row.tagIDs.count,
+              row.tagIDs.allSatisfy({ id in book.tags.contains { $0.id == id && $0.isActive } }) else {
+            throw ImportError.invalidFile("标签缺失或已停用，请移除或重新选择。")
+        }
+        if let projectID = row.projectID, !book.projects.contains(where: { $0.id == projectID && !$0.isArchived }) {
+            throw ImportError.invalidFile("项目缺失或已归档，请清除或重新选择。")
+        }
         return LedgerEntry(id: row.id, operationID: row.operationID, kind: kind, amount: amount, accountID: accountID,
                            destinationAccountID: kind == .transfer ? row.destinationAccountID : nil,
                            categoryID: kind.needsCategory ? row.categoryID : nil, subjectID: row.subjectID,
-                           occurredAt: date, createdAt: batch.createdAt, title: row.raw[8], note: row.raw[9])
+                           occurredAt: date, createdAt: batch.createdAt, title: row.raw[8], note: row.raw[9],
+                           tagIDs: row.tagIDs, projectID: row.projectID)
     }
 
     public static func prepare(batchID: UUID, importIDs: Set<UUID>, skipIDs: Set<UUID>, in book: LedgerBook, now: Date = Date()) throws -> ImportPlan {

@@ -12,8 +12,10 @@ enum BackupImports {
         result[BackupSchema.importRows.name] = rows.enumerated().map { position, pair in
             let (batchID, row) = pair
             return [String(position), id(batchID), id(row.id), id(row.operationID), id(row.accountID), id(row.destinationAccountID),
-                    id(row.categoryID), id(row.subjectID), row.state.rawValue, row.duplicateReviewToken] + row.raw.map(Optional.some)
+                    id(row.categoryID), id(row.subjectID), row.state.rawValue, row.duplicateReviewToken] + row.raw.map(Optional.some) + [id(row.projectID)]
         }
+        let links = rows.flatMap { pair in pair.1.tagIDs.map { [id(pair.1.id), id($0)] } }
+        result[BackupSchema.importRowTags.name] = links.enumerated().map { [String($0.offset)] + $0.element }
         let accounts = batches.flatMap { batch in batch.proposedAccounts.map { (batch.id, $0) } }
         result[BackupSchema.importAccounts.name] = try accounts.enumerated().map { position, pair in
             let (batchID, account) = pair
@@ -31,6 +33,12 @@ enum BackupImports {
             }
             return records
         }
+        var links: [UUID: [UUID]] = [:]
+        for record in try ordered(BackupSchema.importRowTags) {
+            let rowID = try record.uuid("row_id"), tagID = try record.uuid("tag_id")
+            guard !links[rowID, default: []].contains(tagID) else { throw BackupError.invalidArchive(reason: "Duplicate import tag link") }
+            links[rowID, default: []].append(tagID)
+        }
         var rows: [UUID: [ImportRow]] = [:], accounts: [UUID: [Account]] = [:]
         for record in try ordered(BackupSchema.importRows) {
             let batchID = try record.uuid("batch_id")
@@ -39,6 +47,8 @@ enum BackupImports {
             row.accountID = try record.optionalUUID("account_id"); row.destinationAccountID = try record.optionalUUID("destination_account_id")
             row.categoryID = try record.optionalUUID("category_id"); row.state = try record.enumeration("state")
             row.duplicateReviewToken = record.optionalString("duplicate_review_token")
+            row.tagIDs = links.removeValue(forKey: row.id) ?? []
+            row.projectID = try record.optionalUUID("project_id")
             rows[batchID, default: []].append(row)
         }
         for record in try ordered(BackupSchema.importAccounts) {
@@ -58,7 +68,7 @@ enum BackupImports {
             batch.version = try record.int("version")
             result.append(batch)
         }
-        guard rows.isEmpty, accounts.isEmpty else { throw BackupError.invalidArchive(reason: "Orphan import rows or staged accounts") }
+        guard rows.isEmpty, accounts.isEmpty, links.isEmpty else { throw BackupError.invalidArchive(reason: "Orphan import rows or staged accounts") }
         return result
     }
 }

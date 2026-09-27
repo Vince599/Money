@@ -87,6 +87,7 @@ struct ImportBatchView: View {
     @State private var editing: ImportRow?
     @State private var showMapping = false
     @State private var showClassification = false
+    @State private var showLabels = false
     @State private var preview: ImportCommitPreview?
     @State private var message: String?
     private var batch: ImportBatch? { model.book.importBatches.first { $0.id == batchID } }
@@ -104,6 +105,9 @@ struct ImportBatchView: View {
                         selected = Set(visible.filter { reviews[$0.id] == .ready }.prefix(200).map(\.id))
                     }.disabled(reviewLoading)
                     Button("清除选择") { selected = [] }
+                    Button("修改所选行的标签／项目") { showLabels = true }
+                        .disabled(selected.isEmpty || selected.count > 200)
+                        .accessibilityIdentifier("import.labels")
                     Button("修改所选行的分类／主体") { showClassification = true }
                         .disabled(selected.isEmpty || selected.count > 200)
                 }
@@ -145,9 +149,10 @@ struct ImportBatchView: View {
             } catch { if !Task.isCancelled { message = model.message(for: error); reviewLoading = false } }
         }
         .sheet(item: $editing) { row in
-            if let batch { ImportRowEditor(model: model, batch: batch, row: row) }
+            ImportReviewView(model: model, batchID: batchID, initialRowID: row.id)
         }
         .sheet(isPresented: $showMapping) { if let batch { ImportAccountMappingView(model: model, batch: batch) } }
+        .sheet(isPresented: $showLabels) { if let batch { ImportLabelsView(model: model, batch: batch, rowIDs: selected) } }
         .sheet(isPresented: $showClassification) { if let batch { ImportClassificationView(model: model, batch: batch, rowIDs: selected) } }
         .sheet(item: $preview) { value in ImportConfirmationView(model: model, preview: value) }
     }
@@ -194,7 +199,11 @@ struct ImportConfirmationView: View {
 
 struct ImportRowEditor: View {
     @Bindable var model: LedgerAppModel
-    let batch: ImportBatch
+    @State var batch: ImportBatch
+    let previousID: UUID?
+    let nextID: UUID?
+    let position: String
+    let move: (UUID) -> Void
     @State var row: ImportRow
     @State private var message: String?
     @State private var inspection: ImportRowInspection?
@@ -202,13 +211,15 @@ struct ImportRowEditor: View {
     @Environment(\.dismiss) private var dismiss
     private var request: String {
         [row.accountID?.uuidString ?? "", row.destinationAccountID?.uuidString ?? "", row.categoryID?.uuidString ?? "",
-         row.subjectID.uuidString, row.duplicateReviewToken ?? "", String(model.historyRevision)].joined(separator: ":")
+         row.subjectID.uuidString, row.duplicateReviewToken ?? "", row.tagIDs.map(\.uuidString).joined(separator: ","),
+         row.projectID?.uuidString ?? "", String(model.historyRevision)].joined(separator: ":")
     }
     private var review: ImportRowReview? { inspectedRequest == request ? inspection?.review : nil }
     private var accounts: [Account] { (model.book.accounts + batch.proposedAccounts).filter { $0.isActive && $0.currency.rawValue == row.raw[4] } }
     var body: some View {
         NavigationStack {
             Form {
+                Text(position).font(.subheadline).foregroundStyle(.secondary)
                 Section("本次映射") {
                     Picker("付款／收款账户", selection: $row.accountID) {
                         Text("暂缓选择").tag(Optional<UUID>.none)
@@ -233,6 +244,12 @@ struct ImportRowEditor: View {
                     Picker("主体", selection: $row.subjectID) {
                         ForEach(model.book.subjects.filter(\.isActive)) { Text($0.name).tag($0.id) }
                     }
+                    NavigationLink {
+                        EntryLabelsSelectionView(book: model.book, tagIDs: $row.tagIDs, projectID: $row.projectID,
+                                                 retainedTagIDs: [], retainedProjectID: nil)
+                    } label: {
+                        LabeledContent("标签／项目", value: EntryLabelsSelectionView.summary(book: model.book, tags: row.tagIDs, project: row.projectID))
+                    }.accessibilityIdentifier("import.row.labels")
                 }.disabled(row.state != .pending)
                 Section("核对") {
                     Text(review?.explanation ?? "正在核对…")
@@ -270,12 +287,17 @@ struct ImportRowEditor: View {
                 }
                 if let message { Text(message).foregroundStyle(.red) }
                 if row.state == .pending {
-                    Button("保存本行核对") {
-                        var updated = batch
-                        if let index = updated.rows.firstIndex(where: { $0.id == row.id }) { updated.rows[index] = row }
-                        Task { if await model.saveImport(updated, expectedVersion: batch.version) { dismiss() } else { message = model.errorMessage } }
-                    }
+                    Button("保存本行并关闭") { saveAndMove(nil) }.accessibilityIdentifier("import.row.save")
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                HStack {
+                    Button(row.state == .pending ? "保存并上一笔" : "上一笔") { if let previousID { saveAndMove(previousID) } }
+                        .disabled(previousID == nil || model.isBusy).accessibilityIdentifier("import.row.previous")
+                    Spacer()
+                    Button(row.state == .pending ? "保存并下一笔" : "下一笔") { if let nextID { saveAndMove(nextID) } }
+                        .disabled(nextID == nil || model.isBusy).accessibilityIdentifier("import.row.next")
+                }.padding().background(.bar)
             }
             .navigationTitle("核对导入行").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } } }
@@ -288,6 +310,18 @@ struct ImportRowEditor: View {
                     inspection = result; inspectedRequest = key
                 } catch { if !Task.isCancelled { message = model.message(for: error) } }
             }
+        }
+    }
+    private func saveAndMove(_ target: UUID?) {
+        guard !model.isBusy else { return }
+        if row.state != .pending { if let target { move(target) }; return }
+        var updated = batch
+        guard let index = updated.rows.firstIndex(where: { $0.id == row.id }) else { return }
+        updated.rows[index] = row
+        Task {
+            if await model.saveImport(updated, expectedVersion: batch.version) {
+                if let target { move(target) } else { dismiss() }
+            } else { message = model.errorMessage }
         }
     }
 }

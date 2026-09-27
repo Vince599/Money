@@ -228,6 +228,14 @@ actor LedgerRepository {
         return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
     }
 
+    func prepareImportLabels(batchID: UUID, rowIDs: Set<UUID>, tags: ImportTagChange, project: ImportProjectChange) throws -> ImportLabelsPlan {
+        try ImportEngine.prepareLabels(batchID: batchID, rowIDs: rowIDs, tags: tags, project: project, in: readSnapshot().book)
+    }
+    func commitImportLabels(_ plan: ImportLabelsPlan) throws -> LedgerSnapshot {
+        let value = try store.commitImportLabels(plan)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
+
     func importReviews(batchID: UUID, rowIDs: Set<UUID>) throws -> [UUID: ImportRowReview] {
         let value = try readSnapshot()
         guard let batch = value.book.importBatches.first(where: { $0.id == batchID }) else { throw ImportError.unavailableRow }

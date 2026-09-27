@@ -52,7 +52,7 @@ struct BackupCodecTests {
     }
 
     private func removeLabelTables(_ files: inout [String: Data]) throws {
-        for table in [BackupSchema.tags, BackupSchema.projects, BackupSchema.entryTags, BackupSchema.draftTags, BackupSchema.importBatches, BackupSchema.importRows, BackupSchema.importAccounts] {
+        for table in [BackupSchema.tags, BackupSchema.projects, BackupSchema.entryTags, BackupSchema.draftTags, BackupSchema.importBatches, BackupSchema.importRows, BackupSchema.importAccounts, BackupSchema.importRowTags] {
             files.removeValue(forKey: table.name)
         }
         try edit(&files, table: BackupSchema.manifest, column: "file_count", value: "12")
@@ -200,7 +200,7 @@ struct BackupCodecTests {
         #expect(throws: BackupError.self) { try BackupCodec.decode(files) }
     }
 
-    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "6.0"), ("backup_format_version", "3.1"), ("db_schema_version", "6")])
+    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "7.0"), ("backup_format_version", "3.1"), ("db_schema_version", "7")])
     func rejectsUnsupportedVersionsDistinctly(_ field: String, _ value: String) throws {
         var files = try BackupCodec.encode(blank())
         try edit(&files, table: BackupSchema.manifest, column: field, value: value)

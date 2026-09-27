@@ -5,6 +5,61 @@ import LedgerCore
 
 @MainActor
 final class ImportRepositoryTests: XCTestCase {
+    func testLabelsPreviewRejectsCatalogChangesAndRestoresDraftWithLabels() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try LedgerRepository(path: directory.appendingPathComponent("ledger.sqlite").path)
+        var tag = EntryTag(name: "旅行")
+        let project = EntryProject(name: "出行")
+        _ = try await repo.saveTag(tag); _ = try await repo.saveProject(project)
+        let batch = try ImportCSV.parse(ImportCSV.template, name: "example", namespace: "bank")
+        _ = try await repo.saveImport(batch)
+        let plan = try await repo.prepareImportLabels(batchID: batch.id, rowIDs: [batch.rows[0].id], tags: .add([tag.id]), project: .set(project.id))
+        tag.isActive = false; _ = try await repo.saveTag(tag)
+        do { _ = try await repo.commitImportLabels(plan); XCTFail("Expected stale preview") }
+        catch { XCTAssertEqual(error as? ImportError, .stalePreview) }
+        tag.isActive = true; _ = try await repo.saveTag(tag)
+        let refreshed = try await repo.prepareImportLabels(batchID: batch.id, rowIDs: [batch.rows[0].id], tags: .add([tag.id]), project: .set(project.id))
+        let draft = EntryDraft(amountText: "9+(")
+        try await repo.saveDraft(draft, revision: 8)
+        let mapped = try await repo.commitImportLabels(refreshed)
+        XCTAssertEqual(mapped.draft, draft); XCTAssertEqual(mapped.draftRevision, 8)
+        XCTAssertTrue(mapped.book.entries.isEmpty)
+        XCTAssertEqual(mapped.book.importBatches[0].rows[0].tagIDs, [tag.id])
+        let backup = try await repo.exportBackup()
+        let restore = try await repo.prepareRestore(backup)
+        let restored = try await repo.restore(previewID: restore.id, revision: 9)
+        XCTAssertEqual(restored.book, mapped.book)
+        XCTAssertEqual(restored.draft, draft)
+    }
+
+    func testSequentialReviewSavesPreservePreviousRowAndRejectOldEditor() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try LedgerRepository(path: directory.appendingPathComponent("ledger.sqlite").path)
+        let tag = EntryTag(name: "单行核对")
+        _ = try await repo.saveTag(tag)
+        var batch = try ImportCSV.parse(ImportCSV.template, name: "example", namespace: "bank")
+        var raw = batch.rows[0].raw; raw[0] = "example-2"
+        batch.rows.append(ImportRow(raw: raw))
+        _ = try await repo.saveImport(batch)
+        let oldEditor = batch
+        batch.rows[0].tagIDs = [tag.id]
+        let firstSaved = try await repo.saveImport(batch, expectedVersion: 1)
+        var nextEditor = try XCTUnwrap(firstSaved.book.importBatches.first)
+        nextEditor.rows[1].categoryID = SeedData.mealsID
+        let secondSaved = try await repo.saveImport(nextEditor, expectedVersion: nextEditor.version)
+        XCTAssertEqual(secondSaved.book.importBatches[0].rows[0].tagIDs, [tag.id])
+        XCTAssertEqual(secondSaved.book.importBatches[0].rows[1].categoryID, SeedData.mealsID)
+        do { _ = try await repo.saveImport(oldEditor, expectedVersion: 1); XCTFail("Expected stale editor") }
+        catch { XCTAssertEqual(error as? ImportError, .stalePreview) }
+        let reopened = try LedgerRepository(path: directory.appendingPathComponent("ledger.sqlite").path)
+        let actual = try await reopened.snapshot()
+        XCTAssertEqual(actual.book, secondSaved.book)
+    }
+
     func testCSVFileDraftMappingPreviewCommitAndFullRestore() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

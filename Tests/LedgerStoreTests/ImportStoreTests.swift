@@ -6,6 +6,58 @@ import Testing
 
 @Suite("Import persistence and transactions")
 struct ImportStoreTests {
+    @Test func labelPreviewIsAtomicPreservesManualDraftAndPostsOrderedLinks() throws {
+        try withStore { store, inspection, path in
+            let a = EntryTag(name: "旅行"), b = EntryTag(name: "工作"), project = EntryProject(name: "出行")
+            let manual = EntryDraft(amountText: "12+(")
+            try store.commit(LedgerBook(tags: [a, b], projects: [project]), draft: manual)
+            let batch = try stagedBatch()
+            let staged = try store.saveImport(batch)
+            let plan = try ImportEngine.prepareLabels(batchID: batch.id, rowIDs: [batch.rows[0].id], tags: .replace([b.id, a.id]), project: .set(project.id), in: staged.book)
+            try inspection.write { try $0.execute(sql: "CREATE TRIGGER reject_labels BEFORE INSERT ON import_batches BEGIN SELECT RAISE(ABORT, 'injected'); END") }
+            #expect(throws: (any Error).self) { try store.commitImportLabels(plan) }
+            #expect(try store.loadSnapshot().book == staged.book)
+            #expect(try store.loadSnapshot().draft == manual)
+            try inspection.write { try $0.execute(sql: "DROP TRIGGER reject_labels") }
+            let mapped = try store.commitImportLabels(plan)
+            #expect(mapped.book.importBatches[0].rows[0].tagIDs == [b.id, a.id])
+            #expect(mapped.book.entries.isEmpty && mapped.book.accounts.isEmpty && mapped.draft == manual)
+            #expect(try SQLiteLedgerStore(path: path).loadBook() == mapped.book)
+            #expect(throws: ImportError.stalePreview) { try store.commitImportLabels(plan) }
+            let posting = try ImportEngine.prepare(batchID: batch.id, importIDs: [batch.rows[0].id], skipIDs: [], in: mapped.book)
+            let posted = try store.commitImport(posting)
+            #expect(posted.book.entries[0].tagIDs == [b.id, a.id] && posted.book.entries[0].projectID == project.id)
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try String.fetchAll(db, sql: "SELECT tag_id FROM entry_tags ORDER BY position") == [b.id.uuidString, a.id.uuidString])
+            }
+        }
+    }
+
+    @Test func schemaFiveDecodesAbsentLabelsWithoutRewritingPayloadAndRollsBackFailure() throws {
+        try withStore { store, inspection, path in
+            let batch = try stagedBatch()
+            let saved = try store.saveImport(batch)
+            var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(batch)) as? [String: Any])
+            var rows = try #require(object["rows"] as? [[String: Any]])
+            for index in rows.indices { rows[index].removeValue(forKey: "tagIDs"); rows[index].removeValue(forKey: "projectID") }
+            object["rows"] = rows
+            let oldPayload = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?; PRAGMA user_version = 5", arguments: [Data("invalid JSON".utf8)]) }
+            #expect(throws: LedgerStoreError.corruptData("import_batches")) { try SQLiteLedgerStore(path: path) }
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 5)
+            }
+            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?", arguments: [oldPayload]) }
+            let reopened = try SQLiteLedgerStore(path: path).loadSnapshot()
+            #expect(reopened.book == saved.book)
+            #expect(reopened.book.importBatches[0].rows[0].tagIDs.isEmpty)
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
+                #expect(try Data.fetchOne(db, sql: "SELECT payload FROM import_batches") == oldPayload)
+            }
+        }
+    }
+
     private func withStore(_ body: (SQLiteLedgerStore, DatabaseQueue, String) throws -> Void) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
