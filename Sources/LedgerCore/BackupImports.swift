@@ -7,6 +7,7 @@ enum BackupImports {
         var result: [String: [[String?]]] = [:]
         result[BackupSchema.importBatches.name] = try batches.enumerated().map { position, batch in
             [String(position), id(batch.id), batch.name, batch.namespace, String(batch.version)] + (try BackupDates.values(batch.createdAt))
+                + (try batch.revertedAt.map { try BackupDates.values($0) } ?? [nil, nil])
         }
         let rows = batches.flatMap { batch in batch.rows.map { (batch.id, $0) } }
         result[BackupSchema.importRows.name] = rows.enumerated().map { position, pair in
@@ -66,6 +67,9 @@ enum BackupImports {
                                     createdAt: try record.date("created_at"), rows: rows.removeValue(forKey: batchID) ?? [],
                                     proposedAccounts: accounts.removeValue(forKey: batchID) ?? [])
             batch.version = try record.int("version")
+            if record.optionalString("reverted_at_utc") != nil || record.optionalString("reverted_at_bits") != nil {
+                batch.revertedAt = try record.date("reverted_at")
+            }
             result.append(batch)
         }
         guard rows.isEmpty, accounts.isEmpty, links.isEmpty else { throw BackupError.invalidArchive(reason: "Orphan import rows or staged accounts") }

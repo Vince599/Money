@@ -245,6 +245,13 @@ final class LedgerAppModel {
     func saveImport(_ batch: ImportBatch, expectedVersion: Int? = nil) async -> Bool {
         await mutate { repo in try await repo.saveImport(batch, expectedVersion: expectedVersion) }
     }
+    func reviewImportUndo(batchID: UUID) async throws -> ImportUndoReview {
+        guard let repository else { throw ImportError.invalidState }
+        return try await repository.reviewImportUndo(batchID: batchID)
+    }
+    func undoImport(_ plan: ImportUndoPlan) async -> Bool {
+        await mutate { repo in try await repo.undoImport(plan) }
+    }
     func prepareImportLabels(batchID: UUID, rowIDs: Set<UUID>, tags: ImportTagChange, project: ImportProjectChange) async throws -> ImportLabelsPlan {
         guard let repository, !isBusy else { throw ImportError.invalidState }
         isBusy = true

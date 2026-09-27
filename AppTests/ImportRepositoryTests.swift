@@ -5,6 +5,36 @@ import LedgerCore
 
 @MainActor
 final class ImportRepositoryTests: XCTestCase {
+    func testUndoPreservesLatestDraftAndBackupRestoresClosedBatchWithoutCashReplay() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let repo = try LedgerRepository(path: directory.appendingPathComponent("ledger.sqlite").path)
+        var batch = try ImportCSV.parse(ImportCSV.template, name: "undo", namespace: "bank")
+        let account = Account(name: "银行卡", openingMinor: 10_000)
+        batch.proposedAccounts = [account]; batch.rows[0].accountID = account.id; batch.rows[0].categoryID = SeedData.mealsID
+        _ = try await repo.saveImport(batch)
+        let posting = try await repo.prepareImport(batchID: batch.id, importIDs: [batch.rows[0].id], skipIDs: [])
+        _ = try await repo.commitImport(posting.plan)
+        let review = try await repo.reviewImportUndo(batchID: batch.id)
+        let plan = try XCTUnwrap(review.plan)
+        let draft = EntryDraft(amountText: "12+(")
+        try await repo.saveDraft(draft, revision: 9)
+        let undone = try await repo.undoImport(plan)
+        XCTAssertTrue(undone.book.entries.isEmpty)
+        XCTAssertEqual(undone.draft, draft); XCTAssertEqual(undone.draftRevision, 9)
+        let retry = try await repo.undoImport(plan)
+        XCTAssertEqual(retry.book, undone.book)
+        let bytes = try await repo.exportBackup()
+        let preview = try await repo.prepareRestore(bytes)
+        let restored = try await repo.restore(previewID: preview.id, revision: 10)
+        XCTAssertEqual(restored.book, undone.book)
+        XCTAssertEqual(restored.book.importBatches[0].rows[0].state, .reverted)
+        XCTAssertEqual(try LedgerEngine.balance(of: account.id, in: restored.book).minorUnits, 10_000)
+        do { _ = try await repo.commitImport(posting.plan); XCTFail("Old posting must not replay") }
+        catch { XCTAssertEqual(error as? ImportError, .stalePreview) }
+    }
+
     func testLabelsPreviewRejectsCatalogChangesAndRestoresDraftWithLabels() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

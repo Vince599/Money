@@ -126,6 +126,8 @@ struct ImportLabelsTests {
         #expect(row == batch.rows[0])
         let snapshot = LedgerBackupSnapshot(book: book, draft: nil, settings: LedgerSettings())
         var files = try BackupCodec.encode(snapshot).filter { Set(BackupSchema.v5All.map(\.name)).contains($0.key) }
+        let oldBatches = try BackupSchema.importBatches.read(files["import_batches.csv"]!).map { record in BackupSchema.v6ImportBatches.columns.map { record.values[$0.name] } }
+        files["import_batches.csv"] = BackupCSV.encode([BackupSchema.v6ImportBatches.header] + oldBatches)
         let oldRows = try BackupSchema.importRows.read(files["import_rows.csv"]!).map { record in BackupSchema.v5ImportRows.columns.map { record.values[$0.name] } }
         files["import_rows.csv"] = BackupCSV.encode([BackupSchema.v5ImportRows.header] + oldRows)
         var manifest = try BackupSchema.manifest.read(files["manifest.csv"]!)[0].values

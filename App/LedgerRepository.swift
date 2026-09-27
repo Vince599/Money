@@ -228,6 +228,13 @@ actor LedgerRepository {
         return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
     }
 
+    func reviewImportUndo(batchID: UUID) throws -> ImportUndoReview {
+        try ImportEngine.reviewUndo(batchID: batchID, in: readSnapshot().book)
+    }
+    func undoImport(_ plan: ImportUndoPlan) throws -> LedgerSnapshot {
+        let value = try store.undoImport(plan)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
     func prepareImportLabels(batchID: UUID, rowIDs: Set<UUID>, tags: ImportTagChange, project: ImportProjectChange) throws -> ImportLabelsPlan {
         try ImportEngine.prepareLabels(batchID: batchID, rowIDs: rowIDs, tags: tags, project: project, in: readSnapshot().book)
     }

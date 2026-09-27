@@ -6,6 +6,49 @@ import Testing
 
 @Suite("Import persistence and transactions")
 struct ImportStoreTests {
+    @Test func undoFailureRollsBackCashStatusAndRegistryThenRetryAndReopenSucceed() throws {
+        try withStore { store, inspection, path in
+            let batch = try stagedBatch()
+            let staged = try store.saveImport(batch)
+            let posted = try store.commitImport(ImportEngine.prepare(batchID: batch.id, importIDs: [batch.rows[0].id], skipIDs: [], in: staged.book))
+            let plan = try #require(ImportEngine.reviewUndo(batchID: batch.id, in: posted.book).plan)
+            let manual = EntryDraft(amountText: "12+(", note: "撤销预览后的手动草稿")
+            try store.saveDraft(manual)
+            try inspection.write { try $0.execute(sql: "CREATE TRIGGER reject_undo BEFORE INSERT ON import_batches BEGIN SELECT RAISE(ABORT, 'injected'); END") }
+            #expect(throws: (any Error).self) { try store.undoImport(plan) }
+            #expect(try store.loadBook() == posted.book)
+            #expect(try store.loadSnapshot().draft == manual)
+            try inspection.write { try $0.execute(sql: "DROP TRIGGER reject_undo") }
+            let after = try store.undoImport(plan)
+            #expect(after.book.entries.isEmpty && after.book.accounts.count == 1 && after.draft == manual)
+            #expect(after.book.importBatches[0].rows[0].state == .reverted)
+            #expect(try store.undoImport(plan).book == after.book)
+            #expect(try SQLiteLedgerStore(path: path).loadBook() == after.book)
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM entries") == 0)
+                #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM operation_registry WHERE record_kind = 'retired'") == 1)
+            }
+        }
+    }
+
+    @Test func schemaSixOldPayloadPreservedAndInvalidPayloadRollsBackVersion() throws {
+        try withStore { store, inspection, path in
+            let batch = try stagedBatch()
+            let snapshot = try store.saveImport(batch)
+            let payload = try inspection.read { try Data.fetchOne($0, sql: "SELECT payload FROM import_batches") }
+            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?; PRAGMA user_version = 6", arguments: [Data("bad JSON".utf8)]) }
+            #expect(throws: LedgerStoreError.corruptData("import_batches")) { try SQLiteLedgerStore(path: path) }
+            try inspection.read { (db: Database) throws -> Void in #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 6) }
+            try inspection.write { try $0.execute(sql: "UPDATE import_batches SET payload = ?", arguments: [payload]) }
+            let migrated = try SQLiteLedgerStore(path: path).loadSnapshot()
+            #expect(migrated.book == snapshot.book && migrated.book.importBatches[0].revertedAt == nil)
+            try inspection.read { (db: Database) throws -> Void in
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
+                #expect(try Data.fetchOne(db, sql: "SELECT payload FROM import_batches") == payload)
+            }
+        }
+    }
+
     @Test func labelPreviewIsAtomicPreservesManualDraftAndPostsOrderedLinks() throws {
         try withStore { store, inspection, path in
             let a = EntryTag(name: "旅行"), b = EntryTag(name: "工作"), project = EntryProject(name: "出行")

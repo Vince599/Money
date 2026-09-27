@@ -200,7 +200,7 @@ struct BackupCodecTests {
         #expect(throws: BackupError.self) { try BackupCodec.decode(files) }
     }
 
-    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "7.0"), ("backup_format_version", "3.1"), ("db_schema_version", "7")])
+    @Test(arguments: [("profile", "future-core"), ("backup_format_version", "8.0"), ("backup_format_version", "3.1"), ("db_schema_version", "8")])
     func rejectsUnsupportedVersionsDistinctly(_ field: String, _ value: String) throws {
         var files = try BackupCodec.encode(blank())
         try edit(&files, table: BackupSchema.manifest, column: field, value: value)

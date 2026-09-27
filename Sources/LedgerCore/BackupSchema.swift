@@ -136,9 +136,12 @@ enum BackupDates {
 }
 
 enum BackupSchema {
-    static let profile = "ledger-core-v6"
-    static let version = "6.0"
-    static let dbVersion = "6"
+    static let profile = "ledger-core-v7"
+    static let version = "7.0"
+    static let dbVersion = "7"
+    static let v6Profile = "ledger-core-v6"
+    static let v6Version = "6.0"
+    static let v6DBVersion = "6"
     static let v5Profile = "ledger-core-v5"
     static let v5Version = "5.0"
     static let v5DBVersion = "5"
@@ -167,10 +170,10 @@ enum BackupSchema {
         .init(name: name, type: "int64", unit: unit, precision: precision)
     }
     private static let position = BackupColumn(name: "position", type: "uint", precision: "contiguous-zero-based-row-order", meaning: "Original model array order")
-    private static func date(_ prefix: String) -> [BackupColumn] {
-        [.init(name: prefix + "_utc", type: "utc", unit: "UTC", precision: "YYYY-MM-DDTHH:mm:ssZ; floor-second; years 0001...9999",
+    private static func date(_ prefix: String, nullable: Bool = false) -> [BackupColumn] {
+        [.init(name: prefix + "_utc", type: "utc", nullable: nullable, unit: "UTC", precision: "YYYY-MM-DDTHH:mm:ssZ; floor-second; years 0001...9999",
                meaning: "Readable companion; does not assert original input precision"),
-         .init(name: prefix + "_bits", type: "date_bits", unit: "seconds-since-2001-01-01T00:00:00Z", precision: "IEEE754-binary64; 16 lowercase hex digits; finite",
+         .init(name: prefix + "_bits", type: "date_bits", nullable: nullable, unit: "seconds-since-2001-01-01T00:00:00Z", precision: "IEEE754-binary64; 16 lowercase hex digits; finite",
                meaning: "Exact Foundation Date reference-seconds bit pattern; authoritative together with matching UTC column")]
     }
     static let legacyAccounts = BackupTable(name: "accounts.csv", columns: [position, uuid("id"), text("name"),
@@ -232,21 +235,25 @@ enum BackupSchema {
     static let v5Manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
         $0.name == "file_count" ? BackupColumn(name: "file_count", type: "uint", precision: "19") : $0
     })
-    static let manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
+    static let v6Manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
         $0.name == "file_count" ? BackupColumn(name: "file_count", type: "uint", precision: "20") : $0
     })
-    static let importBatches = BackupTable(name: "import_batches.csv", columns: [position, uuid("id"), text("name"), text("namespace"), integer("version", precision: "1...9223372036854775807")] + date("created_at"))
+    static let manifest = BackupTable(name: "manifest.csv", columns: v6Manifest.columns)
+    static let v6ImportBatches = BackupTable(name: "import_batches.csv", columns: [position, uuid("id"), text("name"), text("namespace"), integer("version", precision: "1...9223372036854775807")] + date("created_at"))
+    static let importBatches = BackupTable(name: "import_batches.csv", columns: v6ImportBatches.columns + date("reverted_at", nullable: true))
     static let v5ImportRows = BackupTable(name: "import_rows.csv", columns: [position, uuid("batch_id", reference: "import_batches.csv.id"), uuid("id"), uuid("operation_id"),
         uuid("account_id", nullable: true, reference: "soft:accounts.csv.id|import_accounts.csv.id"),
         uuid("destination_account_id", nullable: true, reference: "soft:accounts.csv.id|import_accounts.csv.id"),
         uuid("category_id", nullable: true, reference: "soft:categories.csv.id"), uuid("subject_id", reference: "soft:subjects.csv.id"),
         choice("state", "pending|imported|skipped"), text("duplicate_review_token", nullable: true)]
         + ImportCSV.header.map { text("raw_" + $0, "Original UTF-8 source field; preserved without trimming or interpretation") })
-    static let importRows = BackupTable(name: "import_rows.csv", columns: v5ImportRows.columns + [uuid("project_id", nullable: true, reference: "soft:projects.csv.id")])
+    static let v6ImportRows = BackupTable(name: "import_rows.csv", columns: v5ImportRows.columns + [uuid("project_id", nullable: true, reference: "soft:projects.csv.id")])
+    static let importRows = BackupTable(name: "import_rows.csv", columns: v6ImportRows.columns.map { $0.name == "state" ? choice("state", "pending|imported|skipped|reverted") : $0 })
     static let importRowTags = BackupTable(name: "import_row_tags.csv", columns: [position, uuid("row_id", reference: "import_rows.csv.id"), uuid("tag_id", reference: "soft:tags.csv.id")])
     static let importAccounts = BackupTable(name: "import_accounts.csv", columns: [uuid("batch_id", reference: "import_batches.csv.id")] + accounts.columns)
     static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts, importRowTags]
-    static let v5All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v5Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, v5ImportRows, importAccounts]
+    static let v6All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v6Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, v6ImportBatches, v6ImportRows, importAccounts, importRowTags]
+    static let v5All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v5Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, v6ImportBatches, v5ImportRows, importAccounts]
     static let v4All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v4Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags]
     static let v3All = [accounts, subjects, categories, v3Entries, adjustments, retired, v3Draft, settings, legacyManifest, dictionary, counts, checksums]
     static let v2All = [accounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, legacyManifest, dictionary, counts, checksums]

@@ -29,7 +29,7 @@ extension ImportEngine {
     public static func changingLabels(in batch: ImportBatch, rowIDs: Set<UUID>, tags: ImportTagChange,
                                       project: ImportProjectChange, book: LedgerBook) throws -> ImportBatch {
         try LedgerEngine.validate(book)
-        guard let current = book.importBatches.first(where: { $0.id == batch.id }), current == batch else {
+        guard let current = book.importBatches.first(where: { $0.id == batch.id }), current == batch, batch.revertedAt == nil else {
             throw ImportError.stalePreview
         }
         guard !rowIDs.isEmpty, rowIDs.isSubset(of: Set(batch.rows.filter { $0.state == .pending }.map(\.id))) else {

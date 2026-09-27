@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ImportRowState: String, Codable, Sendable { case pending, imported, skipped }
+public enum ImportRowState: String, Codable, Sendable { case pending, imported, skipped, reverted }
 
 public struct ImportRow: Identifiable, Codable, Equatable, Sendable {
     public var id: UUID
@@ -44,6 +44,7 @@ public struct ImportBatch: Identifiable, Codable, Equatable, Sendable {
     public var version: Int
     public var rows: [ImportRow]
     public var proposedAccounts: [Account]
+    public var revertedAt: Date?
     public init(id: UUID = UUID(), name: String, namespace: String, createdAt: Date = Date(), rows: [ImportRow], proposedAccounts: [Account] = []) {
         self.id = id; self.name = name; self.namespace = namespace; self.createdAt = createdAt
         self.version = 1; self.rows = rows; self.proposedAccounts = proposedAccounts
@@ -87,11 +88,16 @@ public enum ImportEngine {
         let consumed = book.retiredOperationIDs.union(book.entries.map(\.operationID))
         // Duplicate operation IDs are checked by LedgerEngine; do not build a trapping dictionary here.
         let liveOperations = Dictionary(book.entries.map { ($0.operationID, $0.id) }, uniquingKeysWith: { first, _ in first })
+        let liveEntryIDs = Set(book.entries.map(\.id))
         var proposedIDs = Set<UUID>()
         for batch in batches {
             guard !batch.namespace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   batch.namespace.utf8.count <= 256, batch.version > 0, BackupDates.isSupported(batch.createdAt),
                   batch.rows.count <= ImportCSV.maximumRows else { throw ImportError.invalidState }
+            if let revertedAt = batch.revertedAt {
+                guard BackupDates.isSupported(revertedAt), batch.rows.contains(where: { $0.state == .reverted }),
+                      !batch.rows.contains(where: { $0.state == .imported }) else { throw ImportError.invalidState }
+            } else if batch.rows.contains(where: { $0.state == .reverted }) { throw ImportError.invalidState }
             for account in batch.proposedAccounts {
                 guard proposedIDs.insert(account.id).inserted, !book.accounts.contains(where: { $0.id == account.id }),
                       !account.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -101,6 +107,10 @@ public enum ImportEngine {
                 guard row.raw.count == ImportCSV.header.count, row.raw.allSatisfy({ $0.utf8.count <= 65_536 }),
                       Set(row.tagIDs).count == row.tagIDs.count,
                       row.state != .imported || consumed.contains(row.operationID) else { throw ImportError.invalidState }
+                if row.state == .reverted {
+                    guard book.retiredOperationIDs.contains(row.operationID),
+                          !liveEntryIDs.contains(row.id) else { throw ImportError.invalidState }
+                }
                 if let entryID = liveOperations[row.operationID], entryID != row.id { throw ImportError.invalidState }
                 if let token = row.duplicateReviewToken, !BackupTable.isHex(token, count: 64) { throw ImportError.invalidState }
             }
@@ -118,7 +128,7 @@ public enum ImportEngine {
         var result = book
         if let index = book.importBatches.firstIndex(where: { $0.id == batch.id }) {
             let old = book.importBatches[index]
-            guard expectedVersion == old.version, batch.version == old.version, old.version < Int.max,
+            guard old.revertedAt == nil, batch.revertedAt == nil, expectedVersion == old.version, batch.version == old.version, old.version < Int.max,
                   batch.namespace == old.namespace, batch.createdAt == old.createdAt,
                   batch.rows.map(\.id) == old.rows.map(\.id) else { throw ImportError.stalePreview }
             for (before, after) in zip(old.rows, batch.rows) {
@@ -127,7 +137,7 @@ public enum ImportEngine {
             }
             var updated = batch; updated.version += 1; result.importBatches[index] = updated
         } else {
-            guard expectedVersion == nil, batch.version == 1, batch.rows.allSatisfy({ $0.state == .pending }) else { throw ImportError.invalidState }
+            guard expectedVersion == nil, batch.revertedAt == nil, batch.version == 1, batch.rows.allSatisfy({ $0.state == .pending }) else { throw ImportError.invalidState }
             result.importBatches.append(batch)
         }
         try LedgerEngine.validate(result)
@@ -142,6 +152,7 @@ public enum ImportEngine {
     }
 
     public static func review(_ row: ImportRow, batch: ImportBatch, in book: LedgerBook, now: Date = Date(), preparedCandidates: [LedgerEntry]? = nil) -> ImportRowReview {
+        guard batch.revertedAt == nil else { return .blocked("本批已撤销，只保留核对记录；需要重新导入时请新建批次。") }
         guard row.state == .pending else { return .finished }
         guard row.raw.count == ImportCSV.header.count else { return .blocked("原始列数错误。") }
         guard !row.sourceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .blocked("缺少稳定的 source_id，请修正源文件。") }
@@ -175,20 +186,30 @@ public enum ImportEngine {
         }.sorted { $0.id.uuidString < $1.id.uuidString }
     }
 
-    public static func candidate(_ row: ImportRow, batch: ImportBatch, in book: LedgerBook, now: Date) throws -> LedgerEntry {
+    static func originalEntry(_ row: ImportRow, batch: ImportBatch) throws -> LedgerEntry {
         guard row.raw.count == ImportCSV.header.count else { throw ImportError.invalidState }
         guard row.raw[10] == "success" else { throw ImportError.invalidFile("非 success 状态，需核对后跳过或留待处理。") }
         guard let kind = EntryKind(rawValue: row.raw[2]), [.expense, .income, .transfer].contains(kind) else {
             throw ImportError.invalidFile("当前普通导入只支持 expense／income／transfer；退款、贷款等需专门核对。")
         }
         guard let date = ImportCSV.date(row.raw[1]), BackupDates.isSupported(date) else { throw ImportError.invalidFile("日期必须为含时区的 ISO 8601，例如 2026-01-15T12:30:00+08:00。") }
-        guard date <= now else { throw ImportError.invalidFile("未来日期暂留草稿，不计入已发生流水。") }
         guard let currency = Currency(rawValue: row.raw[4]) else { throw ImportError.invalidFile("币种当前支持 CNY／HKD／USD。") }
         let amount: Money
         do { amount = try Money.parse(row.raw[3], currency: currency) }
         catch { throw ImportError.invalidFile("金额须为最多两位小数的正数，不能填写算式。") }
         guard amount.minorUnits > 0 else { throw ImportError.invalidFile("零额或负金额须先核对。") }
         guard let accountID = row.accountID else { throw ImportError.invalidFile("请选择付款／收款账户；不会自动使用默认账户。") }
+        return LedgerEntry(id: row.id, operationID: row.operationID, kind: kind, amount: amount, accountID: accountID,
+                           destinationAccountID: kind == .transfer ? row.destinationAccountID : nil,
+                           categoryID: kind.needsCategory ? row.categoryID : nil, subjectID: row.subjectID,
+                           occurredAt: date, createdAt: batch.createdAt, title: row.raw[8], note: row.raw[9],
+                           tagIDs: row.tagIDs, projectID: row.projectID)
+    }
+
+    public static func candidate(_ row: ImportRow, batch: ImportBatch, in book: LedgerBook, now: Date) throws -> LedgerEntry {
+        let entry = try originalEntry(row, batch: batch)
+        guard entry.occurredAt <= now else { throw ImportError.invalidFile("未来日期暂留草稿，不计入已发生流水。") }
+        let kind = entry.kind, currency = entry.amount.currency, accountID = entry.accountID
         let accounts = book.accounts + batch.proposedAccounts
         guard let account = accounts.first(where: { $0.id == accountID }), account.isActive, account.currency == currency else { throw ImportError.invalidFile("账户缺失、已停用或币种不匹配。") }
         if kind == .transfer {
@@ -210,18 +231,14 @@ public enum ImportEngine {
         if let projectID = row.projectID, !book.projects.contains(where: { $0.id == projectID && !$0.isArchived }) {
             throw ImportError.invalidFile("项目缺失或已归档，请清除或重新选择。")
         }
-        return LedgerEntry(id: row.id, operationID: row.operationID, kind: kind, amount: amount, accountID: accountID,
-                           destinationAccountID: kind == .transfer ? row.destinationAccountID : nil,
-                           categoryID: kind.needsCategory ? row.categoryID : nil, subjectID: row.subjectID,
-                           occurredAt: date, createdAt: batch.createdAt, title: row.raw[8], note: row.raw[9],
-                           tagIDs: row.tagIDs, projectID: row.projectID)
+        return entry
     }
 
     public static func prepare(batchID: UUID, importIDs: Set<UUID>, skipIDs: Set<UUID>, in book: LedgerBook, now: Date = Date()) throws -> ImportPlan {
         try LedgerEngine.validate(book)
         guard importIDs.isDisjoint(with: skipIDs), !importIDs.isEmpty || !skipIDs.isEmpty else { throw ImportError.unavailableRow }
         guard importIDs.count + skipIDs.count <= 200 else { throw ImportError.tooManySelected }
-        guard let batch = book.importBatches.first(where: { $0.id == batchID }),
+        guard let batch = book.importBatches.first(where: { $0.id == batchID }), batch.revertedAt == nil,
               importIDs.union(skipIDs).isSubset(of: Set(batch.rows.filter { $0.state == .pending }.map(\.id))) else { throw ImportError.unavailableRow }
         var newAccounts = Set<UUID>()
         let reviews = reviews(batch: batch, rowIDs: importIDs, in: book, now: now)

@@ -51,7 +51,7 @@ struct ImportListView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(batch.name).foregroundStyle(.primary)
-                            Text("\(batch.namespace) · 待处理 \(batch.rows.filter { $0.state == .pending }.count) / \(batch.rows.count)")
+                            Text(batch.revertedAt == nil ? "\(batch.namespace) · 待处理 \(batch.rows.filter { $0.state == .pending }.count) / \(batch.rows.count)" : "\(batch.namespace) · 已撤销（保留核对记录）")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }.accessibilityIdentifier("import.batch." + batch.id.uuidString.lowercased())
@@ -88,6 +88,7 @@ struct ImportBatchView: View {
     @State private var showMapping = false
     @State private var showClassification = false
     @State private var showLabels = false
+    @State private var showUndo = false
     @State private var preview: ImportCommitPreview?
     @State private var message: String?
     private var batch: ImportBatch? { model.book.importBatches.first { $0.id == batchID } }
@@ -98,22 +99,28 @@ struct ImportBatchView: View {
             if let batch {
                 Section {
                     Text(batch.namespace)
-                    Text("已导入 \(batch.rows.filter { $0.state == .imported }.count) · 已跳过 \(batch.rows.filter { $0.state == .skipped }.count) · 待处理 \(batch.rows.filter { $0.state == .pending }.count)")
+                    Text(batchSummary(batch))
                         .font(.subheadline).foregroundStyle(.secondary)
-                    Button("本批账户匹配／新建") { showMapping = true }.accessibilityIdentifier("import.accounts")
-                    Button("选择当前已显示的可导入行") {
-                        selected = Set(visible.filter { reviews[$0.id] == .ready }.prefix(200).map(\.id))
-                    }.disabled(reviewLoading)
-                    Button("清除选择") { selected = [] }
-                    Button("修改所选行的标签／项目") { showLabels = true }
-                        .disabled(selected.isEmpty || selected.count > 200)
-                        .accessibilityIdentifier("import.labels")
-                    Button("修改所选行的分类／主体") { showClassification = true }
-                        .disabled(selected.isEmpty || selected.count > 200)
+                    if batch.revertedAt == nil {
+                        Button("本批账户匹配／新建") { showMapping = true }.accessibilityIdentifier("import.accounts")
+                        Button("选择当前已显示的可导入行") {
+                            selected = Set(visible.filter { reviews[$0.id] == .ready }.prefix(200).map(\.id))
+                        }.disabled(reviewLoading)
+                        Button("清除选择") { selected = [] }
+                        Button("修改所选行的标签／项目") { showLabels = true }
+                            .disabled(selected.isEmpty || selected.count > 200)
+                            .accessibilityIdentifier("import.labels")
+                        Button("修改所选行的分类／主体") { showClassification = true }
+                            .disabled(selected.isEmpty || selected.count > 200)
+                    }
+                }
+                if let date = batch.revertedAt {
+                    Text("本批已于 " + BookDate.dateTime(date) + " 撤销。来源和未处理内容仅供核对；需要重导入时请新建批次。")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 ForEach(visible) { row in
                     HStack {
-                        if row.state == .pending {
+                        if row.state == .pending && batch.revertedAt == nil {
                             Toggle("选择此行", isOn: Binding(get: { selected.contains(row.id) }, set: {
                                 if $0 { selected.insert(row.id) } else { selected.remove(row.id) }
                             })).labelsHidden().accessibilityLabel("选择 " + row.title).toggleStyle(.button)
@@ -122,7 +129,7 @@ struct ImportBatchView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(row.title.isEmpty ? row.sourceID : row.title).foregroundStyle(.primary)
                                 Text("\(row.raw[3]) \(row.raw[4]) · \(row.raw[1])").font(.caption).foregroundStyle(.secondary)
-                                Text(row.state == .pending ? (reviews[row.id]?.explanation ?? "正在核对…") : (row.state == .imported ? "已导入" : "已跳过"))
+                                Text(row.state == .pending ? (reviews[row.id]?.explanation ?? "正在核对…") : (row.state == .imported ? "已导入" : row.state == .reverted ? "已撤销" : "已跳过"))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }.buttonStyle(.plain).accessibilityIdentifier("import.row." + row.id.uuidString.lowercased())
@@ -130,11 +137,17 @@ struct ImportBatchView: View {
                 }
                 if visibleCount < batch.rows.count { Button("显示更多") { visibleCount += 50 } }
                 if reviewLoading { ProgressView("正在核对当前行…") }
-                Section {
-                    Button("预览导入所选 \(selected.count) 行") { prepare(skip: false) }.accessibilityIdentifier("import.preview")
-                    Button("预览跳过所选 \(selected.count) 行") { prepare(skip: true) }
-                } footer: { Text("每次最多 200 行。跳过也需确认，原始数据和处理结果会保留。未处理行可下次继续；历史流水正常影响当前余额。") }
-                    .disabled(selected.isEmpty || reviewLoading)
+                if batch.revertedAt == nil {
+                    Section {
+                        Button("预览导入所选 \(selected.count) 行") { prepare(skip: false) }.accessibilityIdentifier("import.preview")
+                        Button("预览跳过所选 \(selected.count) 行") { prepare(skip: true) }
+                    } footer: { Text("每次最多 200 行。跳过也需确认，原始数据和处理结果会保留。未处理行可下次继续；历史流水正常影响当前余额。") }
+                        .disabled(selected.isEmpty || reviewLoading)
+                    if batch.rows.contains(where: { $0.state == .imported }) {
+                        Button("查看撤销本批导入的影响", role: .destructive) { showUndo = true }
+                            .accessibilityIdentifier("import.undo")
+                    }
+                }
                 if let message { Text(message).foregroundStyle(.red) }
             }
         }
@@ -151,10 +164,17 @@ struct ImportBatchView: View {
         .sheet(item: $editing) { row in
             ImportReviewView(model: model, batchID: batchID, initialRowID: row.id)
         }
+        .sheet(isPresented: $showUndo) { ImportUndoView(model: model, batchID: batchID) }
         .sheet(isPresented: $showMapping) { if let batch { ImportAccountMappingView(model: model, batch: batch) } }
         .sheet(isPresented: $showLabels) { if let batch { ImportLabelsView(model: model, batch: batch, rowIDs: selected) } }
         .sheet(isPresented: $showClassification) { if let batch { ImportClassificationView(model: model, batch: batch, rowIDs: selected) } }
         .sheet(item: $preview) { value in ImportConfirmationView(model: model, preview: value) }
+    }
+    private func batchSummary(_ batch: ImportBatch) -> String {
+        if batch.revertedAt != nil {
+            return "已撤销 \(batch.rows.filter { $0.state == .reverted }.count) · 原未处理 \(batch.rows.filter { $0.state == .pending }.count) · 原跳过 \(batch.rows.filter { $0.state == .skipped }.count)"
+        }
+        return "已导入 \(batch.rows.filter { $0.state == .imported }.count) · 已跳过 \(batch.rows.filter { $0.state == .skipped }.count) · 待处理 \(batch.rows.filter { $0.state == .pending }.count)"
     }
     private func prepare(skip: Bool) {
         Task {
@@ -250,7 +270,7 @@ struct ImportRowEditor: View {
                     } label: {
                         LabeledContent("标签／项目", value: EntryLabelsSelectionView.summary(book: model.book, tags: row.tagIDs, project: row.projectID))
                     }.accessibilityIdentifier("import.row.labels")
-                }.disabled(row.state != .pending)
+                }.disabled(row.state != .pending || batch.revertedAt != nil)
                 Section("核对") {
                     Text(review?.explanation ?? "正在核对…")
                     if inspectedRequest == request, let inspection {
@@ -278,6 +298,7 @@ struct ImportRowEditor: View {
                     }
                     if row.duplicateReviewToken != nil {
                         Button("撤回独立交易确认") { row.duplicateReviewToken = nil }
+                            .disabled(row.state != .pending || batch.revertedAt != nil)
                     }
                 }
                 Section("来源原文（只读）") {
@@ -286,16 +307,16 @@ struct ImportRowEditor: View {
                     }
                 }
                 if let message { Text(message).foregroundStyle(.red) }
-                if row.state == .pending {
+                if row.state == .pending && batch.revertedAt == nil {
                     Button("保存本行并关闭") { saveAndMove(nil) }.accessibilityIdentifier("import.row.save")
                 }
             }
             .safeAreaInset(edge: .bottom) {
                 HStack {
-                    Button(row.state == .pending ? "保存并上一笔" : "上一笔") { if let previousID { saveAndMove(previousID) } }
+                    Button(row.state == .pending && batch.revertedAt == nil ? "保存并上一笔" : "上一笔") { if let previousID { saveAndMove(previousID) } }
                         .disabled(previousID == nil || model.isBusy).accessibilityIdentifier("import.row.previous")
                     Spacer()
-                    Button(row.state == .pending ? "保存并下一笔" : "下一笔") { if let nextID { saveAndMove(nextID) } }
+                    Button(row.state == .pending && batch.revertedAt == nil ? "保存并下一笔" : "下一笔") { if let nextID { saveAndMove(nextID) } }
                         .disabled(nextID == nil || model.isBusy).accessibilityIdentifier("import.row.next")
                 }.padding().background(.bar)
             }
@@ -314,7 +335,7 @@ struct ImportRowEditor: View {
     }
     private func saveAndMove(_ target: UUID?) {
         guard !model.isBusy else { return }
-        if row.state != .pending { if let target { move(target) }; return }
+        if row.state != .pending || batch.revertedAt != nil { if let target { move(target) }; return }
         var updated = batch
         guard let index = updated.rows.firstIndex(where: { $0.id == row.id }) else { return }
         updated.rows[index] = row
