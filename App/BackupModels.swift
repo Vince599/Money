@@ -9,6 +9,7 @@ struct BackupRestorePreview: Identifiable, Sendable {
     let subjectCount: Int
     var tagCount: Int = 0
     var projectCount: Int = 0
+    var importBatchCount: Int = 0
     let hasDraft: Bool
 }
 

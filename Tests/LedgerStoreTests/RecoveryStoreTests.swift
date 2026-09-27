@@ -65,6 +65,7 @@ struct RecoveryStoreTests {
     @Test func schemaTwoMigratesWithoutRewritingPayloadAndFailureRollsBack() throws {
         try withStore { _, inspection, path, original, _ in
             try inspection.write { db in
+                try db.execute(sql: "DROP TABLE import_batches")
                 try db.execute(sql: "DROP INDEX entries_project")
                 try db.execute(sql: "DROP TABLE entry_tags")
                 try db.execute(sql: "ALTER TABLE entries DROP COLUMN project_id")

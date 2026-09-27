@@ -19,6 +19,7 @@ public enum BackupCodec {
         guard BackupDates.isSupported(createdAt) else { throw BackupError.invalidSnapshot(reason: "Invalid backup creation date") }
         let book = snapshot.book
         var rows: [String: [[String?]]] = [:]
+        rows.merge(try BackupImports.encode(book.importBatches)) { _, new in new }
         rows[BackupSchema.accounts.name] = try book.accounts.enumerated().map { index, account in
             [String(index), id(account.id), account.name, account.kind.rawValue, account.nature.rawValue,
              account.currency.rawValue, String(account.openingMinor)] + (try BackupDates.values(account.openingDate))
@@ -87,7 +88,7 @@ public enum BackupCodec {
 
     public static func decode(_ files: [String: Data]) throws -> LedgerBackupSnapshot {
         let fileNames = Set(files.keys)
-        guard fileNames == BackupSchema.fileNames || fileNames == Set(BackupSchema.v3All.map(\.name)) else {
+        guard fileNames == BackupSchema.fileNames || fileNames == Set(BackupSchema.v4All.map(\.name)) || fileNames == Set(BackupSchema.v3All.map(\.name)) else {
             throw BackupError.invalidArchive(reason: "Missing or unknown backup files")
         }
         guard files.values.allSatisfy({ $0.count <= BackupCSV.maxFileBytes }),
@@ -119,6 +120,9 @@ public enum BackupCodec {
         case (BackupSchema.profile, BackupSchema.version, BackupSchema.dbVersion):
             contractTables = BackupSchema.all
             accountTable = BackupSchema.accounts
+        case (BackupSchema.v4Profile, BackupSchema.v4Version, BackupSchema.v4DBVersion):
+            contractTables = BackupSchema.v4All
+            accountTable = BackupSchema.accounts
         case (BackupSchema.v3Profile, BackupSchema.v3Version, BackupSchema.v3DBVersion):
             contractTables = BackupSchema.v3All
             accountTable = BackupSchema.accounts
@@ -130,6 +134,7 @@ public enum BackupCodec {
             accountTable = BackupSchema.legacyAccounts
         default:
             let reportedVersion = (profile == BackupSchema.profile && version == BackupSchema.version)
+                || (profile == BackupSchema.v4Profile && version == BackupSchema.v4Version)
                 || (profile == BackupSchema.v3Profile && version == BackupSchema.v3Version)
                 || (profile == BackupSchema.v2Profile && version == BackupSchema.v2Version)
                 || (profile == BackupSchema.legacyProfile && version == BackupSchema.legacyVersion)
@@ -225,7 +230,8 @@ public enum BackupCodec {
         let settings = LedgerSettings(defaultAccountID: try settingRows[0].optionalUUID("default_account_id"),
                                       defaultSubjectID: try settingRows[0].uuid("default_subject_id"))
         let book = LedgerBook(accounts: accounts, entries: entries, adjustments: adjustments, subjects: subjects,
-                              categories: categories, retiredOperationIDs: Set(retired), tags: tags, projects: projects)
+                              categories: categories, retiredOperationIDs: Set(retired), tags: tags, projects: projects,
+                              importBatches: try BackupImports.decode(tables))
         let snapshot = LedgerBackupSnapshot(book: book, draft: draft, settings: settings)
         do { try validate(snapshot) }
         catch { throw BackupError.invalidArchive(reason: "Invalid restored snapshot: \(error)") }

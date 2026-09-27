@@ -14,6 +14,7 @@ struct LedgerSettingsView: View {
                     NavigationLink("主体管理") { SubjectListView(model: model) }
                 }
                 Section("数据") {
+                    NavigationLink("导入账单 CSV") { ImportListView(model: model) }.accessibilityIdentifier("settings.import")
                     NavigationLink("完整备份与恢复") { BackupView(model: model) }.accessibilityIdentifier("settings.backup")
                 }
             }

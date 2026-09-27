@@ -1,12 +1,12 @@
-# LedgerCore CSV backup profile 4
+# LedgerCore CSV backup profile 5
 
 Status: implemented for the current `LedgerBook`, `EntryDraft` and `LedgerSettings` models. Date: 2026-09-27. Current platform verification is recorded in [DEVELOPMENT.md](DEVELOPMENT.md).
 
-`BackupCodec.encode` returns sixteen named CSV byte buffers. `BackupCodec.decode` validates the complete set and returns a `LedgerBackupSnapshot`; it does not write to the database. The archive layer packages these files into one ZIP, and the repository commits the decoded book, draft and settings in one transaction.
+`BackupCodec.encode` returns nineteen named CSV byte buffers. `BackupCodec.decode` validates the complete set and returns a `LedgerBackupSnapshot`; it does not write to the database. The archive layer packages these files into one ZIP, and the repository commits the decoded book, draft and settings in one transaction.
 
-New exports identify `profile=ledger-core-v4`, `backup_format_version=4.0` and `db_schema_version=4`. `complete=true` means **all fields in these implemented models**, including tags, projects, ordered entry/draft tag links, account presentation identifiers, refund/recovery links, purchase-level net recovery opt-in, deleted operations' consumed UUID markers, the unfinished draft and defaults. It does not claim support for roadmap entities such as investments, reimbursement, loans, subscriptions, import rules, NAS jobs or daily valuation drafts. Those entities are not yet present in this model. Adding persistent fields requires a new supported contract and tested migration; an unknown profile, format version, schema version, file or column is rejected, never silently discarded.
+New exports identify `profile=ledger-core-v5`, `backup_format_version=5.0` and `db_schema_version=5`. `complete=true` means **all fields in these implemented models**, including import batches, raw source fields, per-row mapping/completion/review state, staged accounts, tags, projects, ordered entry/draft tag links, account presentation identifiers, refund/recovery links, purchase-level net recovery opt-in, deleted operations' consumed UUID markers, the unfinished draft and defaults. It does not claim support for roadmap entities such as investments, reimbursement, loans, subscriptions, import rules, NAS jobs or daily valuation drafts. Those entities are not yet present in this model. Adding persistent fields requires a new supported contract and tested migration; an unknown profile, format version, schema version, file or column is rejected, never silently discarded.
 
-The decoder also accepts the exact legacy triplets `ledger-core-v1 / 1.0 / db1`, `ledger-core-v2 / 2.0 / db2` and `ledger-core-v3 / 3.0 / db3`. Version 1's `accounts.csv` has no institution, template or icon columns, so restored accounts receive `nil` for those three presentation fields. Profiles 1 and 2 lack recovery links and opt-in fields; these decode as `nil`, with net recovery disabled. All three older profiles lack tags, projects and their associations; these restore as empty arrays / nil. Profile 3 keeps its recovery fields. The next export always uses profile 4. Mixed manifests, table headers and field dictionaries are rejected.
+The decoder also accepts the exact legacy triplets `ledger-core-v1 / 1.0 / db1`, `ledger-core-v2 / 2.0 / db2`, `ledger-core-v3 / 3.0 / db3` and `ledger-core-v4 / 4.0 / db4`. Version 1's `accounts.csv` has no institution, template or icon columns, so restored accounts receive `nil` for those three presentation fields. Profiles 1 and 2 lack recovery links and opt-in fields; these decode as `nil`, with net recovery disabled. Profiles 1 through 3 lack tags, projects and their associations; these restore as empty arrays / nil. Profile 3 keeps its recovery fields. Profile 4 keeps tags and projects. All four older profiles restore with empty import batches. The next export always uses profile 5. Mixed manifests, table headers and field dictionaries are rejected.
 
 ## Files and model coverage
 
@@ -25,11 +25,14 @@ Every file exists, including empty tables containing only their header. Column n
 | `projects.csv` | Array order; `position,id,name,is_archived` |
 | `entry_tags.csv` | `position,entry_id,tag_id`; export groups by entry array order, preserving each entry tag order. Both references must exist; duplicate pairs are rejected. |
 | `draft_tags.csv` | `position,entry_id,tag_id`; preserves draft tag order. Entry ID must match the single draft; tag IDs are soft references and may be unavailable. Duplicate pairs are rejected. |
+| `import_batches.csv` | Array order; `position,id,name,namespace,version,created_at_utc,created_at_bits` |
+| `import_rows.csv` | Global contiguous order; `position,batch_id,id,operation_id,account_id,destination_account_id,category_id,subject_id,state,duplicate_review_token`, followed by `raw_source_id,raw_occurred_at,raw_type,raw_amount,raw_currency,raw_account,raw_destination_account,raw_category,raw_title,raw_note,raw_status`. Raw fields are text, including amount and source IDs. Mapping references stay soft; imported operation IDs must be consumed and any live matching operation must belong to this row ID. |
+| `import_accounts.csv` | `batch_id` followed by all `accounts.csv` columns. Position is global across this table; account array order within each batch is retained. These are staged accounts, not formal balances. |
 | `settings.csv` | Exactly one row; `default_account_id,default_subject_id` |
 | `manifest.csv` | Exactly one row; `profile,backup_format_version,db_schema_version,app_version,complete,created_at_utc,created_at_bits,file_count` |
-| `schema_dictionary.csv` | One row for every column in all sixteen files, including its own columns; `file,column,position,type,required,nullable,unit,precision,allowed_values,foreign_key,meaning` |
+| `schema_dictionary.csv` | One row for every column in all nineteen files, including its own columns; `file,column,position,type,required,nullable,unit,precision,allowed_values,foreign_key,meaning` |
 | `counts.csv` | Exactly one row per file, including itself and checksums; `file,row_count`. Counts exclude the header. |
-| `checksums.csv` | Exactly one row for each of the other fifteen files; `file,sha256`. Does not hash itself. |
+| `checksums.csv` | Exactly one row for each of the other eighteen files; `file,sha256`. Does not hash itself. |
 
 `position` starts at zero and is contiguous in physical row order. Array order is preserved even when a category child occurs before its parent. ID lookups validate relationships independently of presentation order. The manifest's `app_version` comes from `CFBundleShortVersionString`, or `unbundled` when running outside an application bundle. It is informational, never a substitute for format/schema versions.
 
@@ -93,3 +96,7 @@ On 2026-09-26, the user reported that an earlier build exported a ZIP through th
 ## Tags and projects in schema 4
 
 Schema 4 adds the tag/project catalogs, the entry-tag relation table and nullable `project_id`. Existing schema 1/2/3 databases migrate atomically without rewriting payloads; missing arrays in older JSON decode as empty. Opening validation failure rolls back the DDL and version. Inactive tags and archived projects remain valid in historical records and restore, while posting commands reject newly selected unavailable references. Draft references stay soft. The existing 100,000-row limit applies independently to link tables as well; a multi-tag entry consumes more than one link row. See [TAGS_PROJECTS.md](TAGS_PROJECTS.md) for implementation and verification boundaries.
+
+## Import state in schema 5
+
+Schema 5 adds the import batch table with checked scalar projections and complete Codable payloads. Migration and opening validation share a transaction; earlier payloads remain untouched. Profile 5 flattens every raw source column, mapping, completion state and staged account into explicit CSV tables. Orphan rows/accounts, invalid imported receipts and duplicate source identities are rejected; pending rows may retain unavailable mappings for repair. See [IMPORT.md](IMPORT.md) for the separate public import CSV format, limits and validation scope.

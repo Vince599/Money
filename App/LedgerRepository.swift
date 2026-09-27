@@ -199,6 +199,73 @@ actor LedgerRepository {
         return try snapshot()
     }
 
+    func importCSV(from url: URL, namespace: String) throws -> LedgerSnapshot {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        var coordinationError: NSError?, result: Result<Data, any Error>?
+        NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [], error: &coordinationError) { readableURL in
+            result = Result {
+                let handle = try FileHandle(forReadingFrom: readableURL)
+                defer { try? handle.close() }
+                var data = Data()
+                while let chunk = try handle.read(upToCount: min(1_048_576, ImportCSV.maximumBytes + 1 - data.count)), !chunk.isEmpty {
+                    data.append(chunk)
+                    guard data.count <= ImportCSV.maximumBytes else { throw ImportError.invalidFile("CSV 超过 16 MiB。") }
+                }
+                return data
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw ImportError.invalidState }
+        let current = try readSnapshot()
+        let batch = try ImportCSV.parse(result.get(), name: url.lastPathComponent, namespace: namespace,
+                                        subjectID: current.settings.defaultSubjectID)
+        return try saveImport(batch)
+    }
+
+    func saveImport(_ batch: ImportBatch, expectedVersion: Int? = nil) throws -> LedgerSnapshot {
+        let value = try store.saveImport(batch, expectedVersion: expectedVersion)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
+
+    func importReviews(batchID: UUID, rowIDs: Set<UUID>) throws -> [UUID: ImportRowReview] {
+        let value = try readSnapshot()
+        guard let batch = value.book.importBatches.first(where: { $0.id == batchID }) else { throw ImportError.unavailableRow }
+        try Task.checkCancellation()
+        let result = ImportEngine.reviews(batch: batch, rowIDs: rowIDs, in: value.book)
+        try Task.checkCancellation()
+        return result
+    }
+
+    func reviewImportRow(_ row: ImportRow, batch: ImportBatch) throws -> ImportRowInspection {
+        let current = try readSnapshot()
+        guard current.book.importBatches.first(where: { $0.id == batch.id })?.version == batch.version else { throw ImportError.stalePreview }
+        let now = Date()
+        let review = ImportEngine.review(row, batch: batch, in: current.book, now: now)
+        let entry = try? ImportEngine.candidate(row, batch: batch, in: current.book, now: now)
+        return ImportRowInspection(review: review, similar: entry.map { ImportEngine.similarEntries(to: $0, batch: batch, in: current.book, now: now) } ?? [])
+    }
+
+    func prepareImport(batchID: UUID, importIDs: Set<UUID>, skipIDs: Set<UUID>) throws -> ImportCommitPreview {
+        let current = try readSnapshot()
+        let now = Date()
+        let plan = try ImportEngine.prepare(batchID: batchID, importIDs: importIDs, skipIDs: skipIDs, in: current.book, now: now)
+        let after = try ImportEngine.commit(plan, in: current.book, now: now)
+        let entries = after.entries.filter { importIDs.contains($0.id) }
+        let affected = Set(entries.flatMap { [$0.accountID, $0.destinationAccountID].compactMap { $0 } })
+        let effects = try after.accounts.filter { affected.contains($0.id) }.map { account in
+            ImportAccountEffect(id: account.id, name: account.name, isNew: plan.newAccountIDs.contains(account.id),
+                                before: current.book.accounts.contains { $0.id == account.id } ? try LedgerEngine.balance(of: account.id, in: current.book) : Money(minorUnits: account.openingMinor, currency: account.currency),
+                                after: try LedgerEngine.balance(of: account.id, in: after))
+        }
+        return ImportCommitPreview(id: UUID(), plan: plan, effects: effects)
+    }
+
+    func commitImport(_ plan: ImportPlan) throws -> LedgerSnapshot {
+        let value = try store.commitImport(plan)
+        return Self.withHome(LedgerSnapshot(book: value.book, draft: value.draft, settings: value.settings, draftRevision: draftRevision))
+    }
+
     func exportBackup() throws -> Data {
         try archive(readSnapshot())
     }
@@ -217,7 +284,7 @@ actor LedgerRepository {
         return BackupRestorePreview(id: id, accountCount: value.book.accounts.count,
                                     entryCount: value.book.entries.count, adjustmentCount: value.book.adjustments.count,
                                     categoryCount: value.book.categories.count, subjectCount: value.book.subjects.count,
-                                    tagCount: value.book.tags.count, projectCount: value.book.projects.count, hasDraft: value.draft != nil)
+                                    tagCount: value.book.tags.count, projectCount: value.book.projects.count, importBatchCount: value.book.importBatches.count, hasDraft: value.draft != nil)
     }
 
     func prepareRestore(from url: URL) throws -> BackupRestorePreview {

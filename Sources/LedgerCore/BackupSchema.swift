@@ -136,9 +136,12 @@ enum BackupDates {
 }
 
 enum BackupSchema {
-    static let profile = "ledger-core-v4"
-    static let version = "4.0"
-    static let dbVersion = "4"
+    static let profile = "ledger-core-v5"
+    static let version = "5.0"
+    static let dbVersion = "5"
+    static let v4Profile = "ledger-core-v4"
+    static let v4Version = "4.0"
+    static let v4DBVersion = "4"
     static let v3Profile = "ledger-core-v3"
     static let v3Version = "3.0"
     static let v3DBVersion = "3"
@@ -220,10 +223,22 @@ enum BackupSchema {
     static let projects = BackupTable(name: "projects.csv", columns: [position, uuid("id"), text("name"), bool("is_archived")])
     static let entryTags = BackupTable(name: "entry_tags.csv", columns: [position, uuid("entry_id", reference: "entries.csv.id"), uuid("tag_id", reference: "tags.csv.id")])
     static let draftTags = BackupTable(name: "draft_tags.csv", columns: [position, uuid("entry_id", reference: "draft.csv.entry_id"), uuid("tag_id", reference: "soft:tags.csv.id")])
-    static let manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
+    static let v4Manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
         $0.name == "file_count" ? BackupColumn(name: "file_count", type: "uint", precision: "16") : $0
     })
-    static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags]
+    static let manifest = BackupTable(name: "manifest.csv", columns: legacyManifest.columns.map {
+        $0.name == "file_count" ? BackupColumn(name: "file_count", type: "uint", precision: "19") : $0
+    })
+    static let importBatches = BackupTable(name: "import_batches.csv", columns: [position, uuid("id"), text("name"), text("namespace"), integer("version", precision: "1...9223372036854775807")] + date("created_at"))
+    static let importRows = BackupTable(name: "import_rows.csv", columns: [position, uuid("batch_id", reference: "import_batches.csv.id"), uuid("id"), uuid("operation_id"),
+        uuid("account_id", nullable: true, reference: "soft:accounts.csv.id|import_accounts.csv.id"),
+        uuid("destination_account_id", nullable: true, reference: "soft:accounts.csv.id|import_accounts.csv.id"),
+        uuid("category_id", nullable: true, reference: "soft:categories.csv.id"), uuid("subject_id", reference: "soft:subjects.csv.id"),
+        choice("state", "pending|imported|skipped"), text("duplicate_review_token", nullable: true)]
+        + ImportCSV.header.map { text("raw_" + $0, "Original UTF-8 source field; preserved without trimming or interpretation") })
+    static let importAccounts = BackupTable(name: "import_accounts.csv", columns: [uuid("batch_id", reference: "import_batches.csv.id")] + accounts.columns)
+    static let all = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags, importBatches, importRows, importAccounts]
+    static let v4All = [accounts, subjects, categories, entries, adjustments, retired, draft, settings, v4Manifest, dictionary, counts, checksums, tags, projects, entryTags, draftTags]
     static let v3All = [accounts, subjects, categories, v3Entries, adjustments, retired, v3Draft, settings, legacyManifest, dictionary, counts, checksums]
     static let v2All = [accounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, legacyManifest, dictionary, counts, checksums]
     static let legacyAll = [legacyAccounts, subjects, categories, v2Entries, adjustments, retired, v2Draft, settings, legacyManifest, dictionary, counts, checksums]

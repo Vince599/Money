@@ -52,7 +52,7 @@ public struct SQLiteLedgerSnapshot: Sendable {
 /// Callers must coordinate read-modify-save operations; serialization of writes
 /// alone does not make two independently edited book snapshots merge safely.
 public final class SQLiteLedgerStore: Sendable {
-    public static let schemaVersion = 4
+    public static let schemaVersion = 5
     private static let applicationID = 0x4C444752 // "LDGR"
     private let database: DatabaseQueue
     private let historyStoreID = UUID()
@@ -104,6 +104,7 @@ public final class SQLiteLedgerStore: Sendable {
                 guard tables.isEmpty, identifier == 0 else {
                     throw LedgerStoreError.unrecognizedDatabase
                 }
+                try db.execute(sql: Self.importSchema)
                 try db.execute(sql: Self.initialSchema)
                 try db.execute(sql: Self.labelSchema)
                 let seed = LedgerBook()
@@ -139,6 +140,10 @@ public final class SQLiteLedgerStore: Sendable {
                 }
                 try db.execute(sql: Self.labelSchema)
                 try db.execute(sql: "ALTER TABLE entries ADD COLUMN project_id TEXT REFERENCES projects(id)")
+                try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
+            }
+            if (1...4).contains(version) {
+                try db.execute(sql: Self.importSchema)
                 try db.execute(sql: "PRAGMA user_version = \(Self.schemaVersion)")
             }
             let snapshot = try Self.readSnapshot(in: db)
@@ -380,6 +385,28 @@ public final class SQLiteLedgerStore: Sendable {
                                     draft: try readDraft(in: db), settings: try readSettings(in: db))
     }
 
+    public func saveImport(_ batch: ImportBatch, expectedVersion: Int? = nil) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try ImportEngine.save(batch, in: current.book, expectedVersion: expectedVersion)
+            try Self.writeBook(updated, in: db)
+            return try Self.readSnapshot(in: db)
+        }
+    }
+
+    public func commitImport(_ plan: ImportPlan, now: Date = Date()) throws -> SQLiteLedgerSnapshot {
+        try database.write { db in
+            let current = try Self.readSnapshot(in: db)
+            let updated = try ImportEngine.commit(plan, in: current.book, now: now)
+            if updated != current.book { try Self.writeBook(updated, in: db) }
+            let saved = try Self.readSnapshot(in: db)
+            guard saved.book == updated, saved.draft == current.draft, saved.settings == current.settings else {
+                throw LedgerStoreError.corruptData("import_commit")
+            }
+            return saved
+        }
+    }
+
     public func deleteEntries(_ plan: EntryDeletionPlan) throws -> SQLiteLedgerSnapshot {
         try database.write { db in
             let current = try Self.readSnapshot(in: db)
@@ -443,6 +470,7 @@ public final class SQLiteLedgerStore: Sendable {
         // Children precede parents. LedgerCore.Category self-references are deferred so
         // arbitrary display order, including children before parents, is valid.
         try db.execute(sql: """
+            DELETE FROM import_batches;
             DELETE FROM entry_tags;
             DELETE FROM entries;
             DELETE FROM tags;
@@ -453,6 +481,7 @@ public final class SQLiteLedgerStore: Sendable {
             DELETE FROM subjects;
             DELETE FROM accounts;
             """)
+        try writeRows(book.importBatches, table: "import_batches", in: db) { columns(for: $0) }
         try writeRows(book.tags, table: "tags", in: db) { columns(for: $0) }
         try writeRows(book.projects, table: "projects", in: db) { columns(for: $0) }
         try writeRows(book.accounts, table: "accounts", in: db) { columns(for: $0) }
@@ -523,7 +552,8 @@ public final class SQLiteLedgerStore: Sendable {
             categories: try readRows(LedgerCore.Category.self, table: "categories", in: db) { columns(for: $0) },
             retiredOperationIDs: retiredIDs,
             tags: try readRows(EntryTag.self, table: "tags", in: db) { columns(for: $0) },
-            projects: try readRows(EntryProject.self, table: "projects", in: db) { columns(for: $0) })
+            projects: try readRows(EntryProject.self, table: "projects", in: db) { columns(for: $0) },
+            importBatches: try readRows(ImportBatch.self, table: "import_batches", in: db) { columns(for: $0) })
         // Validate all links in one query; full-book reads must not add one SQL read per entry.
         var storedLinks: [String: [String]] = [:]
         for row in try Row.fetchAll(db, sql: "SELECT entry_id, tag_id, position FROM entry_tags ORDER BY entry_id, position") {
@@ -649,6 +679,12 @@ public final class SQLiteLedgerStore: Sendable {
         }
     }
 
+    private static func columns(for batch: ImportBatch) -> [String: DatabaseValue] {
+        ["id": batch.id.uuidString.databaseValue, "name": batch.name.databaseValue,
+         "namespace": batch.namespace.databaseValue, "version": batch.version.databaseValue,
+         "created_at": batch.createdAt.timeIntervalSinceReferenceDate.databaseValue]
+    }
+
     private static func columns(for tag: EntryTag) -> [String: DatabaseValue] {
         ["id": tag.id.uuidString.databaseValue, "name": tag.name.databaseValue, "is_active": tag.isActive.databaseValue]
     }
@@ -681,6 +717,15 @@ public final class SQLiteLedgerStore: Sendable {
          "target_currency": adjustment.target.currency.rawValue.databaseValue,
          "occurred_at": adjustment.occurredAt.timeIntervalSinceReferenceDate.databaseValue]
     }
+
+    private static let importSchema = """
+        CREATE TABLE import_batches (
+            id TEXT PRIMARY KEY NOT NULL,
+            position INTEGER NOT NULL UNIQUE CHECK (position >= 0),
+            name TEXT NOT NULL, namespace TEXT NOT NULL, version INTEGER NOT NULL CHECK (version > 0),
+            created_at REAL NOT NULL, payload BLOB NOT NULL CHECK (typeof(payload) = 'blob')
+        );
+        """
 
     private static let labelSchema = """
         CREATE TABLE tags (

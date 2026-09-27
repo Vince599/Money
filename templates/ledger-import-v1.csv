@@ -1,0 +1,2 @@
+source_id,occurred_at,type,amount,currency,account,destination_account,category,title,note,status
+example-0001,2026-01-15T12:30:00+08:00,expense,20.10,CNY,银行卡尾号1234,,餐饮/正餐,午餐,合成示例，请替换后导入,success

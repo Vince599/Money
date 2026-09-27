@@ -169,15 +169,16 @@ public struct LedgerBook: Codable, Equatable, Sendable {
     public var categories: [Category]
     public var tags: [EntryTag]
     public var projects: [EntryProject]
+    public var importBatches: [ImportBatch]
     /// Consumed command identifiers only; deleted entry contents are not retained as a recycle bin.
     public var retiredOperationIDs: Set<UUID>
     public init(accounts: [Account] = [], entries: [LedgerEntry] = [], adjustments: [BalanceAdjustment] = [],
                 subjects: [Subject] = SeedData.subjects, categories: [Category] = SeedData.categories,
-                retiredOperationIDs: Set<UUID> = [], tags: [EntryTag] = [], projects: [EntryProject] = []) {
+                retiredOperationIDs: Set<UUID> = [], tags: [EntryTag] = [], projects: [EntryProject] = [], importBatches: [ImportBatch] = []) {
         self.accounts = accounts; self.entries = entries; self.adjustments = adjustments
         self.subjects = subjects; self.categories = categories
         self.retiredOperationIDs = retiredOperationIDs
-        self.tags = tags; self.projects = projects
+        self.tags = tags; self.projects = projects; self.importBatches = importBatches
     }
     public init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -188,6 +189,7 @@ public struct LedgerBook: Codable, Equatable, Sendable {
         self.categories = try values.decode([Category].self, forKey: .categories)
         self.tags = try values.decodeIfPresent([EntryTag].self, forKey: .tags) ?? []
         self.projects = try values.decodeIfPresent([EntryProject].self, forKey: .projects) ?? []
+        self.importBatches = try values.decodeIfPresent([ImportBatch].self, forKey: .importBatches) ?? []
         self.retiredOperationIDs = try values.decode(Set<UUID>.self, forKey: .retiredOperationIDs)
     }
 

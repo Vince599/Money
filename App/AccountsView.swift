@@ -56,6 +56,7 @@ struct AccountsView: View {
 
 struct AddAccountView: View {
     @Bindable var model: LedgerAppModel
+    let stageAccount: ((Account) -> Void)?
     @State private var name = "微信"
     @State private var kind = AccountKind.wallet
     @State private var currency = Currency.cny
@@ -69,7 +70,11 @@ struct AddAccountView: View {
     @State private var nameWasEdited = false
     @State private var includedWasEdited = false
     @Environment(\.dismiss) private var dismiss
-    init(model: LedgerAppModel) { self.model = model; _makeDefault = State(initialValue: model.settings.defaultAccountID == nil) }
+    init(model: LedgerAppModel, stageAccount: ((Account) -> Void)? = nil) {
+        self.model = model; self.stageAccount = stageAccount
+        _makeDefault = State(initialValue: model.settings.defaultAccountID == nil)
+        if stageAccount != nil { _name = State(initialValue: "") }
+    }
     private var nature: AccountNature { [.creditCard, .loan].contains(kind) ? .liability : .asset }
     private var selectedTemplate: AccountTemplate? { templateID.flatMap { AccountTemplateCatalog.template(id: $0) } }
     var body: some View {
@@ -101,10 +106,10 @@ struct AddAccountView: View {
                 } footer: { Text("期初不计收入或消费。以后补录的历史实账仍会正常影响余额。") }
                 Section {
                     Toggle("计入资产负债汇总", isOn: includedInput).accessibilityIdentifier("account.included")
-                    Toggle("设为默认记账账户", isOn: $makeDefault).accessibilityIdentifier("account.makeDefault")
+                    if stageAccount == nil { Toggle("设为默认记账账户", isOn: $makeDefault).accessibilityIdentifier("account.makeDefault") }
                 }
                 if let message { Text(message).foregroundStyle(.red) }
-                Button("保存账户") { save() }.disabled(model.isBusy).accessibilityIdentifier("account.save")
+                Button(stageAccount == nil ? "保存账户" : "保存到本批草稿") { save() }.disabled(model.isBusy).accessibilityIdentifier("account.save")
             }
             .navigationTitle("添加账户").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(model.isBusy) } }
@@ -161,6 +166,10 @@ struct AddAccountView: View {
             account.institutionID = selectedTemplate?.institutionID
             account.templateID = selectedTemplate?.id
             account.iconID = selectedTemplate?.iconID
+            if let stageAccount {
+                try LedgerEngine.validate(LedgerBook(accounts: [account]))
+                stageAccount(account); dismiss(); return
+            }
             Task {
                 if await model.addAccount(account, makeDefault: makeDefault) { dismiss() }
                 else { message = model.errorMessage }

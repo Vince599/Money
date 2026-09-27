@@ -185,3 +185,7 @@ Windows 已下载并核对 [ledger-ios-29 内部产物](https://github.com/Vince
 [运行 #31](https://github.com/Vince599/Money/actions/runs/36297737190)尝试验证菜单修复提交 `eb64361048154da6c7d5e71200f0fa1bf568f1e1`，但 GitHub 在分配 runner 前终止；job `108559600346` 的 `runner_name` 为空、步骤为空。检查注释为：“The job was not started because recent account payments have failed or your spending limit needs to be increased.” 因此本轮没有运行任何构建或测试、没有产物；不能说修复后的完整 Apple 回归已通过，也不能判断具体是付款失败还是额度限制。
 
 后续需账号持有人检查 GitHub Billing & plans 的付款／支出限制，恢复可运行条件后对当前分支完整重跑；本批未调整付费设置或尝试提高额度，不重复启动同样会被拦住的运行。本地开发可继续，Apple 完整回归与截图确认保留为未完成项；未调用 `publish-ipa.ps1`，固定安装目录不变。
+
+## 2026-09-27：免费额度耗尽后的开发安排
+
+用户提供 GitHub Billing 截图确认 Actions 已用 2,000／2,000 免费分钟，Billable usage 为 $0；截图提示额度 4 天后重置。用户已同意先继续本地开发，恢复额度后集中执行 Apple 完整验证。未修改账户付费配置、仓库可见性或工作流，也未再次派发构建。标签／项目与通用导入批次的 Store、App 和页面验证仍为待执行，不沿用旧构建通过结论。

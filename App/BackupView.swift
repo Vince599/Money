@@ -36,7 +36,7 @@ struct BackupView: View {
                 }.accessibilityIdentifier("backup.export")
                 Button("选择备份恢复") { preview = nil; importFile = true }.accessibilityIdentifier("backup.import")
             } footer: {
-                Text("备份为 ZIP 内的一组 CSV，包含本版本全部账户、流水、余额更正、分类、主体、标签、项目、设置和草稿。恢复会整体替换当前账本。")
+                Text("备份为 ZIP 内的一组 CSV，包含本版本全部账户、流水、余额更正、分类、主体、标签、项目、导入批次、设置和草稿。恢复会整体替换当前账本。")
             }
             if let preview {
                 Section("恢复预览") {
@@ -46,6 +46,7 @@ struct BackupView: View {
                     LabeledContent("余额更正", value: String(preview.adjustmentCount))
                     LabeledContent("分类 / 主体", value: "\(preview.categoryCount) / \(preview.subjectCount)")
                     LabeledContent("标签 / 项目", value: "\(preview.tagCount) / \(preview.projectCount)")
+                    LabeledContent("导入批次", value: String(preview.importBatchCount))
                     LabeledContent("未完成草稿", value: preview.hasDraft ? "包含" : "无")
                     Text("文件与关联已检查。确认后先保存当前账本的安全备份，再恢复所选内容。").foregroundStyle(.secondary)
                     Button("恢复此备份", role: .destructive) { confirmRestore = true }

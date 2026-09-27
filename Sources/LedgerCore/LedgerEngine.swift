@@ -179,6 +179,7 @@ public enum LedgerEngine {
     }
 
     private static func validatedBalances(in book: LedgerBook) throws -> [UUID: Money] {
+        try ImportEngine.validate(book)
         try unique(book.tags.map(\.id))
         try unique(book.projects.map(\.id))
         guard book.tags.allSatisfy({ !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {

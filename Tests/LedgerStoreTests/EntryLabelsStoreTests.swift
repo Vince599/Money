@@ -116,7 +116,7 @@ struct EntryLabelsStoreTests {
             let legacyBook = LedgerBook(accounts: book.accounts, entries: [posted])
             try store.commit(legacyBook, draft: EntryDraft(amountText: "12+"))
             try inspection.write { db in
-                try db.execute(sql: "DROP INDEX entries_project; DROP TABLE entry_tags; ALTER TABLE entries DROP COLUMN project_id; DROP TABLE tags; DROP TABLE projects; PRAGMA user_version = 3")
+                try db.execute(sql: "DROP TABLE import_batches; DROP INDEX entries_project; DROP TABLE entry_tags; ALTER TABLE entries DROP COLUMN project_id; DROP TABLE tags; DROP TABLE projects; PRAGMA user_version = 3")
                 for table in ["entries", "entry_draft"] {
                     let payload = try #require(Data.fetchOne(db, sql: "SELECT payload FROM \(table)"))
                     var object = try #require(JSONSerialization.jsonObject(with: payload) as? [String: Any])
@@ -137,7 +137,7 @@ struct EntryLabelsStoreTests {
             let migrated = try SQLiteLedgerStore(path: path).loadSnapshot()
             #expect(migrated.book == legacyBook && migrated.draft?.tagIDs == [])
             try inspection.read { (db: Database) throws -> Void in
-                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == 4)
+                #expect(try Int.fetchOne(db, sql: "PRAGMA user_version") == SQLiteLedgerStore.schemaVersion)
                 #expect(try Data.fetchOne(db, sql: "SELECT payload FROM entries") == payloads.0)
                 #expect(try Data.fetchOne(db, sql: "SELECT payload FROM entry_draft") == payloads.1)
                 #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)

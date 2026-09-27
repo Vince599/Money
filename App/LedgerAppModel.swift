@@ -239,6 +239,29 @@ final class LedgerAppModel {
     func setDefaultSubject(_ id: UUID) async -> Bool {
         await mutate { repo in try await repo.setDefaultSubject(id) }
     }
+    func importCSV(from url: URL, namespace: String) async -> Bool {
+        await mutate { repo in try await repo.importCSV(from: url, namespace: namespace) }
+    }
+    func saveImport(_ batch: ImportBatch, expectedVersion: Int? = nil) async -> Bool {
+        await mutate { repo in try await repo.saveImport(batch, expectedVersion: expectedVersion) }
+    }
+    func importReviews(batchID: UUID, rowIDs: Set<UUID>) async throws -> [UUID: ImportRowReview] {
+        guard let repository else { throw ImportError.invalidState }
+        return try await repository.importReviews(batchID: batchID, rowIDs: rowIDs)
+    }
+    func prepareImport(batchID: UUID, importIDs: Set<UUID>, skipIDs: Set<UUID>) async throws -> ImportCommitPreview {
+        guard let repository, !isBusy else { throw ImportError.invalidState }
+        isBusy = true
+        defer { isBusy = false }
+        return try await repository.prepareImport(batchID: batchID, importIDs: importIDs, skipIDs: skipIDs)
+    }
+    func reviewImportRow(_ row: ImportRow, batch: ImportBatch) async throws -> ImportRowInspection {
+        guard let repository else { throw ImportError.invalidState }
+        return try await repository.reviewImportRow(row, batch: batch)
+    }
+    func commitImport(_ plan: ImportPlan) async -> Bool {
+        await mutate { repo in try await repo.commitImport(plan) }
+    }
     func exportBackup() async throws -> Data {
         guard let repository, !isBusy else { throw LedgerError.unsupportedOperation }
         isBusy = true
@@ -276,6 +299,15 @@ final class LedgerAppModel {
     func accountName(_ id: UUID?) -> String { book.accounts.first(where: { $0.id == id })?.name ?? "未选择账户" }
     func subjectName(_ id: UUID) -> String { book.subjects.first(where: { $0.id == id })?.name ?? "未找到主体" }
     func message(for error: any Error) -> String {
+        if let error = error as? ImportError {
+            switch error {
+            case .invalidFile(let reason): return reason
+            case .invalidState: return "导入状态不一致，未改变正式流水，请重新打开。"
+            case .stalePreview: return "账本或导入草稿已变化，请重新打开并预览。"
+            case .unavailableRow: return "所选行仍有问题、出现新的疑似重复或已处理，请先逐笔核对。"
+            case .tooManySelected: return "每次最多确认 200 行，其余内容会保留在草稿。"
+            }
+        }
         if let error = error as? AmountExpressionError {
             switch error {
             case .invalidSyntax: return "算式尚未完整，请检查数字、运算符和括号。"
