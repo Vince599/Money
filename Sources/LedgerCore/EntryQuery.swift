@@ -1,12 +1,15 @@
 import Foundation
 
 public enum TagMatchMode: String, CaseIterable, Sendable { case all, any }
+public enum EntryImportSourceMode: String, CaseIterable, Sendable { case all, linked, unlinked }
 
 /// Transient list conditions. All populated conditions are combined with AND.
 public struct EntryFilter: Equatable, Sendable {
     public var tagIDs: Set<UUID>
     public var tagMatch: TagMatchMode
     public var projectID: UUID?
+    public var importSourceMode: EntryImportSourceMode
+    public var importNamespace: String?
     public var keyword: String
     public var kind: EntryKind?
     public var accountID: UUID?
@@ -24,8 +27,10 @@ public struct EntryFilter: Equatable, Sendable {
                 categoryID: UUID? = nil, subjectID: UUID? = nil, currency: Currency? = nil,
                 minimumMinor: Int64? = nil, maximumMinor: Int64? = nil,
                 from: Date? = nil, to: Date? = nil, tagIDs: Set<UUID> = [],
-                tagMatch: TagMatchMode = .all, projectID: UUID? = nil) {
+                tagMatch: TagMatchMode = .all, projectID: UUID? = nil,
+                importSourceMode: EntryImportSourceMode = .all, importNamespace: String? = nil) {
         self.tagIDs = tagIDs; self.tagMatch = tagMatch; self.projectID = projectID
+        self.importSourceMode = importSourceMode; self.importNamespace = importNamespace
         self.keyword = keyword; self.kind = kind; self.accountID = accountID
         self.categoryID = categoryID; self.subjectID = subjectID; self.currency = currency
         self.minimumMinor = minimumMinor; self.maximumMinor = maximumMinor
@@ -37,6 +42,7 @@ public struct EntryFilter: Equatable, Sendable {
         // not. Request identity must distinguish those different query bytes.
         lhs.keyword.utf8.elementsEqual(rhs.keyword.utf8)
             && lhs.tagIDs == rhs.tagIDs && lhs.tagMatch == rhs.tagMatch && lhs.projectID == rhs.projectID
+            && lhs.importSourceMode == rhs.importSourceMode && lhs.importNamespace == rhs.importNamespace
             && lhs.kind == rhs.kind && lhs.accountID == rhs.accountID
             && lhs.categoryID == rhs.categoryID && lhs.subjectID == rhs.subjectID
             && lhs.currency == rhs.currency && lhs.minimumMinor == rhs.minimumMinor
@@ -50,6 +56,18 @@ public enum EntryQueryError: Error, Equatable, Sendable {
 
 /// Queries existing entries without changing their accounting effects or persisted state.
 public enum EntryQuery {
+    /// Only live provenance links participate; undo/unlink history never becomes a live source.
+    /// Return IDs rather than rows so multiple sources cannot multiply amounts or page counts.
+    public static func importSourceEntryIDs(in batches: [ImportBatch], namespace: String? = nil) -> Set<UUID> {
+        var result: Set<UUID> = []
+        for batch in batches where batch.revertedAt == nil && (namespace == nil || batch.namespace == namespace) {
+            for row in batch.rows {
+                if row.state == .imported { result.insert(row.id) }
+                else if row.state == .merged, let id = row.mergedEntryID { result.insert(id) }
+            }
+        }
+        return result
+    }
     /// Shared by the in-memory reference query and SQLite's search function.
     /// Percent signs, underscores and quotes are ordinary text, never SQL patterns.
     public static func containsKeyword(_ keyword: String, title: String, note: String) -> Bool {
@@ -87,6 +105,9 @@ public enum EntryQuery {
     /// Transfer account matching includes either end, while returning the entry only once.
     public static func entries(in book: LedgerBook, matching filter: EntryFilter = EntryFilter()) throws -> [LedgerEntry] {
         try validate(filter)
+        if filter.importSourceMode == .unlinked && filter.importNamespace != nil { return [] }
+        let restrictSources = filter.importSourceMode != .all || filter.importNamespace != nil
+        let sourceIDs = restrictSources ? importSourceEntryIDs(in: book.importBatches, namespace: filter.importNamespace) : []
         let keyword = filter.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         let categoryIDs: Set<UUID>?
         if let categoryID = filter.categoryID {
@@ -100,6 +121,8 @@ public enum EntryQuery {
             categoryIDs = nil
         }
         return book.entries.filter { entry in
+            if restrictSources,
+               filter.importSourceMode == .unlinked ? sourceIDs.contains(entry.id) : !sourceIDs.contains(entry.id) { return false }
             if let id = filter.projectID, entry.projectID != id { return false }
             if !filter.tagIDs.isEmpty {
                 let tags = Set(entry.tagIDs)

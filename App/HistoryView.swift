@@ -142,6 +142,26 @@ struct HistoryFilterView: View {
                     }
                 } footer: { Text("条件同时满足才会显示；转账可通过转出或转入账户找到，一级分类包含其二级分类。") }
                 Section {
+                    Picker("来源关联", selection: $value.importSourceMode) {
+                        Text("全部流水").tag(EntryImportSourceMode.all)
+                        Text("有导入来源").tag(EntryImportSourceMode.linked)
+                        Text("无导入来源").tag(EntryImportSourceMode.unlinked)
+                    }.accessibilityIdentifier("filter.importSource")
+                    if value.importSourceMode != .unlinked {
+                        Picker("来源身份", selection: $value.importNamespace) {
+                            Text("全部来源身份").tag(String?.none)
+                            ForEach(Array(Set(book.importBatches.map(\.namespace))).sorted(), id: \.self) {
+                                Text($0).tag(Optional($0))
+                            }
+                        }.accessibilityIdentifier("filter.importNamespace")
+                    }
+                } header: { Text("导入来源") } footer: {
+                    Text("只匹配仍关联此流水的原始导入或合并来源；已解除、已撤销不计入。一笔关联多个来源仍只显示一次，无导入来源不等于仅手动记账。")
+                }
+                .onChange(of: value.importSourceMode) { _, mode in
+                    if mode == .unlinked { value.importNamespace = nil }
+                }
+                Section {
                     Picker("项目", selection: $value.projectID) {
                         Text("全部项目").tag(Optional<UUID>.none)
                         ForEach(book.projects) { project in

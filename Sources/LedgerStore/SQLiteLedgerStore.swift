@@ -208,6 +208,22 @@ public final class SQLiteLedgerStore: Sendable {
             func add(_ sql: String, _ values: [DatabaseValue]) {
                 clauses.append(sql); arguments.append(contentsOf: values)
             }
+            if filter.importSourceMode == .unlinked && filter.importNamespace != nil {
+                add("0", [])
+            } else if filter.importSourceMode != .all || filter.importNamespace != nil {
+                // Decode provenance once in this same read transaction, never all entry payloads.
+                let batches = try Self.readRows(ImportBatch.self, table: "import_batches", in: db) { Self.columns(for: $0) }
+                let ids = EntryQuery.importSourceEntryIDs(in: batches, namespace: filter.importNamespace)
+                    .map(\.uuidString).sorted()
+                if ids.isEmpty {
+                    if filter.importSourceMode != .unlinked { add("0", []) }
+                } else {
+                    // One JSON parameter avoids SQLite's variable limit for large source sets.
+                    let json = String(decoding: try JSONEncoder().encode(ids), as: UTF8.self)
+                    let operation = filter.importSourceMode == .unlinked ? "NOT IN" : "IN"
+                    add("id \(operation) (SELECT value FROM json_each(?))", [json.databaseValue])
+                }
+            }
             if let kind = filter.kind { add("kind = ?", [kind.rawValue.databaseValue]) }
             if let id = filter.accountID {
                 add("(account_id = ? OR (kind = 'transfer' AND destination_account_id = ?))",
