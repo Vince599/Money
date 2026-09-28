@@ -2,6 +2,14 @@ name: iOS validation and unsigned IPA
 
 on:
   workflow_dispatch:
+    inputs:
+      validation_scope:
+        description: Full validation, or calculator/search UI regression plus Release compile (no IPA)
+        type: choice
+        default: full
+        options:
+          - full
+          - calculator
 
 permissions:
   contents: read
@@ -22,6 +30,8 @@ jobs:
 
       - name: Test and build with the pinned toolchain
         shell: bash
+        env:
+          LEDGER_VALIDATION_SCOPE: ${{ inputs.validation_scope || 'full' }}
         run: bash scripts/build-ios.sh
 
       - name: Save build evidence and unsigned IPA

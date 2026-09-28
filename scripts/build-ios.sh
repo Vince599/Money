@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+VALIDATION_SCOPE="${LEDGER_VALIDATION_SCOPE:-full}"
+case "$VALIDATION_SCOPE" in
+  full|calculator) ;;
+  *) printf 'Unsupported validation scope: %s\n' "$VALIDATION_SCOPE" >&2; exit 1 ;;
+esac
+
 if [[ "$(uname -s)" != "Darwin" ]]; then
   printf '%s\n' 'This script requires macOS and the pinned Xcode. On Windows use scripts/test-core.ps1.' >&2
   exit 1
@@ -26,6 +32,7 @@ ARTIFACTS="$RUN_DIR/artifacts"
 LOGS="$RUN_DIR/logs"
 mkdir -p "$ARTIFACTS" "$LOGS"
 cp "$ROOT/config/toolchain.json" "$ARTIFACTS/toolchain-config.json"
+printf 'scope=%s\nsource=%s\nrun=%s\n' "$VALIDATION_SCOPE" "${GITHUB_SHA:-local-unversioned}" "${GITHUB_RUN_ID:-local}" > "$ARTIFACTS/validation-scope.txt"
 
 if [[ ! -d "$DEVELOPER_DIR" ]]; then
   printf 'Required Xcode is unavailable: %s\n' "$DEVELOPER_DIR" | tee "$LOGS/toolchain-error.log" >&2
@@ -91,7 +98,11 @@ grdb = [pin for pin in lock["pins"] if pin["identity"].lower() == "grdb.swift"]
 if len(grdb) != 1 or grdb[0]["state"].get("version") != sys.argv[2]:
     raise SystemExit("Resolved GRDB does not match config/toolchain.json.")
 PY
-xcrun swift test --configuration debug --disable-automatic-resolution 2>&1 | tee "$LOGS/package-tests.log"
+if [[ "$VALIDATION_SCOPE" == "full" ]]; then
+  xcrun swift test --configuration debug --disable-automatic-resolution 2>&1 | tee "$LOGS/package-tests.log"
+else
+  printf '%s\n' 'Focused validation: package tests are not run.' | tee "$LOGS/package-tests.log"
+fi
 "$XCODEGEN" generate --spec "$ROOT/project.yml" 2>&1 | tee "$LOGS/project-generation.log"
 
 XCODE_LOCK_DIR="$ROOT/Ledger.xcodeproj/project.xcworkspace/xcshareddata/swiftpm"
@@ -116,13 +127,18 @@ PY
 printf 'runtime=%s\nudid=%s\n' "$SIMULATOR_RUNTIME" "$SIMULATOR_ID" > "$LOGS/selected-simulator.log"
 
 TEST_STATUS=0
+SIMULATOR_TEST_ARGS=(-parallel-testing-enabled NO)
+if [[ "$VALIDATION_SCOPE" == "calculator" ]]; then
+  SIMULATOR_TEST_ARGS+=('-only-testing:LedgerUITests/LedgerUITests/testCalculatorCopyAndSearchFilters')
+fi
 xcodebuild test \
   -project Ledger.xcodeproj -scheme Ledger -configuration Debug \
   -sdk iphonesimulator -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-  -destination-timeout 180 -parallel-testing-enabled NO \
+  -destination-timeout 180 \
   -derivedDataPath "$RUN_DIR/DerivedData" \
   -resultBundlePath "$ARTIFACTS/AppTests.xcresult" \
   -onlyUsePackageVersionsFromResolvedFile \
+  "${SIMULATOR_TEST_ARGS[@]}" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
   2>&1 | tee "$LOGS/simulator-tests.log" || TEST_STATUS=$?
@@ -175,6 +191,31 @@ fi
 if [[ -e "$APP/embedded.mobileprovision" ]]; then
   printf '%s\n' 'Unexpected provisioning profile in unsigned product.' >&2
   exit 1
+fi
+
+if [[ "$VALIDATION_SCOPE" != "full" ]]; then
+  # A focused regression must never produce an IPA or full-validation metadata.
+  python3 - "$ARTIFACTS/focused-validation.json" "$VALIDATION_SCOPE" "$ARCHITECTURES" <<'PY'
+import json
+import os
+import sys
+
+metadata = {
+    "sourceCommit": os.environ.get("GITHUB_SHA", "local-unversioned"),
+    "githubRunID": os.environ.get("GITHUB_RUN_ID"),
+    "scope": sys.argv[2],
+    "architectures": sys.argv[3],
+    "status": "focused UI regression and Release build passed",
+    "packageTests": "not run",
+    "deviceInstallation": "not verified",
+    "ipaProduced": False,
+}
+with open(sys.argv[1], "w", encoding="utf-8") as output:
+    json.dump(metadata, output, indent=2)
+    output.write("\n")
+PY
+  printf 'Focused validation evidence (no IPA): %s\n' "$ARTIFACTS"
+  exit 0
 fi
 
 mkdir -p "$RUN_DIR/package/Payload"

@@ -411,7 +411,7 @@ final class LedgerUITests: XCTestCase {
         if app.keyboards.buttons["搜索"].exists { app.keyboards.buttons["搜索"].tap() }
         leaveHistorySearch()
         tap(element("history.filter"))
-        tap(element("filter.currency"))
+        tap(element("filter.currency"), scrolling: foregroundList)
         tap(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ OR label == %@",
             "filter.currency.option.CNY", "CNY")).firstMatch)
         assertText(element("filter.currency"), contains: "CNY")
