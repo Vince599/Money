@@ -220,3 +220,19 @@ Windows 已下载并核对 [ledger-ios-29 内部产物](https://github.com/Vince
 已下载并核验 [ledger-ios-40 产物](https://github.com/Vince599/Money/actions/runs/36333214080/artifacts/10936324202)：ZIP 为 **241,188,884 字节**，SHA-256 `d3b1bbd6b3c86848ce43e98ec4dc538b00e4b1c57ab1fd0c23c922c81ab3fafe` 与 GitHub 摘要一致。构建提交及运行编号匹配，模拟器摘要为 **69 通过、0 失败、0 跳过**。ZIP 内 IPA 为 7,448,389 字节，SHA-256 `aaae8efc7758b7ba016018a5ffa2e1cafc6449e253fa92c4673daede2c27f7da` 与随包校验文件一致；确认 iPhoneOS／arm64、Bundle ID、资源目录及无签名配置，Release 主程序未包含新增合成导入入口与样本标记。核对记录为 `build/validation/run-40-internal/review/review.json`；未提取或发布 IPA，固定安装目录不变。
 
 本轮逐张查看新增四张 1320×2868 导入截图：预览显示只新增一笔、100.00→79.90；重启后批次显示已导入 1／待处理 1；撤销预览显示仅一笔和 79.90→100.00；再次重启后保留已撤销午餐及原待处理出租车，提交入口移除。关键金额和状态文字可读，未见重叠截断。批次页顶部操作区占据较多首屏空间，操作层级精简保留为体验优化项；其余十二张旧路径截图本轮不重复列为视觉验收，深色／大字号／VoiceOver／真机边界仍保留。
+
+## 2026-09-28：正式流水来源筛选
+
+提交 `51a3cc63c56899b04f5c0351f1fa1ce3b4c58740` 接入有／无导入来源及具体身份的组合筛选，Core 与 SQLite 共用有效来源 ID 集合，去重后参与同一事务的计数和分页，解除／撤销会使旧游标失效。扩展现有导入 UI 路径验证来源条件和清除筛选；业务和备份仍为版本 10。本地 **244 项 Core／25 套件通过**（`build/validation/entry-source-core-tests.txt`），55 个 Apple 侧 Swift 文件语法解析通过。
+
+运行 [#41](https://github.com/Vince599/Money/actions/runs/36367922094)通过 **315 项包测试／33 套件（244 Core＋71 Store）、62 项 AppTests、6／7 项 UITests**。新增三项来源分页测试及导入来源筛选页面路径均通过。唯一失败为既有 `testCalculatorCopyAndSearchFilters`：新增表单内容后，币种行尚未滚动进可访问树，旧测试先等待它存在，触发超时；未进入 Release 构建，没有生成 IPA。日志为 `build/validation/run-41-job.log`，不能记为整轮成功。
+
+提交 `216fb03b585365dcf53a708b544372aaa6d91fe6` 将该测试改为先滚动当前表单再点击币种，未修改产品源码或降低断言。运行 [#42](https://github.com/Vince599/Money/actions/runs/36370980219)已成功：仅执行该项 UI 测试，1 通过、0 失败，原有金额、复制、关键词、币种、金额范围及余额断言保留；随后 arm64 Release 编译与产物平台／架构检查通过。日志为 `build/validation/run-42-job.log`。两次提交的 `App`／`Sources` 无差异，因此当前 384 项用例已有跨两轮的通过证据；#41 仍是失败运行，#42 并非完整回归，没有生成 IPA。
+
+已下载并核验 [ledger-ios-41 测试产物](https://github.com/Vince599/Money/actions/runs/36367922094/artifacts/10949161787)：313,431,581 字节，SHA-256 `00403cb5bb54b4c042e5fa5493b91e3b9a62f2d80be305130436c2cd83b0ad37` 与 GitHub 一致，源码和运行编号匹配。模拟器摘要明确为 68 通过、1 失败、0 跳过（不含 macOS 包测试），没有 IPA 或成功构建元数据。已查看新增 `17-history-import-source-filter` 截图：筛选后共一笔，午餐与 -20.10 CNY 可读，未见遮挡或重复行；本图不覆盖筛选表单自身、深色、大字号或真机。证据为忽略目录 `build/validation/run-41-internal/review/review.json`。
+
+已下载并核验 [ledger-ios-42 定向验证产物](https://github.com/Vince599/Money/actions/runs/36370980219/artifacts/10949611850)：99,959,778 字节，SHA-256 `60bf3a4bcae8ba0174d50dd2d0b963213540350d23556016920fde3910333e49` 与 GitHub 一致。源码、运行编号和 `calculator` 范围匹配；测试摘要为 1 通过、0 失败、0 跳过，`focused-validation.json` 确认 arm64 Release 编译通过、包测试未运行及 `ipaProduced: false`，归档中确实没有 IPA 或完整成功构建元数据。记录为 `build/validation/run-42-internal/review/review.json`；未把原有计算器／搜索截图重复计为新视觉验收。未执行发布脚本，固定安装目录不变。
+
+### 完整验证与定向补测
+
+手动工作流 `validation_scope` 默认 `full`，继续执行全部包测试、App／UI 测试、Release 编译和内部未签名 IPA 打包。`calculator` 仅运行 `LedgerUITests/testCalculatorCopyAndSearchFilters` 及 arm64 Release 编译，用于相关测试驱动修正后的补测；不执行包测试，不生成 IPA 或 `build-metadata.json`，只记录 `focused-validation.json`、测试结果和截图。macOS 本地等价入口为 `LEDGER_VALIDATION_SCOPE=calculator bash scripts/build-ios.sh`；未知范围直接拒绝。所有运行记录 `validation-scope.txt`，定向成功不能替代完整构建或作为安装包交付依据。
