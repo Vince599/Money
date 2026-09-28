@@ -6,6 +6,7 @@ import LedgerStore
 struct HistoryDayGroup: Sendable {
     let day: Date
     var entries: [LedgerEntry]
+    var summary: EntryDaySummary?
 }
 
 struct HistoryPage: Sendable {
@@ -20,7 +21,8 @@ struct HistoryPage: Sendable {
         for entry in page.entries {
             let day = calendar.startOfDay(for: entry.occurredAt)
             if groups.last?.day == day { groups[groups.count - 1].entries.append(entry) }
-            else { groups.append(HistoryDayGroup(day: day, entries: [entry])) }
+            else { groups.append(HistoryDayGroup(day: day, entries: [entry],
+                summary: page.daySummaries.first { $0.day == day })) }
         }
         return HistoryPage(groups: groups, totalCount: page.totalCount, nextCursor: page.nextCursor)
     }
@@ -98,6 +100,8 @@ final class HistoryPageModel {
             var remainder = page.groups
             if let last = groups.last, let first = remainder.first, last.day == first.day {
                 groups[groups.count - 1].entries.append(contentsOf: first.entries)
+                // Both pages carry the same complete-day value; never sum page summaries.
+                groups[groups.count - 1].summary = first.summary
                 remainder.removeFirst()
             }
             groups.append(contentsOf: remainder)

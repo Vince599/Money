@@ -10,6 +10,9 @@ struct HistoryView: View {
     private var activeFilter: EntryFilter {
         var value = filter; value.keyword = keyword; return value
     }
+    private var hasConditions: Bool {
+        filter != EntryFilter() || !keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     @State private var history = HistoryPageModel()
     private var request: HistoryRequest {
         HistoryRequest(filter: activeFilter, revision: model.historyRevision, isLoaded: model.isLoaded)
@@ -33,6 +36,16 @@ struct HistoryView: View {
                     Section {
                         Text(history.isLoading ? "正在更新流水…" : "共 \(history.totalCount) 笔")
                             .font(.subheadline).foregroundStyle(.secondary)
+                        if hasConditions {
+                            HStack {
+                                Text("已应用搜索或筛选").foregroundStyle(.secondary)
+                                Spacer()
+                                Button("清除") { keyword = ""; filter = EntryFilter() }
+                                    .accessibilityIdentifier("history.clear")
+                            }.font(.subheadline)
+                        }
+                    } footer: {
+                        Text("日汇总按当前条件计算，含当天尚未加载的流水；分币种显示，转账不计收支，退款／回收单列。")
                     }
                     ForEach(history.groups, id: \.day) { group in
                         Section {
@@ -41,7 +54,7 @@ struct HistoryView: View {
                                     .buttonStyle(.plain)
                                     .accessibilityIdentifier("entry.row." + entry.id.uuidString.lowercased())
                             }
-                        } header: { Text(BookDate.day(group.day)) }
+                        } header: { HistoryDayHeader(group: group) }
                     }
                 }
             }
@@ -88,6 +101,31 @@ struct HistoryView: View {
             if presented { model.shortcutBlockingSheets.insert("history.filters") }
         }
     }
+}
+
+private struct HistoryDayHeader: View {
+    let group: HistoryDayGroup
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(BookDate.day(group.day))
+            if let summary = group.summary {
+                ForEach(summary.currencies, id: \.currency) { totals in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(totals.currency.rawValue) · 支出 \(display(totals.expenses)) · 收入 \(display(totals.income))")
+                        if totals.recoveries?.minorUnits != 0 {
+                            Text("退款／回收 \(display(totals.recoveries)) \(totals.currency.rawValue)")
+                        }
+                        if totals.transferCount > 0 { Text("转账 \(totals.transferCount) 笔（不计收支）") }
+                    }
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("history.daily." + totals.currency.rawValue)
+                }
+            }
+        }.textCase(nil)
+    }
+    private func display(_ money: Money?) -> String { money?.decimalString ?? "超出显示范围" }
 }
 
 struct HistoryFilterView: View {

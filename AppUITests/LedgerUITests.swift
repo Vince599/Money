@@ -287,6 +287,12 @@ final class LedgerUITests: XCTestCase {
         assertText(element(originalID), contains: "−1000.00 CNY")
         assertText(element(originalID), contains: "已回收")
         screenshot("07-recovery-history-original-amount")
+        // The run may cross Shanghai midnight, so locate each amount's day independently.
+        for expected in ["支出 1000.00", "退款／回收 200.00"] {
+            let daily = app.descendants(matching: .any).matching(NSPredicate(
+                format: "identifier == %@ AND label CONTAINS %@", "history.daily.CNY", expected)).firstMatch
+            assertText(daily, contains: expected)
+        }
         tap(element("history.filter"))
         tap(element("filter.recoveryLink"), scrolling: foregroundList)
         tap(app.buttons["有关联"])

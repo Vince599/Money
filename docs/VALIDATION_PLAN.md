@@ -57,3 +57,7 @@ LEDGER_VALIDATION_SCOPE=full LEDGER_PACKAGE_IPA=true bash scripts/build-ios.sh
 构建范围及摘要门禁有 8 项可移植检查：`python -m unittest discover -s scripts/tests -p test_validation.py -v`；检查默认范围、全部页面目标、旧别名、完整范围不被缩减、部分验证禁止打包及零测试／失败／跳过拒绝成功。Bash 语法检查通过。这些检查不等于新工作流已经在 Apple 上执行。
 
 同期新增退款／回收关联筛选，本地 Core **249 项／26 套件通过**，56 个 Apple 侧 Swift 文件语法解析通过。新增 2 项 Store 测试和扩展退款 UI 路径尚待 Apple 验证；下一次业务批次可先跑 `business`，页面专项选 `refunds`，晚间完整回归统一覆盖其余受影响的长表单路径。业务 schema 10／CSV profile 10 不变。最新已执行 Apple 证据仍是旧代码的 #41／#42，不能套用于本批。
+
+### 后续累计：流水日汇总
+
+新增完整日期汇总、跨页日值复用和有结果时的筛选清除入口，Core **255 项／27 套件通过**，57 个 Apple 文件语法解析通过。新增 3 Store 用例、既有 App 分页断言与退款 UI 日金额断言尚待 Apple；结合上一批仍待执行的 2 Store 用例，共新增 5 项 Store 待验证。下一次 business 覆盖数据与 App 层，refunds 专项核对新显示及关联筛选，full 再覆盖所有长列表路径；不逐小改动触发构建。详细口径见[流水日汇总](HISTORY_TOTALS.md)。

@@ -19,10 +19,12 @@ public struct EntryPageCursor: Equatable, Sendable {
     fileprivate let createdAt: Date
     fileprivate let id: UUID
     fileprivate let totalCount: Int
+    fileprivate let trailingDaySummary: EntryDaySummary?
 }
 
 public struct EntryPage: Sendable {
     public let entries: [LedgerEntry]
+    public let daySummaries: [EntryDaySummary]
     public let totalCount: Int
     public let nextCursor: EntryPageCursor?
 }
@@ -264,6 +266,7 @@ public final class SQLiteLedgerStore: Sendable {
             let keyword = filter.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
             if !keyword.isEmpty { add("ledger_history_contains(payload, ?)", [Data(keyword.utf8).databaseValue]) }
             let condition = clauses.isEmpty ? "1" : clauses.joined(separator: " AND ")
+            let filterArguments = arguments
             let total: Int
             if let cursor { total = cursor.totalCount }
             else { total = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM entries WHERE \(condition)",
@@ -291,12 +294,49 @@ public final class SQLiteLedgerStore: Sendable {
                 return entry
             }
             let next: EntryPageCursor?
+            var daySummaries: [EntryDaySummary] = []
+            if let first = entries.first, let last = entries.last {
+                let firstDay = EntryDaySummary.day(containing: first.occurredAt)
+                let lastDay = EntryDaySummary.day(containing: last.occurredAt)
+                guard let dayEnd = EntryDaySummary.calendar.date(byAdding: .day, value: 1, to: firstDay) else {
+                    throw LedgerStoreError.corruptData("entry_summary_date")
+                }
+                let cached = cursor?.trailingDaySummary
+                let reusesDay = cached?.day == firstDay
+                if reusesDay, let cached { daySummaries.append(cached) }
+                let end = reusesDay ? firstDay : dayEnd
+                if lastDay < end {
+                    // Same filter and transaction as the page, without LIMIT/keyset restriction.
+                    // A day crossing pages reuses its complete summary from the validated cursor.
+                    let summaryRows = try Row.fetchCursor(db, sql: """
+                        SELECT kind, currency, amount_minor, occurred_at FROM entries
+                        WHERE \(condition) AND occurred_at >= ? AND occurred_at < ?
+                        """, arguments: StatementArguments(filterArguments + [
+                            lastDay.timeIntervalSinceReferenceDate.databaseValue,
+                            end.timeIntervalSinceReferenceDate.databaseValue]))
+                    var accumulator = EntryDailyAccumulator()
+                    while let row = try summaryRows.next() {
+                        let kindValue: String = try row.decode(forColumn: "kind")
+                        let currencyValue: String = try row.decode(forColumn: "currency")
+                        let amount: Int64 = try row.decode(forColumn: "amount_minor")
+                        let occurred: Double = try row.decode(forColumn: "occurred_at")
+                        guard let kind = EntryKind(rawValue: kindValue), let currency = Currency(rawValue: currencyValue) else {
+                            throw LedgerStoreError.corruptData("entry_summary")
+                        }
+                        do {
+                            try accumulator.add(kind: kind, amount: Money(minorUnits: amount, currency: currency),
+                                occurredAt: Date(timeIntervalSinceReferenceDate: occurred))
+                        } catch { throw LedgerStoreError.corruptData("entry_summary") }
+                    }
+                    daySummaries += accumulator.summaries
+                }
+            }
             if rows.count > limit, let last = entries.last {
                 next = EntryPageCursor(storeID: historyStoreID, dataVersion: dataVersion, changes: changes,
                                        filter: filter, occurredAt: last.occurredAt, createdAt: last.createdAt,
-                                       id: last.id, totalCount: total)
+                                       id: last.id, totalCount: total, trailingDaySummary: daySummaries.last)
             } else { next = nil }
-            return EntryPage(entries: entries, totalCount: total, nextCursor: next)
+            return EntryPage(entries: entries, daySummaries: daySummaries, totalCount: total, nextCursor: next)
         }
     }
 
