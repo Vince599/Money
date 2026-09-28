@@ -1,15 +1,34 @@
-name: iOS validation and unsigned IPA
+name: iOS batch validation
 
 on:
   workflow_dispatch:
     inputs:
       validation_scope:
-        description: Full validation, or calculator/search UI regression plus Release compile (no IPA)
+        description: Choose compilation, business tests, UI regression, or full validation
         type: choice
-        default: full
+        default: business
         options:
+          - business
+          - compile
+          - ui
           - full
+      ui_suite:
+        description: UI path (only used for the ui scope)
+        type: choice
+        default: all
+        options:
+          - all
           - calculator
+          - imports
+          - refunds
+          - categories
+          - tags
+          - accounts
+          - entries
+      package_ipa:
+        description: Produce an unsigned IPA (requires full validation)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,17 +50,35 @@ jobs:
       - name: Test and build with the pinned toolchain
         shell: bash
         env:
-          LEDGER_VALIDATION_SCOPE: ${{ inputs.validation_scope || 'full' }}
+          LEDGER_VALIDATION_SCOPE: ${{ inputs.validation_scope || 'business' }}
+          LEDGER_UI_SUITE: ${{ inputs.ui_suite || 'all' }}
+          LEDGER_PACKAGE_IPA: ${{ inputs.package_ipa && 'true' || 'false' }}
         run: bash scripts/build-ios.sh
 
-      - name: Save build evidence and unsigned IPA
+      - name: Save compact validation evidence and optional IPA
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ledger-ios-${{ github.run_number }}
           path: |
-            build/ios/*/artifacts/
+            build/ios/*/artifacts/*.json
+            build/ios/*/artifacts/*.txt
+            build/ios/*/artifacts/Package.resolved
+            build/ios/*/artifacts/*.ipa
+            build/ios/*/artifacts/*.sha256
+            build/ios/*/artifacts/screenshots/*.png
+            build/ios/*/artifacts/screenshots/*.json
             build/ios/*/logs/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 7
+
+      - name: Preserve full test bundle for failure diagnosis
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ledger-ios-${{ github.run_number }}-diagnostics
+          path: build/ios/*/artifacts/AppTests.xcresult/
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 7

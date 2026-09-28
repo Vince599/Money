@@ -4,11 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-VALIDATION_SCOPE="${LEDGER_VALIDATION_SCOPE:-full}"
-case "$VALIDATION_SCOPE" in
-  full|calculator) ;;
-  *) printf 'Unsupported validation scope: %s\n' "$VALIDATION_SCOPE" >&2; exit 1 ;;
-esac
+source "$ROOT/scripts/validation-scope.sh"
+configure_validation_scope
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   printf '%s\n' 'This script requires macOS and the pinned Xcode. On Windows use scripts/test-core.ps1.' >&2
@@ -32,7 +29,7 @@ ARTIFACTS="$RUN_DIR/artifacts"
 LOGS="$RUN_DIR/logs"
 mkdir -p "$ARTIFACTS" "$LOGS"
 cp "$ROOT/config/toolchain.json" "$ARTIFACTS/toolchain-config.json"
-printf 'scope=%s\nsource=%s\nrun=%s\n' "$VALIDATION_SCOPE" "${GITHUB_SHA:-local-unversioned}" "${GITHUB_RUN_ID:-local}" > "$ARTIFACTS/validation-scope.txt"
+printf 'scope=%s\nuiSuite=%s\npackageIPA=%s\nsource=%s\nrun=%s\n' "$VALIDATION_SCOPE" "$UI_SUITE" "$PACKAGE_IPA" "${GITHUB_SHA:-local-unversioned}" "${GITHUB_RUN_ID:-local}" > "$ARTIFACTS/validation-scope.txt"
 
 if [[ ! -d "$DEVELOPER_DIR" ]]; then
   printf 'Required Xcode is unavailable: %s\n' "$DEVELOPER_DIR" | tee "$LOGS/toolchain-error.log" >&2
@@ -98,10 +95,10 @@ grdb = [pin for pin in lock["pins"] if pin["identity"].lower() == "grdb.swift"]
 if len(grdb) != 1 or grdb[0]["state"].get("version") != sys.argv[2]:
     raise SystemExit("Resolved GRDB does not match config/toolchain.json.")
 PY
-if [[ "$VALIDATION_SCOPE" == "full" ]]; then
+if [[ "$RUN_PACKAGE_TESTS" == true ]]; then
   xcrun swift test --configuration debug --disable-automatic-resolution 2>&1 | tee "$LOGS/package-tests.log"
 else
-  printf '%s\n' 'Focused validation: package tests are not run.' | tee "$LOGS/package-tests.log"
+  printf '%s\n' 'Selected scope: package tests are not run.' | tee "$LOGS/package-tests.log"
 fi
 "$XCODEGEN" generate --spec "$ROOT/project.yml" 2>&1 | tee "$LOGS/project-generation.log"
 
@@ -109,6 +106,9 @@ XCODE_LOCK_DIR="$ROOT/Ledger.xcodeproj/project.xcworkspace/xcshareddata/swiftpm"
 mkdir -p "$XCODE_LOCK_DIR"
 cp "$ROOT/Package.resolved" "$XCODE_LOCK_DIR/Package.resolved"
 
+SIMULATOR_ID="not-started"
+SIMULATOR_DESTINATION="generic/platform=iOS Simulator"
+if [[ "$SIMULATOR_ACTION" == test ]]; then
 xcrun simctl list devices available --json > "$LOGS/simulators.json"
 SIMULATOR_ID="$(python3 - "$LOGS/simulators.json" "$SIMULATOR_RUNTIME" <<'PY'
 import json
@@ -125,15 +125,13 @@ print(phones[0]["udid"])
 PY
 )"
 printf 'runtime=%s\nudid=%s\n' "$SIMULATOR_RUNTIME" "$SIMULATOR_ID" > "$LOGS/selected-simulator.log"
+SIMULATOR_DESTINATION="platform=iOS Simulator,id=$SIMULATOR_ID"
+fi
 
 TEST_STATUS=0
-SIMULATOR_TEST_ARGS=(-parallel-testing-enabled NO)
-if [[ "$VALIDATION_SCOPE" == "calculator" ]]; then
-  SIMULATOR_TEST_ARGS+=('-only-testing:LedgerUITests/LedgerUITests/testCalculatorCopyAndSearchFilters')
-fi
-xcodebuild test \
+xcodebuild "$SIMULATOR_ACTION" \
   -project Ledger.xcodeproj -scheme Ledger -configuration Debug \
-  -sdk iphonesimulator -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+  -sdk iphonesimulator -destination "$SIMULATOR_DESTINATION" \
   -destination-timeout 180 \
   -derivedDataPath "$RUN_DIR/DerivedData" \
   -resultBundlePath "$ARTIFACTS/AppTests.xcresult" \
@@ -146,16 +144,16 @@ xcodebuild test \
 # Xcode 16+ has a dedicated attachment exporter. Preserve the current tool's
 # help as evidence and export keepAlways UI screenshots even when tests fail.
 ATTACHMENT_STATUS=0
-if [[ -d "$ARTIFACTS/AppTests.xcresult" ]]; then
+if [[ "$SIMULATOR_ACTION" == test && -d "$ARTIFACTS/AppTests.xcresult" ]]; then
   mkdir -p "$ARTIFACTS/screenshots"
   xcrun xcresulttool help export attachments > "$LOGS/xcresult-attachments-help.log" 2>&1 || ATTACHMENT_STATUS=$?
-  if [[ "$ATTACHMENT_STATUS" -eq 0 ]]; then
+  if [[ "$RUN_UI_TESTS" == true && "$ATTACHMENT_STATUS" -eq 0 ]]; then
     xcrun xcresulttool export attachments \
       --path "$ARTIFACTS/AppTests.xcresult" --output-path "$ARTIFACTS/screenshots" \
       2>&1 | tee "$LOGS/attachment-export.log" || ATTACHMENT_STATUS=$?
   fi
   xcrun xcresulttool get test-results summary --path "$ARTIFACTS/AppTests.xcresult" \
-    > "$ARTIFACTS/test-summary.json" 2> "$LOGS/test-summary-error.log" || true
+    > "$ARTIFACTS/test-summary.json" 2> "$LOGS/test-summary-error.log" || ATTACHMENT_STATUS=$?
 fi
 if [[ "$TEST_STATUS" -ne 0 ]]; then
   exit "$TEST_STATUS"
@@ -164,9 +162,13 @@ if [[ "$ATTACHMENT_STATUS" -ne 0 ]]; then
   printf '%s\n' 'Tests passed, but screenshot attachment export failed.' >&2
   exit "$ATTACHMENT_STATUS"
 fi
-if ! find "$ARTIFACTS/screenshots" -type f -iname '*.png' -print -quit | grep -q .; then
+if [[ "$RUN_UI_TESTS" == true ]] && ! find "$ARTIFACTS/screenshots" -type f -iname '*.png' -print -quit | grep -q .; then
   printf '%s\n' 'The UI smoke test produced no PNG attachment. Check its keepAlways screenshot.' >&2
   exit 1
+fi
+
+if [[ "$SIMULATOR_ACTION" == test ]]; then
+  python3 "$ROOT/scripts/check-test-summary.py" "$ARTIFACTS/test-summary.json"
 fi
 
 xcodebuild build \
@@ -193,28 +195,32 @@ if [[ -e "$APP/embedded.mobileprovision" ]]; then
   exit 1
 fi
 
-if [[ "$VALIDATION_SCOPE" != "full" ]]; then
-  # A focused regression must never produce an IPA or full-validation metadata.
-  python3 - "$ARTIFACTS/focused-validation.json" "$VALIDATION_SCOPE" "$ARCHITECTURES" <<'PY'
+python3 - "$ARTIFACTS/validation-result.json" "$VALIDATION_SCOPE" "$UI_SUITE" "$ARCHITECTURES" "$SIMULATOR_ID" <<'PYMETA'
 import json
 import os
 import sys
 
+scope = sys.argv[2]
 metadata = {
     "sourceCommit": os.environ.get("GITHUB_SHA", "local-unversioned"),
     "githubRunID": os.environ.get("GITHUB_RUN_ID"),
-    "scope": sys.argv[2],
-    "architectures": sys.argv[3],
-    "status": "focused UI regression and Release build passed",
-    "packageTests": "not run",
+    "scope": scope,
+    "uiSuite": sys.argv[3] if scope == "ui" else ("all" if scope == "full" else "not run"),
+    "architectures": sys.argv[4],
+    "simulatorUDID": sys.argv[5],
+    "status": "selected validation scope and Release build passed",
+    "packageTests": "passed" if scope in ("full", "business") else "not run",
+    "appTests": "passed" if scope in ("full", "business") else "not run",
+    "uiTests": "passed" if scope in ("full", "ui") else "not run",
     "deviceInstallation": "not verified",
     "ipaProduced": False,
 }
 with open(sys.argv[1], "w", encoding="utf-8") as output:
     json.dump(metadata, output, indent=2)
     output.write("\n")
-PY
-  printf 'Focused validation evidence (no IPA): %s\n' "$ARTIFACTS"
+PYMETA
+if [[ "$PACKAGE_IPA" != true ]]; then
+  printf 'Validation evidence (no IPA): %s\n' "$ARTIFACTS"
   exit 0
 fi
 
@@ -244,4 +250,14 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
     json.dump(metadata, output, ensure_ascii=False, indent=2)
     output.write("\n")
 PY
+python3 - "$ARTIFACTS/validation-result.json" <<'PYRESULT'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as source:
+    result = json.load(source)
+result["ipaProduced"] = True
+with open(sys.argv[1], "w", encoding="utf-8") as output:
+    json.dump(result, output, indent=2)
+    output.write("\n")
+PYRESULT
 printf 'Unsigned IPA and build evidence: %s\n' "$ARTIFACTS"

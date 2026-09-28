@@ -70,27 +70,29 @@ Windows 测试覆盖金额、分录、账户与交易规则等已实现的核心
 
 ## macOS / GitHub Actions
 
+2026-09-28 起采用[按批次验证流程](VALIDATION_PLAN.md)：默认业务测试，不再每个小改动完整回归；夜间或阶段收尾选完整验证，打包另行显式开启。本批入口调整尚待 Apple 实际执行，历史成功记录不代表新入口已验收。
+
 在具备固定 Xcode 的 Mac 执行唯一入口：
 
 ```bash
 bash scripts/build-ios.sh
 ```
 
-脚本按顺序执行：
+脚本按所选范围执行：
 
 1. 核对工具链；下载并校验固定版 XcodeGen 到本项目 `.tools/`，不执行全局安装。
-2. 解析精确的 Swift package 依赖，运行核心与 Apple 存储包测试。
+2. 解析精确的 Swift package 依赖；`business`／`full` 执行 Core 与 Store 包测试。
 3. 从 `project.yml` 生成 `Ledger.xcodeproj`，将实际 `Package.resolved` 提供给 Xcode。
-4. 在固定 iOS 26.5 运行时选择可用 iPhone，运行 `LedgerAppTests` 和 `LedgerUITests`，保存 `.xcresult`；UI 测试的截图附件导出到 `artifacts/screenshots/`。
-5. 编译 `iphoneos` 的 arm64 Release App，确认产品平台和 Bundle ID，打包未签名 `Payload/Ledger.app` 为 IPA。
+4. `compile` 只构建模拟器测试目标；其他范围在固定 iOS 26.5 iPhone 模拟器执行所选 App／UI 测试并保存 `.xcresult`。有 UI 测试时导出 PNG，实际测试摘要须全部通过且无跳过。
+5. 所有范围编译 `iphoneos` arm64 Release 并确认平台和 Bundle ID；仅 `full` 且 `LEDGER_PACKAGE_IPA=true` 才在同轮完整验证后打包 IPA。
 
 根 `Package.resolved` 已由首次 macOS 解析生成、核对并提交。Windows 的核心-only manifest 不能代替 Apple 依赖锁；后续解析或依赖升级造成的锁变化应审查后提交，不手写未验证的锁文件。
 
-项目远端为 [Vince599/Money](https://github.com/Vince599/Money)。工作流仅接受 `workflow_dispatch` 手动触发，没有 push、PR、定时触发和发布步骤。将代码及工作流同步到仓库后，在 Actions 中选择 **iOS validation and unsigned IPA**，手动选择要验证的分支运行。配置文件存在不代表已经推送、触发或构建成功，应以具体运行记录为准。首次使用私有仓库前核对其 Actions 配额与付费设置。
+项目远端为 [Vince599/Money](https://github.com/Vince599/Money)。工作流仅接受 `workflow_dispatch` 手动触发，没有 push、PR、定时触发和发布步骤。将代码及工作流同步到仓库后，在 Actions 中选择 **iOS batch validation**，手动选择要验证的分支运行。配置文件存在不代表已经推送、触发或构建成功，应以具体运行记录为准。首次使用私有仓库前核对其 Actions 配额与付费设置。
 
 首次注册手动工作流时，`.github/workflows/ios.yml` 必须已存在于仓库默认分支；之后可选择其他分支运行。仅将新增工作流推到非默认分支，不能保证出现手动运行入口。参见 [GitHub 手动运行工作流说明](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)。
 
-成功产物位于 `build/ios/<时间戳>/artifacts/`，包括 `Ledger-unsigned.ipa`、SHA-256、实际依赖锁、工具基线、构建元数据和测试结果。`screenshots/` 保存导出的 PNG 与附件清单，可从下载的 artifact 直接查看；`test-summary.json` 在工具可读取结果时保存测试摘要。日志位于同级 `logs/`；失败时仍尝试导出已有截图、保存已有日志，然后保留原测试失败状态。测试成功但截图导出失败或没有 PNG 时，不继续打包 IPA。GitHub artifact 保留 7 天，不能作为账本备份。
+产物位于 `build/ios/<时间戳>/artifacts/`，记录实际范围、依赖锁、工具基线、验证结果及可用测试摘要；日志位于同级 `logs/`。默认上传摘要、日志、PNG／附件清单，失败另存完整 xcresult 诊断包；不默认下载大型诊断包。只有完整验证并勾选打包时含 IPA、SHA-256 和成功构建元数据。失败保留实际失败状态；含 UI 的范围若截图导出失败或无 PNG，也不能成功。GitHub artifact 保留 7 天，不能作为账本备份。
 
 截图使用 [Apple 在 Xcode 16 起提供的 `xcresulttool export attachments` 命令](https://developer.apple.com/documentation/xcode-release-notes/xcode-16_3-release-notes)。脚本同时保存当前固定 Xcode 的 `help export attachments` 输出；运行 #4 实际导出 3 张截图，第三批运行 #9 导出 5 张，账户模板整合运行 #19 导出 6 张。
 
@@ -233,6 +235,12 @@ Windows 已下载并核对 [ledger-ios-29 内部产物](https://github.com/Vince
 
 已下载并核验 [ledger-ios-42 定向验证产物](https://github.com/Vince599/Money/actions/runs/36370980219/artifacts/10949611850)：99,959,778 字节，SHA-256 `60bf3a4bcae8ba0174d50dd2d0b963213540350d23556016920fde3910333e49` 与 GitHub 一致。源码、运行编号和 `calculator` 范围匹配；测试摘要为 1 通过、0 失败、0 跳过，`focused-validation.json` 确认 arm64 Release 编译通过、包测试未运行及 `ipaProduced: false`，归档中确实没有 IPA 或完整成功构建元数据。记录为 `build/validation/run-42-internal/review/review.json`；未把原有计算器／搜索截图重复计为新视觉验收。未执行发布脚本，固定安装目录不变。
 
-### 完整验证与定向补测
+### 运行 #42 时的验证入口（历史）
 
-手动工作流 `validation_scope` 默认 `full`，继续执行全部包测试、App／UI 测试、Release 编译和内部未签名 IPA 打包。`calculator` 仅运行 `LedgerUITests/testCalculatorCopyAndSearchFilters` 及 arm64 Release 编译，用于相关测试驱动修正后的补测；不执行包测试，不生成 IPA 或 `build-metadata.json`，只记录 `focused-validation.json`、测试结果和截图。macOS 本地等价入口为 `LEDGER_VALIDATION_SCOPE=calculator bash scripts/build-ios.sh`；未知范围直接拒绝。所有运行记录 `validation-scope.txt`，定向成功不能替代完整构建或作为安装包交付依据。
+以下为 #42 使用的入口；后续已改为[按批次验证流程](VALIDATION_PLAN.md)。当时手动工作流 `validation_scope` 默认 `full`，继续执行全部包测试、App／UI 测试、Release 编译和内部未签名 IPA 打包。`calculator` 仅运行 `LedgerUITests/testCalculatorCopyAndSearchFilters` 及 arm64 Release 编译，用于相关测试驱动修正后的补测；不执行包测试，不生成 IPA 或 `build-metadata.json`，只记录 `focused-validation.json`、测试结果和截图。macOS 本地等价入口为 `LEDGER_VALIDATION_SCOPE=calculator bash scripts/build-ios.sh`；未知范围直接拒绝。所有运行记录 `validation-scope.txt`，定向成功不能替代完整构建或作为安装包交付依据。
+
+## 2026-09-28：验证流程分层与退款关联筛选（待 Apple 执行）
+
+按用户确认增加 compile／business／ui／full 范围，默认 business、不打包。UI 可选择七条现有路径或全部；仅 full 显式打包才产生交付元数据。正常上传精简证据，失败另存完整诊断包，源码依赖和工具链不变。8 项可移植范围／结果门禁检查与 Bash 语法检查通过，尚未触发新工作流。
+
+同期新增退款／出售回收关联筛选，Core 249 项／26 套件通过，56 个 Apple 侧 Swift 文件语法解析通过；新增 2 Store 用例及扩展退款 UI 尚待验证。当前不会将旧 #41／#42 的通过记录计入新代码。下一次按批次选择 business／refunds 专项，晚间 full；不发布中间 IPA。执行约定和完整待验证清单见[验证计划](VALIDATION_PLAN.md)。

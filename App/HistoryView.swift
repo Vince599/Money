@@ -142,6 +142,15 @@ struct HistoryFilterView: View {
                     }
                 } footer: { Text("条件同时满足才会显示；转账可通过转出或转入账户找到，一级分类包含其二级分类。") }
                 Section {
+                    Picker("退款／回收关联", selection: $value.recoveryLinkMode) {
+                        Text("全部流水").tag(EntryRecoveryLinkMode.all)
+                        Text("有关联").tag(EntryRecoveryLinkMode.linked)
+                        Text("无关联").tag(EntryRecoveryLinkMode.unlinked)
+                    }.accessibilityIdentifier("filter.recoveryLink")
+                } footer: {
+                    Text("有关联包含原支出及对应退款、出售回收。关联按全部历史判断，其他筛选只限定本次显示的流水；不会修改原额或净花费。")
+                }
+                Section {
                     Picker("来源关联", selection: $value.importSourceMode) {
                         Text("全部流水").tag(EntryImportSourceMode.all)
                         Text("有导入来源").tag(EntryImportSourceMode.linked)

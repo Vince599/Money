@@ -18,6 +18,8 @@ Thumbs.db
 *.xcuserstate
 xcuserdata/
 .vs/
+__pycache__/
+*.pyc
 
 # Credentials and local financial data do not belong in source control.
 .env

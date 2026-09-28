@@ -2,6 +2,7 @@ import Foundation
 
 public enum TagMatchMode: String, CaseIterable, Sendable { case all, any }
 public enum EntryImportSourceMode: String, CaseIterable, Sendable { case all, linked, unlinked }
+public enum EntryRecoveryLinkMode: String, CaseIterable, Sendable { case all, linked, unlinked }
 
 /// Transient list conditions. All populated conditions are combined with AND.
 public struct EntryFilter: Equatable, Sendable {
@@ -10,6 +11,7 @@ public struct EntryFilter: Equatable, Sendable {
     public var projectID: UUID?
     public var importSourceMode: EntryImportSourceMode
     public var importNamespace: String?
+    public var recoveryLinkMode: EntryRecoveryLinkMode
     public var keyword: String
     public var kind: EntryKind?
     public var accountID: UUID?
@@ -28,9 +30,11 @@ public struct EntryFilter: Equatable, Sendable {
                 minimumMinor: Int64? = nil, maximumMinor: Int64? = nil,
                 from: Date? = nil, to: Date? = nil, tagIDs: Set<UUID> = [],
                 tagMatch: TagMatchMode = .all, projectID: UUID? = nil,
-                importSourceMode: EntryImportSourceMode = .all, importNamespace: String? = nil) {
+                importSourceMode: EntryImportSourceMode = .all, importNamespace: String? = nil,
+                recoveryLinkMode: EntryRecoveryLinkMode = .all) {
         self.tagIDs = tagIDs; self.tagMatch = tagMatch; self.projectID = projectID
         self.importSourceMode = importSourceMode; self.importNamespace = importNamespace
+        self.recoveryLinkMode = recoveryLinkMode
         self.keyword = keyword; self.kind = kind; self.accountID = accountID
         self.categoryID = categoryID; self.subjectID = subjectID; self.currency = currency
         self.minimumMinor = minimumMinor; self.maximumMinor = maximumMinor
@@ -43,6 +47,7 @@ public struct EntryFilter: Equatable, Sendable {
         lhs.keyword.utf8.elementsEqual(rhs.keyword.utf8)
             && lhs.tagIDs == rhs.tagIDs && lhs.tagMatch == rhs.tagMatch && lhs.projectID == rhs.projectID
             && lhs.importSourceMode == rhs.importSourceMode && lhs.importNamespace == rhs.importNamespace
+            && lhs.recoveryLinkMode == rhs.recoveryLinkMode
             && lhs.kind == rhs.kind && lhs.accountID == rhs.accountID
             && lhs.categoryID == rhs.categoryID && lhs.subjectID == rhs.subjectID
             && lhs.currency == rhs.currency && lhs.minimumMinor == rhs.minimumMinor
@@ -108,6 +113,10 @@ public enum EntryQuery {
         if filter.importSourceMode == .unlinked && filter.importNamespace != nil { return [] }
         let restrictSources = filter.importSourceMode != .all || filter.importNamespace != nil
         let sourceIDs = restrictSources ? importSourceEntryIDs(in: book.importBatches, namespace: filter.importNamespace) : []
+        // Determine links from the whole book before applying date/account/source conditions.
+        // A refund outside the visible period still links its original purchase.
+        let recoveredIDs: Set<UUID> = filter.recoveryLinkMode == .all ? [] :
+            Set(book.entries.lazy.filter { $0.kind.isRecovery }.compactMap(\.originalEntryID))
         let keyword = filter.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         let categoryIDs: Set<UUID>?
         if let categoryID = filter.categoryID {
@@ -121,6 +130,10 @@ public enum EntryQuery {
             categoryIDs = nil
         }
         return book.entries.filter { entry in
+            if filter.recoveryLinkMode != .all {
+                let linked = (entry.kind.isRecovery && entry.originalEntryID != nil) || recoveredIDs.contains(entry.id)
+                if filter.recoveryLinkMode == .linked ? !linked : linked { return false }
+            }
             if restrictSources,
                filter.importSourceMode == .unlinked ? sourceIDs.contains(entry.id) : !sourceIDs.contains(entry.id) { return false }
             if let id = filter.projectID, entry.projectID != id { return false }

@@ -225,6 +225,16 @@ public final class SQLiteLedgerStore: Sendable {
                 }
             }
             if let kind = filter.kind { add("kind = ?", [kind.rawValue.databaseValue]) }
+            if filter.recoveryLinkMode != .all {
+                // Membership keeps one row per entry even for multiple partial recoveries.
+                // The subquery intentionally ignores the outer date/account/source filters.
+                let linked = """
+                    ((kind IN ('refund', 'recovery') AND original_entry_id IS NOT NULL)
+                     OR id IN (SELECT original_entry_id FROM entries
+                       WHERE kind IN ('refund', 'recovery') AND original_entry_id IS NOT NULL))
+                    """
+                add(filter.recoveryLinkMode == .linked ? linked : "NOT \(linked)", [])
+            }
             if let id = filter.accountID {
                 add("(account_id = ? OR (kind = 'transfer' AND destination_account_id = ?))",
                     [id.uuidString.databaseValue, id.uuidString.databaseValue])
